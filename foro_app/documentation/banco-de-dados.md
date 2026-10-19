@@ -183,6 +183,5 @@ Sem alterações estruturais — ver [pagamentos.md](./pagamentos.md).
 
 ## Pendências conhecidas (fora do escopo deste schema)
 
-- **Envio real de e-mail/SMS**: `sendVerificationCode()` e `forgotPassword()` hoje só **logam no console** o código/link — não há provedor de e-mail (Resend/SendGrid/SMTP) nem de SMS (Twilio/Zenvia) integrado. Necessário escolher um provedor antes de ir para produção.
-- **Bloqueio de login por e-mail/celular não verificado**: hoje a verificação **não impede** o login — ela só habilita o fluxo seguro de redefinição de senha. Se quiser exigir verificação antes de liberar o uso completo da plataforma, será necessário also construir a tela de confirmação de código no frontend (ainda não existe).
+- **Envio real de SMS**: a verificação por `channel: 'phone'` ainda só **loga no console** o código — nenhum provedor de SMS (Twilio/Zenvia) foi integrado. O e-mail já envia de verdade via Resend (`services/email.service.js`) desde que `RESEND_API_KEY` esteja configurada.
 - **Suspensão automática por inadimplência**: o webhook do Asaas atualiza `payments.status`, mas não há regra automática que suspenda `accounts.status` em caso de assinatura vencida — hoje isso seria manual via `PATCH /api/admin/accounts/:id/status`.

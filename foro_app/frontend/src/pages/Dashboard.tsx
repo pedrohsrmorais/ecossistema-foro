@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query'
-import { leadsApi } from '../api'
+import { leadsApi, tasksApi } from '../api'
 import { Users, CheckSquare, TrendingUp } from 'lucide-react'
 
 export default function Dashboard() {
@@ -10,7 +10,7 @@ export default function Dashboard() {
 
   const { data: tasks = [] } = useQuery({
     queryKey: ['tasks-pending'],
-    queryFn: () => import('../api').then(m => m.tasksApi.listAll({ pending_only: true, limit: 5 })),
+    queryFn: () => tasksApi.listAll({ pending_only: true, limit: 5 }),
   })
 
   const total = funnel.reduce((acc: number, s: any) => acc + s.total, 0)

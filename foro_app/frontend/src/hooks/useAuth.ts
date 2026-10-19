@@ -1,14 +1,6 @@
-import { useContext } from 'react'
-import { AuthContext } from '../context/AuthContext'
-
 /**
- * Hook para acessar o contexto de autenticação.
- * Lança erro se usado fora do AuthProvider.
+ * Reexporta o hook de autenticação definido em context/AuthContext.tsx.
+ * Mantido como um módulo próprio em hooks/ para quem espera encontrá-lo aqui;
+ * a lógica (contexto, estado, login/register/logout) vive só em um lugar.
  */
-export function useAuth() {
-  const ctx = useContext(AuthContext)
-  if (!ctx) {
-    throw new Error('useAuth deve ser usado dentro do AuthProvider')
-  }
-  return ctx
-}
+export { useAuth } from '../context/AuthContext'

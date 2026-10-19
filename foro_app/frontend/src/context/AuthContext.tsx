@@ -6,15 +6,18 @@ interface User {
   name: string
   email: string
   role: string
+  email_verified?: boolean
+  phone_verified?: boolean
 }
 
 interface AuthContextType {
   user: User | null
   token: string | null
   isLoading: boolean
-  login: (email: string, password: string) => Promise<void>
-  register: (data: { name: string; email: string; password: string; accountName: string }) => Promise<void>
+  login: (email: string, password: string) => Promise<AuthResponse>
+  register: (data: { name: string; email: string; password: string; phone?: string; accountName: string }) => Promise<AuthResponse>
   logout: () => void
+  markEmailVerified: () => void
 }
 
 const AuthContext = createContext<AuthContextType | null>(null)
@@ -44,11 +47,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   async function login(email: string, password: string) {
     const res = await authApi.login({ email, password })
     _storeSession(res)
+    return res
   }
 
-  async function register(data: { name: string; email: string; password: string; accountName: string }) {
+  async function register(data: { name: string; email: string; password: string; phone?: string; accountName: string }) {
     const res = await authApi.register(data)
     _storeSession(res)
+    return res
   }
 
   function logout() {
@@ -58,8 +63,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(null)
   }
 
+  /**
+   * Atualiza o usuário local como "e-mail verificado" após o sucesso de
+   * POST /auth/verify-code — evita precisar relogar para desbloquear o acesso.
+   */
+  function markEmailVerified() {
+    setUser(prev => {
+      if (!prev) return prev
+      const updated = { ...prev, email_verified: true }
+      localStorage.setItem('foro_user', JSON.stringify(updated))
+      return updated
+    })
+  }
+
   return (
-    <AuthContext.Provider value={{ user, token, isLoading, login, register, logout }}>
+    <AuthContext.Provider value={{ user, token, isLoading, login, register, logout, markEmailVerified }}>
       {children}
     </AuthContext.Provider>
   )

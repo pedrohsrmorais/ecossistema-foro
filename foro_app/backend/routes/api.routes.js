@@ -25,7 +25,7 @@ const webhooksController    = require('../controllers/webhooks.controller');
 const settingsController    = require('../controllers/settings.controller');
 const adminController       = require('../controllers/admin.controller');
 
-const { authenticate }        = require('../middlewares/auth.middleware');
+const { authenticate, requireVerifiedEmail } = require('../middlewares/auth.middleware');
 const { loadClientContext }   = require('../middlewares/client.middleware');
 const { authenticatePlatform } = require('../middlewares/platform.middleware');
 const { validate }            = require('../middlewares/validation.middleware');
@@ -57,13 +57,16 @@ router.post  ('/webhooks/nfeio',       webhooksController.nfeio);
 router.use(authenticate);
 router.use(loadClientContext);
 
-// ─── Verificação de e-mail/celular (OTP) ──────────────────────────────────────
+// ─── Verificação de e-mail/celular (OTP) — acessível mesmo sem verificar ──────
 router.post('/auth/send-verification', validate(authValidations.sendVerification), authController.sendVerification);
 router.post('/auth/verify-code',       validate(authValidations.verifyCode),       authController.verifyCode);
+router.get  ('/users/me',              usersController.me); // exposto antes do gate p/ a tela "Confirme seu e-mail" exibir o e-mail
+
+// ─── A partir daqui, exige e-mail confirmado (ver requireVerifiedEmail) ───────
+router.use(requireVerifiedEmail);
 
 // ─── Usuários ─────────────────────────────────────────────────────────────────
 router.get   ('/users',                usersController.list);
-router.get   ('/users/me',             usersController.me);
 router.put   ('/users/me',             usersController.updateMe);
 router.put   ('/users/me/password',    usersController.changePassword);
 router.get   ('/users/:id',            usersController.getById);

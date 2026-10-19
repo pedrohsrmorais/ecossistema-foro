@@ -4,6 +4,7 @@ const crypto = require('crypto');
 const { v4: uuidv4 } = require('uuid');
 const { query, transaction } = require('../configs/db.config');
 const { AppError } = require('../middlewares/error.middleware');
+const emailService = require('./email.service');
 
 const VERIFICATION_CODE_TTL_MIN = 10;   // validade do código de e-mail/celular
 const RESET_TOKEN_TTL_MIN = 60;         // validade do link de redefinição de senha
@@ -141,9 +142,12 @@ async function sendVerificationCode(userId, channel) {
     [userId, channel, code, expiresAt]
   );
 
-  // TODO: integrar provedor real de e-mail (ex: Resend/SendGrid) e SMS (ex: Twilio/Zenvia).
-  const destination = channel === 'email' ? user.email : user.phone;
-  console.log(`[DEV] Código de verificação (${channel}) para ${destination}: ${code} (expira em ${VERIFICATION_CODE_TTL_MIN} min)`);
+  if (channel === 'email') {
+    await emailService.sendVerificationEmail(user.email, code, VERIFICATION_CODE_TTL_MIN);
+  } else {
+    // TODO: integrar provedor de SMS (ex: Twilio/Zenvia) — nenhum foi escolhido ainda.
+    console.log(`[DEV] Código de verificação (phone) para ${user.phone}: ${code} (expira em ${VERIFICATION_CODE_TTL_MIN} min)`);
+  }
 
   return { sent: true, channel, expires_in_minutes: VERIFICATION_CODE_TTL_MIN };
 }
@@ -205,9 +209,8 @@ async function forgotPassword(email) {
     [user.id, tokenHash, expiresAt]
   );
 
-  // TODO: integrar provedor real de e-mail. Por enquanto, loga o link no console.
   const resetUrl = `${process.env.FRONTEND_URL || 'http://localhost:5173'}/reset-password?token=${token}`;
-  console.log(`[DEV] Link de redefinição de senha para ${email}: ${resetUrl} (expira em ${RESET_TOKEN_TTL_MIN} min)`);
+  await emailService.sendPasswordResetEmail(email, resetUrl, RESET_TOKEN_TTL_MIN);
 }
 
 async function resetPassword(token, password) {

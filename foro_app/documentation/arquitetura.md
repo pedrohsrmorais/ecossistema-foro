@@ -78,11 +78,15 @@ Fluxo por requisição:
 - Refresh token: `POST /api/auth/refresh-token`
 - Roles: `admin` (dono do escritório) e `user` (advogados/assistentes)
 
-### Cadastro, trial e pagamento
+### Cadastro, verificação de e-mail e trial
 
-O cadastro **não exige pagamento nem verificação de e-mail/celular** para liberar o acesso: `POST /api/auth/register` cria a conta (status `trialing`, 14 dias) + usuário admin e já retorna o JWT — login é imediato. A verificação de e-mail/celular (`POST /api/auth/send-verification` + `POST /api/auth/verify-code`) existe e é disparada automaticamente no cadastro, mas hoje serve para habilitar o fluxo seguro de **recuperação de senha** — ela não bloqueia o login.
+O cadastro **não exige pagamento** para liberar o acesso, mas **exige e-mail confirmado**: `POST /api/auth/register` cria a conta (status `trialing`, 14 dias) + usuário admin, já retorna o JWT, e dispara automaticamente um código de verificação por e-mail (via Resend — ver `services/email.service.js`). O JWT é emitido imediatamente porque é ele que autentica a própria chamada de confirmação (`POST /auth/verify-code`) — sem token não haveria como confirmar o código.
 
-Quando o trial expira (`accounts.trial_ends_at`) sem uma assinatura ativa, o `client.middleware.js` passa a responder `403 { code: 'TRIAL_EXPIRED' }` em toda rota protegida, até que `POST /api/payments/subscription` seja chamado (o que muda `accounts.status` para `active`).
+A partir daí, o middleware `requireVerifiedEmail` (em `auth.middleware.js`) bloqueia **todas** as rotas protegidas com `403 { code: 'EMAIL_NOT_VERIFIED' }` até que `users.email_verified_at` seja preenchido. Ficam deliberadamente fora desse bloqueio — registradas antes do `router.use(requireVerifiedEmail)` em `api.routes.js` — apenas três rotas: `POST /auth/send-verification`, `POST /auth/verify-code` e `GET /users/me` (para a tela "Confirme seu e-mail" conseguir mostrar o e-mail e reenviar o código). No frontend, `components/RequireVerified.tsx` replica essa mesma regra redirecionando para `/verify-email`.
+
+A verificação de **celular** (`channel: 'phone'`) usa a mesma tabela/endpoints, mas não é obrigatória — nenhum provedor de SMS foi integrado ainda (ver pendências em [banco-de-dados.md](./banco-de-dados.md)).
+
+Quando o trial expira (`accounts.trial_ends_at`) sem uma assinatura ativa, o `client.middleware.js` responde `403 { code: 'TRIAL_EXPIRED' }` em toda rota protegida, até que `POST /api/payments/subscription` seja chamado (o que muda `accounts.status` para `active`).
 
 ### Painel administrativo da plataforma
 

@@ -59,7 +59,7 @@ POST /auth/send-verification   (autenticado)
 Body: { channel: "email" | "phone" }
 Response 200: { sent: true, channel, expires_in_minutes: 10 }
 ```
-> Hoje o código só é **logado no console do servidor** — não há provedor de e-mail/SMS integrado ainda.
+> `channel: "email"` envia de verdade via Resend. `channel: "phone"` ainda só loga no console — nenhum provedor de SMS foi integrado.
 
 ### Confirmar código de verificação
 ```
@@ -67,6 +67,7 @@ POST /auth/verify-code   (autenticado)
 Body: { channel: "email" | "phone", code: "123456" }
 Response 200: { verified: true, channel }
 ```
+**Importante**: enquanto o e-mail não é confirmado, toda rota protegida abaixo retorna `403 { error, code: "EMAIL_NOT_VERIFIED" }` (ver `requireVerifiedEmail` em `arquitetura.md`). Só `send-verification`, `verify-code` e `GET /users/me` ficam acessíveis antes da confirmação.
 
 ---
 

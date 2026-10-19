@@ -40,6 +40,8 @@ services:
       DB_PASSWORD: ${DB_PASSWORD:-foro_secret}
       JWT_SECRET: ${JWT_SECRET:-change_this_jwt_secret_in_production}
       JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-7d}
+      RESEND_API_KEY: ${RESEND_API_KEY}
+      EMAIL_FROM: ${EMAIL_FROM:-Foro <onboarding@resend.dev>}
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
       ASAAS_API_KEY: ${ASAAS_API_KEY}
       ASAAS_BASE_URL: ${ASAAS_BASE_URL:-https://www.asaas.com/api/v3}

@@ -6,7 +6,7 @@ import { useAuth } from '../context/AuthContext'
 export default function Register() {
   const { register } = useAuth()
   const navigate = useNavigate()
-  const [form, setForm] = useState({ name: '', email: '', password: '', accountName: '' })
+  const [form, setForm] = useState({ name: '', email: '', password: '', phone: '', accountName: '' })
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
 
@@ -20,7 +20,7 @@ export default function Register() {
     setLoading(true)
     try {
       await register(form)
-      navigate('/chat')
+      navigate('/verify-email')
     } catch (err: any) {
       setError(err?.response?.data?.error || 'Erro ao criar conta.')
     } finally {
@@ -61,6 +61,10 @@ export default function Register() {
             <div>
               <label className="block text-sm font-medium text-slate-700 mb-1">Senha</label>
               <input type="password" className="input" value={form.password} onChange={setField('password')} placeholder="Mínimo 8 caracteres" minLength={8} required />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-1">Celular (opcional)</label>
+              <input type="tel" className="input" value={form.phone} onChange={setField('phone')} placeholder="+55 51 99999-9999" />
             </div>
             <button type="submit" className="btn-primary w-full justify-center" disabled={loading}>
               {loading ? 'Criando conta...' : 'Criar conta'}

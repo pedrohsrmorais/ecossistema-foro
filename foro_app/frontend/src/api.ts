@@ -23,13 +23,18 @@ http.interceptors.request.use((config) => {
   return config
 })
 
-// Redireciona para login em 401
+// Redireciona para login em 401, e para a tela de verificação quando o
+// e-mail ainda não foi confirmado (ver requireVerifiedEmail no backend).
 http.interceptors.response.use(
   (res) => res,
   (err) => {
     if (err.response?.status === 401) {
       localStorage.removeItem('foro_token')
+      localStorage.removeItem('foro_user')
       window.location.href = '/login'
+    }
+    if (err.response?.status === 403 && err.response?.data?.code === 'EMAIL_NOT_VERIFIED') {
+      window.location.href = '/verify-email'
     }
     return Promise.reject(err)
   }
@@ -39,7 +44,14 @@ http.interceptors.response.use(
 
 export interface AuthResponse {
   token: string
-  user: { id: string; name: string; email: string; role: string }
+  user: {
+    id: string
+    name: string
+    email: string
+    role: string
+    email_verified?: boolean
+    phone_verified?: boolean
+  }
   account?: { id: string; name: string }
 }
 
@@ -143,7 +155,7 @@ export interface User {
 
 export const authApi = {
   /** POST /auth/register */
-  register: (data: { name: string; email: string; password: string; accountName: string }) =>
+  register: (data: { name: string; email: string; password: string; phone?: string; accountName: string }) =>
     http.post<AuthResponse>('/auth/register', data).then(r => r.data),
 
   /** POST /auth/login */
@@ -161,6 +173,14 @@ export const authApi = {
   /** POST /auth/reset-password */
   resetPassword: (token: string, password: string) =>
     http.post('/auth/reset-password', { token, password }).then(r => r.data),
+
+  /** POST /auth/send-verification — (re)envia o código de verificação */
+  sendVerification: (channel: 'email' | 'phone') =>
+    http.post<{ sent: boolean; channel: string; expires_in_minutes: number }>('/auth/send-verification', { channel }).then(r => r.data),
+
+  /** POST /auth/verify-code — confirma o código de 6 dígitos */
+  verifyCode: (channel: 'email' | 'phone', code: string) =>
+    http.post<{ verified: boolean; channel: string }>('/auth/verify-code', { channel, code }).then(r => r.data),
 }
 
 // ─── USERS ────────────────────────────────────────────────────────────────────

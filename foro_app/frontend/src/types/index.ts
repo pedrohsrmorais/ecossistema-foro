@@ -1,21 +1,16 @@
 // Re-exports all types from api.ts for convenience
-// The canonical type definitions live in src/api.ts
+// A fonte canônica de cada tipo vive em src/api.ts — este arquivo só reexporta.
 
 export type {
   AuthResponse,
   User,
   Lead,
-  LeadStage,
   Note,
   Task,
   FieldDefinition,
-  FieldType,
   PaginatedResult,
   FunnelStage,
   AiMessage,
   AiChatResponse,
-  AiUsage,
   Payment,
-  NfseRecord,
-  AccountSettings,
 } from '../api'
