@@ -87,6 +87,7 @@ foro_app/
 ├── documentation/
 │   ├── README.md               # Este arquivo
 │   ├── arquitetura.md          # Decisões de arquitetura
+│   ├── banco-de-dados.md       # Schema completo, tabelas e relacionamentos
 │   ├── pagamentos.md           # Asaas + NFS-e
 │   └── api-reference.md        # Referência de todas as rotas
 └── docker-compose.yml
@@ -156,3 +157,9 @@ Cada conta (`account_id`) é completamente isolada. O `client.middleware.js` inj
 O arquivo `frontend/src/api.ts` enumera **todas** as chamadas à API, mapeando 1:1 com `routes/api.routes.js`. Se você precisar recriar o frontend do zero, todas as operações disponíveis estão documentadas nesse arquivo único.
 
 Veja: [api-reference.md](./api-reference.md)
+
+---
+
+## Banco de dados
+
+Schema único e versionado em `backend/configs/init.sql` — executado automaticamente pelo Docker. Ver documentação completa (tabelas, relacionamentos, seeds): [banco-de-dados.md](./banco-de-dados.md)

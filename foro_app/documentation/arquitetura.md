@@ -78,6 +78,16 @@ Fluxo por requisição:
 - Refresh token: `POST /api/auth/refresh-token`
 - Roles: `admin` (dono do escritório) e `user` (advogados/assistentes)
 
+### Cadastro, trial e pagamento
+
+O cadastro **não exige pagamento nem verificação de e-mail/celular** para liberar o acesso: `POST /api/auth/register` cria a conta (status `trialing`, 14 dias) + usuário admin e já retorna o JWT — login é imediato. A verificação de e-mail/celular (`POST /api/auth/send-verification` + `POST /api/auth/verify-code`) existe e é disparada automaticamente no cadastro, mas hoje serve para habilitar o fluxo seguro de **recuperação de senha** — ela não bloqueia o login.
+
+Quando o trial expira (`accounts.trial_ends_at`) sem uma assinatura ativa, o `client.middleware.js` passa a responder `403 { code: 'TRIAL_EXPIRED' }` em toda rota protegida, até que `POST /api/payments/subscription` seja chamado (o que muda `accounts.status` para `active`).
+
+### Painel administrativo da plataforma
+
+Fora do conceito de tenant existe a equipe da intellsn, que administra todos os escritórios cadastrados. Login via `POST /api/auth/platform-login` (tabela `platform_admins`, seedada no `init.sql`), autenticado por um middleware próprio (`authenticatePlatform`) que não depende de `account_id`. Rotas: `GET /api/admin/accounts`, `GET /api/admin/accounts/:id`, `PATCH /api/admin/accounts/:id/status`, `GET /api/admin/plans`.
+
 ---
 
 ## IA como interface do CRM
@@ -160,25 +170,29 @@ Ver [pagamentos.md](./pagamentos.md)
 
 ## Banco de dados
 
-Schema completo em `backend/configs/init.sql`.
+Schema completo em `backend/configs/init.sql`. Documentação detalhada (relacionamentos, seeds, pendências): [banco-de-dados.md](./banco-de-dados.md).
 
 Tabelas principais:
 
-| Tabela              | Descrição                                         |
-|---------------------|---------------------------------------------------|
-| `accounts`          | Escritórios (tenants)                             |
-| `users`             | Usuários de cada escritório                       |
-| `field_definitions` | Definição dos campos customizáveis do CRM         |
-| `leads`             | Leads/clientes                                    |
-| `lead_field_values` | Valores dos campos customizáveis por lead         |
-| `lead_notes`        | Notas/observações do lead                         |
-| `tasks`             | Tarefas vinculadas ao lead                        |
-| `ai_conversations`  | Conversas com a IA                                |
-| `ai_messages`       | Mensagens das conversas                           |
-| `ai_usage`          | Custo e uso de tokens por turno                   |
-| `audit_events`      | Log de auditoria (canal: ui, ai_chat, api, etc.)  |
-| `payments`          | Registros de pagamentos via Asaas                 |
-| `nfse_records`      | Registros de NFS-e emitidas via NFE.io            |
+| Tabela                  | Descrição                                         |
+|-------------------------|-----------------------------------------------------|
+| `platform_admins`       | Equipe intellsn — administra todos os tenants       |
+| `plans`                 | Catálogo de planos (preço/recursos)                 |
+| `accounts`              | Escritórios (tenants)                               |
+| `users`                 | Usuários de cada escritório                         |
+| `verification_codes`    | Códigos OTP de verificação de e-mail/celular        |
+| `password_reset_tokens` | Tokens do fluxo "esqueci minha senha"               |
+| `field_definitions`     | Definição dos campos customizáveis do CRM           |
+| `leads`                 | Leads/clientes                                      |
+| `lead_field_values`     | Valores dos campos customizáveis por lead           |
+| `lead_notes`            | Notas/observações do lead                           |
+| `tasks`                 | Tarefas vinculadas ao lead                          |
+| `ai_conversations`      | Conversas com a IA                                  |
+| `ai_messages`           | Mensagens das conversas                             |
+| `ai_usage`              | Custo e uso de tokens por turno                     |
+| `audit_events`          | Log de auditoria (canal: ui, ai_chat, api, etc.)    |
+| `payments`              | Registros de pagamentos via Asaas                   |
+| `nfse_records`          | Registros de NFS-e emitidas via NFE.io              |
 
 Todas as PKs são UUID gerados pelo MySQL: `DEFAULT (UUID())`.
 

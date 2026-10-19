@@ -5,11 +5,19 @@ const authValidations = {
     body('name').trim().notEmpty().withMessage('Nome é obrigatório.'),
     body('email').isEmail().normalizeEmail().withMessage('E-mail inválido.'),
     body('password').isLength({ min: 8 }).withMessage('Senha deve ter ao menos 8 caracteres.'),
+    body('phone').optional({ checkFalsy: true }).isMobilePhone('pt-BR').withMessage('Celular inválido.'),
     body('accountName').trim().notEmpty().withMessage('Nome da empresa é obrigatório.'),
   ],
   login: [
     body('email').isEmail().normalizeEmail().withMessage('E-mail inválido.'),
     body('password').notEmpty().withMessage('Senha é obrigatória.'),
+  ],
+  sendVerification: [
+    body('channel').isIn(['email', 'phone']).withMessage('Canal deve ser "email" ou "phone".'),
+  ],
+  verifyCode: [
+    body('channel').isIn(['email', 'phone']).withMessage('Canal deve ser "email" ou "phone".'),
+    body('code').trim().isLength({ min: 4, max: 10 }).withMessage('Código inválido.'),
   ],
 };
 

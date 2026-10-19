@@ -13,15 +13,25 @@ async function update(accountId, { name }) {
 }
 
 async function getPlan(accountId) {
-  const [rows] = await query('SELECT plan_id FROM accounts WHERE id = ? LIMIT 1', [accountId]);
+  const [rows] = await query(
+    `SELECT a.plan_id, a.status, a.trial_ends_at, p.name, p.price, p.max_users, p.max_leads, p.features
+     FROM accounts a JOIN plans p ON p.id = a.plan_id
+     WHERE a.id = ? LIMIT 1`,
+    [accountId]
+  );
   if (!rows.length) throw new AppError('Conta não encontrada.', 404);
 
-  const plans = {
-    starter: { name: 'Starter', price: 97, features: ['CRM com IA', 'Até 500 leads', '1 usuário'] },
-    pro:     { name: 'Pro',     price: 197, features: ['CRM com IA', 'Leads ilimitados', '5 usuários', 'WhatsApp'] },
+  const row = rows[0];
+  return {
+    current: row.plan_id,
+    name: row.name,
+    price: Number(row.price),
+    max_users: row.max_users,
+    max_leads: row.max_leads,
+    features: typeof row.features === 'string' ? JSON.parse(row.features) : row.features,
+    account_status: row.status,
+    trial_ends_at: row.trial_ends_at,
   };
-
-  return { current: rows[0].plan_id, ...plans[rows[0].plan_id] };
 }
 
 // ─── Campos customizáveis ─────────────────────────────────────────────────────

@@ -15,13 +15,15 @@ Authorization: Bearer <jwt_token>
 ```
 POST /auth/register
 Body: {
-  account_name: "Escritório Silva",
+  accountName: "Escritório Silva",
   email: "admin@silva.adv.br",
   password: "senha_segura",
-  name: "João Silva"
+  name: "João Silva",
+  phone: "+5551999999999"   // opcional
 }
-Response 201: { token, user: { id, name, email, role, account_id } }
+Response 201: { token, user: { id, name, email, role }, account: { id, name } }
 ```
+A conta é criada com `status: "trialing"` e 14 dias de teste gratuito. Um código de verificação de e-mail é disparado automaticamente (ver `/auth/send-verification` abaixo) — hoje ele só é logado no console do servidor, sem provedor de e-mail real integrado.
 
 ### Login
 ```
@@ -49,6 +51,21 @@ Response 200: { message }
 POST /auth/reset-password
 Body: { token, password }
 Response 200: { message }
+```
+
+### Enviar código de verificação (e-mail ou celular)
+```
+POST /auth/send-verification   (autenticado)
+Body: { channel: "email" | "phone" }
+Response 200: { sent: true, channel, expires_in_minutes: 10 }
+```
+> Hoje o código só é **logado no console do servidor** — não há provedor de e-mail/SMS integrado ainda.
+
+### Confirmar código de verificação
+```
+POST /auth/verify-code   (autenticado)
+Body: { channel: "email" | "phone", code: "123456" }
+Response 200: { verified: true, channel }
 ```
 
 ---
@@ -405,17 +422,59 @@ Response 200: { account }
 ```
 GET /settings/plan
 Response 200: {
-  id: "starter",
+  current: "starter",
   name: "Starter",
   price: 97,
-  features: {
-    max_users: 3,
-    max_leads: 500,
-    ai_chat: true,
-    payments: true,
-    nfse: false
-  }
+  max_users: 1,
+  max_leads: 500,
+  features: ["CRM com IA", "Até 500 leads", "1 usuário"],
+  account_status: "trialing",
+  trial_ends_at: "2024-12-31T00:00:00.000Z"
 }
+```
+Lido diretamente da tabela `plans` (ver [banco-de-dados.md](./banco-de-dados.md)) — não há mais valores fixos no código.
+
+---
+
+## Painel administrativo (plataforma)
+
+Rotas exclusivas da equipe intellsn — autenticação própria (`platform-login`), **não** usam `account_id`. Veem e gerenciam todos os tenants.
+
+### Login da plataforma
+```
+POST /auth/platform-login
+Body: { email, password }
+Response 200: { token, admin: { id, name, email } }
+```
+
+### Listar todas as contas (tenants)
+```
+GET /admin/accounts
+Headers: Authorization: Bearer <token_de_platform-login>
+Response 200: {
+  accounts: [
+    { id, name, slug, status, plan_id, plan_name, plan_price, trial_ends_at, users_count, leads_count, created_at }
+  ]
+}
+```
+
+### Detalhar uma conta
+```
+GET /admin/accounts/:id
+Response 200: { account: { ...accounts, plan_name, plan_price, users: [...], recent_payments: [...] } }
+```
+
+### Alterar status de uma conta (suspender/reativar/cancelar)
+```
+PATCH /admin/accounts/:id/status
+Body: { status: "trialing" | "active" | "suspended" | "cancelled" }
+Response 200: { account }
+```
+
+### Listar planos
+```
+GET /admin/plans
+Response 200: { plans: [{ id, name, price, max_users, max_leads, features, active }] }
 ```
 
 ---
@@ -444,7 +503,7 @@ Response 200: { received: true }
 |--------|-------------------------------------------------------------|
 | `400`  | Dados inválidos (erros de validação detalhados no body)     |
 | `401`  | Token ausente, inválido ou expirado                         |
-| `403`  | Sem permissão (conta suspensa ou role insuficiente)         |
+| `403`  | Sem permissão (conta suspensa/cancelada/trial expirado, ou role insuficiente). Trial expirado retorna `{ error, code: "TRIAL_EXPIRED" }` |
 | `404`  | Recurso não encontrado                                      |
 | `409`  | Conflito (email já cadastrado, etc.)                        |
 | `500`  | Erro interno do servidor                                    |

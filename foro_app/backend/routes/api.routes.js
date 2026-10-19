@@ -10,6 +10,7 @@
  *   /api/payments  → pagamentos via Asaas (PIX + cartão)
  *   /api/webhooks  → webhooks externos (Asaas, NFE.io)
  *   /api/settings  → configurações da conta
+ *   /api/admin     → painel administrativo da plataforma (equipe intellsn, cross-tenant)
  */
 
 const router = require('express').Router();
@@ -22,10 +23,12 @@ const aiController          = require('../controllers/ai.controller');
 const paymentsController    = require('../controllers/payments.controller');
 const webhooksController    = require('../controllers/webhooks.controller');
 const settingsController    = require('../controllers/settings.controller');
+const adminController       = require('../controllers/admin.controller');
 
-const { authenticate }      = require('../middlewares/auth.middleware');
-const { loadClientContext } = require('../middlewares/client.middleware');
-const { validate }          = require('../middlewares/validation.middleware');
+const { authenticate }        = require('../middlewares/auth.middleware');
+const { loadClientContext }   = require('../middlewares/client.middleware');
+const { authenticatePlatform } = require('../middlewares/platform.middleware');
+const { validate }            = require('../middlewares/validation.middleware');
 const { authValidations, leadValidations, fieldValidations } = require('../middlewares/validators');
 
 // ─── Auth (público) ───────────────────────────────────────────────────────────
@@ -34,10 +37,29 @@ router.post('/auth/login',         validate(authValidations.login),    authContr
 router.post('/auth/refresh-token',                                     authController.refreshToken);
 router.post('/auth/forgot-password',                                   authController.forgotPassword);
 router.post('/auth/reset-password',                                    authController.resetPassword);
+router.post('/auth/platform-login',                                    authController.platformLogin);
 
-// ─── Tudo abaixo exige autenticação ───────────────────────────────────────────
+// ─── Admin da plataforma (equipe intellsn) — autenticação própria, sem tenant ─
+// IMPORTANTE: fica ANTES de router.use(authenticate)/loadClientContext porque
+// um admin de plataforma não tem account_id (ele gerencia todas as contas).
+router.get   ('/admin/accounts',            authenticatePlatform, adminController.listAccounts);
+router.get   ('/admin/accounts/:id',        authenticatePlatform, adminController.getAccount);
+router.patch ('/admin/accounts/:id/status', authenticatePlatform, adminController.updateAccountStatus);
+router.get   ('/admin/plans',               authenticatePlatform, adminController.listPlans);
+
+// ─── Webhooks (público — sem JWT; Asaas/NFE.io não enviam Bearer token) ───────
+// FICA ANTES de router.use(authenticate): se estivesse depois, toda chamada do
+// Asaas/NFE.io cairia em 401 e a emissão automática de NFS-e nunca seria disparada.
+router.post  ('/webhooks/asaas',       webhooksController.asaas);
+router.post  ('/webhooks/nfeio',       webhooksController.nfeio);
+
+// ─── Tudo abaixo exige autenticação de tenant ─────────────────────────────────
 router.use(authenticate);
 router.use(loadClientContext);
+
+// ─── Verificação de e-mail/celular (OTP) ──────────────────────────────────────
+router.post('/auth/send-verification', validate(authValidations.sendVerification), authController.sendVerification);
+router.post('/auth/verify-code',       validate(authValidations.verifyCode),       authController.verifyCode);
 
 // ─── Usuários ─────────────────────────────────────────────────────────────────
 router.get   ('/users',                usersController.list);
@@ -92,10 +114,6 @@ router.post  ('/payments/card',        paymentsController.createCard);
 router.post  ('/payments/subscription',paymentsController.createSubscription);
 router.get   ('/payments/:id',         paymentsController.getById);
 router.get   ('/payments/:id/nfse',    paymentsController.getNfse);
-
-// ─── Webhooks (sem autenticação JWT — validados por assinatura) ───────────────
-router.post  ('/webhooks/asaas',       webhooksController.asaas);
-router.post  ('/webhooks/nfeio',       webhooksController.nfeio);
 
 // ─── Configurações da conta ───────────────────────────────────────────────────
 router.get   ('/settings',             settingsController.get);

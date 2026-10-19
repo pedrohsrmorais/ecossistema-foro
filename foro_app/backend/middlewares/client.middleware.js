@@ -16,7 +16,7 @@ async function loadClientContext(req, res, next) {
     }
 
     const [rows] = await query(
-      'SELECT id, name, status, plan_id FROM accounts WHERE id = ? LIMIT 1',
+      'SELECT id, name, status, plan_id, trial_ends_at FROM accounts WHERE id = ? LIMIT 1',
       [accountId]
     );
 
@@ -32,6 +32,12 @@ async function loadClientContext(req, res, next) {
 
     if (account.status === 'suspended') {
       return res.status(403).json({ error: 'Conta suspensa. Verifique sua situação de pagamento.' });
+    }
+
+    // Trial expirado e nenhuma assinatura foi contratada (status continua 'trialing').
+    // createSubscription() muda o status para 'active' ao assinar um plano.
+    if (account.status === 'trialing' && account.trial_ends_at && new Date(account.trial_ends_at) < new Date()) {
+      return res.status(403).json({ error: 'Período de teste expirado. Assine um plano para continuar.', code: 'TRIAL_EXPIRED' });
     }
 
     req.account = account;

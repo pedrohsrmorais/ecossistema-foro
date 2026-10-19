@@ -107,21 +107,17 @@ async function createCard(accountId, { amount, description, card }) {
 async function createSubscription(accountId, { plan, billingType = 'PIX', card }) {
   const customerId = await _getOrCreateAsaasCustomer(accountId);
 
-  const plans = {
-    starter: { value: 97, description: 'Foro Starter — acesso mensal' },
-    pro:     { value: 197, description: 'Foro Pro — acesso mensal' },
-  };
-
-  const selectedPlan = plans[plan];
-  if (!selectedPlan) throw new AppError('Plano inválido.', 400);
+  const [plans] = await query('SELECT id, name, price FROM plans WHERE id = ? AND active = 1 LIMIT 1', [plan]);
+  if (!plans.length) throw new AppError('Plano inválido.', 400);
+  const selectedPlan = plans[0];
 
   const payload = {
     customer: customerId,
     billingType: billingType.toUpperCase(),
-    value: selectedPlan.value,
+    value: Number(selectedPlan.price),
     nextDueDate: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString().slice(0, 10),
     cycle: 'MONTHLY',
-    description: selectedPlan.description,
+    description: `Foro ${selectedPlan.name} — acesso mensal`,
     externalReference: accountId,
   };
 
@@ -132,7 +128,7 @@ async function createSubscription(accountId, { plan, billingType = 'PIX', card }
 
   const { data } = await asaas.post('/subscriptions', payload);
 
-  await query('UPDATE accounts SET plan_id = ? WHERE id = ?', [plan, accountId]);
+  await query("UPDATE accounts SET plan_id = ?, status = 'active' WHERE id = ?", [plan, accountId]);
 
   return { subscription_id: data.id, status: data.status, plan, billingType };
 }
