@@ -437,6 +437,89 @@ Lido diretamente da tabela `plans` (ver [banco-de-dados.md](./banco-de-dados.md)
 
 ---
 
+## Créditos
+
+Carteira pré-paga usada para pagar as consultas da seção **Consultas pagas** abaixo. Ver [banco-de-dados.md](./banco-de-dados.md#7-créditos--serviços-pagos-de-terceiros) para o modelo de negócio completo. **Não há endpoint de reembolso solicitado pelo tenant** — qualquer reembolso é feito manualmente pela intellsn via painel administrativo.
+
+### Consultar saldo
+```
+GET /credits/balance
+Response 200: { balance_cents: 1500 }
+```
+
+### Listar preços dos serviços
+```
+GET /credits/prices
+Response 200: { prices: [{ service_key, name, price_cents, provider, description }] }
+```
+
+### Listar movimentações (extrato)
+```
+GET /credits/transactions?page=1&limit=30
+Response 200: { transactions: [{ id, type, amount_cents, balance_after_cents, service_key, note, created_at }] }
+```
+
+### Recarregar via PIX
+```
+POST /credits/purchase/pix
+Body: { amount, description? }
+Response 201: { payment com pix_qr_code e pix_copy_paste }
+```
+O saldo só é creditado quando o webhook do Asaas confirma o pagamento (nunca na criação da cobrança) — ver `payments.service.js::_creditWalletOnce`.
+
+### Recarregar via cartão
+```
+POST /credits/purchase/card
+Body: { amount, description?, card: {...} }
+Response 201: { payment }
+```
+
+---
+
+## Consultas pagas (CPF, CNPJ, processual) e resumo por IA
+
+Cada chamada debita créditos automaticamente antes de consultar o provedor externo (`external-lookup.service.js`). Se o provedor falhar por erro técnico, o crédito é devolvido automaticamente e a resposta é sempre a mensagem genérica abaixo — nunca o erro técnico real.
+
+| Status | Quando acontece                                                        |
+|--------|-------------------------------------------------------------------------|
+| `402`  | Créditos insuficientes — `{ error: "Créditos insuficientes. Adicione créditos para continuar." }` |
+| `502`  | Falha técnica no provedor (crédito já foi devolvido) — `{ error: "Erro na requisição. Tente novamente em alguns minutos ou contate o suporte." }` |
+
+### Consultar CNPJ
+```
+POST /lookup/cnpj
+Body: { cnpj }
+Response 200: { data: { cnpj, razao_social, nome_fantasia, situacao_cadastral, ... } }
+```
+Dígito verificador validado localmente **antes** de debitar — CNPJ malformado nunca gasta crédito.
+
+### Consultar CPF
+```
+POST /lookup/cpf
+Body: { cpf }
+Response 200: { data: { cpf, nome, situacao, ... } }
+```
+Mesmo tratamento de validação local do CPF. O CPF é mascarado nos logs internos (LGPD).
+
+### Buscar processos por CPF/CNPJ
+```
+POST /lookup/processo
+Body: { documento }
+Response 200: { data: { documento, processos: [{ numero_cnj, tribunal, classe, ultima_movimentacao, data_ultima_movimentacao }] } }
+```
+
+### Resumir processo por IA
+```
+POST /lookup/processo/summary
+Body: { processo }   // o objeto retornado por POST /lookup/processo
+Response 200: { data: { summary: "..." } }
+```
+Usa o mesmo modelo Anthropic do chat interno, mas como chamada avulsa (sem tools/histórico) — cobrada por preço fixo em créditos, não por token.
+
+Sem nenhum provedor configurado (`CNPJ_PROVIDER_BASE_URL`, `CPF_PROVIDER_BASE_URL`, `PROCESS_PROVIDER_BASE_URL` vazios no `.env`), os três primeiros endpoints retornam dado **MOCK** — permite testar todo o fluxo de créditos sem ter contratado nenhuma API externa ainda.
+
+---
+
 ## Painel administrativo (plataforma)
 
 Rotas exclusivas da equipe intellsn — autenticação própria (`platform-login`), **não** usam `account_id`. Veem e gerenciam todos os tenants.
@@ -478,6 +561,27 @@ GET /admin/plans
 Response 200: { plans: [{ id, name, price, max_users, max_leads, features, active }] }
 ```
 
+### Visão geral de créditos (todos os tenants)
+```
+GET /admin/credits/overview
+Response 200: {
+  overview: {
+    total_purchased_cents, total_consumed_cents, total_refunded_cents, total_adjusted_cents,
+    by_service: [{ service_key, usage_count, consumed_cents }],
+    total_wallets_balance_cents
+  }
+}
+```
+Serve para a intellsn comparar o gasto real nos provedores externos com o que foi vendido em créditos — divergência grande é sinal de bug.
+
+### Ajustar créditos de uma conta (único caminho de "reembolso")
+```
+PATCH /admin/accounts/:id/credits/adjust
+Body: { amount_cents, note }   // amount_cents pode ser negativo (desconto) ou positivo (crédito/reembolso); note é obrigatório
+Response 200: { transactionId, balance_cents }
+```
+**Este é o único endpoint que reverte créditos por decisão de reembolso.** Não existe equivalente acionável pelo tenant — conforme definido pelo dono da plataforma, qualquer pedido de reembolso é tratado diretamente com a intellsn, nunca dentro do produto.
+
 ---
 
 ## Webhooks (sem autenticação)
@@ -507,7 +611,9 @@ Response 200: { received: true }
 | `403`  | Sem permissão (conta suspensa/cancelada/trial expirado, ou role insuficiente). Trial expirado retorna `{ error, code: "TRIAL_EXPIRED" }` |
 | `404`  | Recurso não encontrado                                      |
 | `409`  | Conflito (email já cadastrado, etc.)                        |
+| `402`  | Créditos insuficientes (rotas de `/lookup/*`)               |
 | `500`  | Erro interno do servidor                                    |
+| `502`  | Falha técnica num provedor externo pago (crédito já devolvido automaticamente) |
 
 Formato de erro:
 ```json

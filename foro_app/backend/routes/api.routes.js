@@ -24,6 +24,8 @@ const paymentsController    = require('../controllers/payments.controller');
 const webhooksController    = require('../controllers/webhooks.controller');
 const settingsController    = require('../controllers/settings.controller');
 const adminController       = require('../controllers/admin.controller');
+const creditsController     = require('../controllers/credits.controller');
+const lookupController      = require('../controllers/lookup.controller');
 
 const { authenticate, requireVerifiedEmail } = require('../middlewares/auth.middleware');
 const { loadClientContext }   = require('../middlewares/client.middleware');
@@ -46,6 +48,8 @@ router.get   ('/admin/accounts',            authenticatePlatform, adminControlle
 router.get   ('/admin/accounts/:id',        authenticatePlatform, adminController.getAccount);
 router.patch ('/admin/accounts/:id/status', authenticatePlatform, adminController.updateAccountStatus);
 router.get   ('/admin/plans',               authenticatePlatform, adminController.listPlans);
+router.get   ('/admin/credits/overview',     authenticatePlatform, adminController.creditsOverview);
+router.patch ('/admin/accounts/:id/credits/adjust', authenticatePlatform, adminController.adjustCredits);
 
 // ─── Webhooks (público — sem JWT; Asaas/NFE.io não enviam Bearer token) ───────
 // FICA ANTES de router.use(authenticate): se estivesse depois, toda chamada do
@@ -122,5 +126,21 @@ router.get   ('/payments/:id/nfse',    paymentsController.getNfse);
 router.get   ('/settings',             settingsController.get);
 router.put   ('/settings',             settingsController.update);
 router.get   ('/settings/plan',        settingsController.getPlan);
+
+// ─── Créditos — carteira pré-paga p/ serviços pagos de terceiros ──────────────
+router.get   ('/credits/balance',          creditsController.getBalance);
+router.get   ('/credits/prices',           creditsController.listPrices);
+router.get   ('/credits/transactions',     creditsController.listTransactions);
+router.post  ('/credits/purchase/pix',     creditsController.purchasePix);
+router.post  ('/credits/purchase/card',    creditsController.purchaseCard);
+
+// ─── Consultas pagas (CPF/CNPJ/processual) e resumo por IA ────────────────────
+// Cada chamada debita créditos automaticamente (ver external-lookup.service.js).
+// Erro de provedor -> reembolso automático + mensagem genérica "chame o suporte";
+// NÃO existe endpoint de reembolso solicitado pelo usuário (ver credits.service.js).
+router.post  ('/lookup/cnpj',              lookupController.cnpj);
+router.post  ('/lookup/cpf',               lookupController.cpf);
+router.post  ('/lookup/processo',          lookupController.processo);
+router.post  ('/lookup/processo/summary',  lookupController.processoSummary);
 
 module.exports = router;

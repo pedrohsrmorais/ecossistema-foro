@@ -40,7 +40,10 @@ foro_app/
 │   │   ├── ai.controller.js
 │   │   ├── payments.controller.js
 │   │   ├── webhooks.controller.js
-│   │   └── settings.controller.js
+│   │   ├── settings.controller.js
+│   │   ├── admin.controller.js     # Painel administrativo (equipe intellsn)
+│   │   ├── credits.controller.js   # Carteira de créditos pré-pagos
+│   │   └── lookup.controller.js    # Consultas pagas (CPF/CNPJ/processual + resumo IA)
 │   ├── services/               # Lógica de negócio e acesso ao banco
 │   │   ├── auth.service.js
 │   │   ├── users.service.js
@@ -49,7 +52,11 @@ foro_app/
 │   │   ├── ai-tools.service.js # Define e executa as tools da IA
 │   │   ├── payments.service.js # Integração Asaas
 │   │   ├── nfse.service.js     # Emissão automática NFS-e via NFE.io
-│   │   └── settings.service.js # Configurações + campos customizáveis
+│   │   ├── settings.service.js # Configurações + campos customizáveis
+│   │   ├── admin.service.js        # Operações cross-tenant do painel administrativo
+│   │   ├── credits.service.js      # Ledger/carteira de créditos (débito, reembolso, ajuste manual)
+│   │   ├── external-lookup.service.js # Wrapper único: debita → chama provedor → reembolsa se falhar
+│   │   ├── cnpj.service.js / cpf.service.js / processo.service.js # Consultas pagas por provedor externo
 │   ├── middlewares/
 │   │   ├── auth.middleware.js       # Valida JWT
 │   │   ├── client.middleware.js     # Carrega contexto do tenant
@@ -89,7 +96,8 @@ foro_app/
 │   ├── arquitetura.md          # Decisões de arquitetura
 │   ├── banco-de-dados.md       # Schema completo, tabelas e relacionamentos
 │   ├── pagamentos.md           # Asaas + NFS-e
-│   └── api-reference.md        # Referência de todas as rotas
+│   ├── api-reference.md        # Referência de todas as rotas
+│   └── plataforma-e-precificacao.md # Requisitos, diferenciais, APIs avaliadas e precificação (planos + créditos)
 └── docker-compose.yml
 ```
 
@@ -143,6 +151,18 @@ docker compose up -d --build
 | `ASAAS_API_KEY`    | Chave do Asaas (pagamentos)                      |
 | `NFEIO_API_KEY`    | Chave do NFE.io (notas fiscais)                  |
 | `NFEIO_COMPANY_ID` | ID da empresa no NFE.io                          |
+
+### Variáveis opcionais — consultas pagas (créditos)
+
+Sem provedor configurado, cada serviço roda em **modo mock** (sem custo, sem chamar nada externo) — permite testar todo o fluxo de créditos antes de contratar qualquer API. Ver [plataforma-e-precificacao.md](./plataforma-e-precificacao.md#4-apis-externas--avaliadas-e-recomendadas) para comparação de provedores.
+
+| Variável                     | Descrição                              |
+|-------------------------------|-------------------------------------------|
+| `CNPJ_PROVIDER_BASE_URL/API_KEY`    | Provedor de consulta de CNPJ        |
+| `CPF_PROVIDER_BASE_URL/API_KEY`     | Provedor de consulta de CPF         |
+| `PROCESS_PROVIDER_BASE_URL/API_KEY` | Provedor de consulta processual     |
+
+Estas chaves pertencem à **conta da intellsn** (plataforma), nunca ao tenant — o modelo de negócio centraliza a compra das APIs externas numa única conta paga pelo dono da plataforma (ver [plataforma-e-precificacao.md](./plataforma-e-precificacao.md#52-créditos-pré-pagos-consultas-de-terceiros)).
 
 ---
 

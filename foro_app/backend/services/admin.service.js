@@ -7,6 +7,7 @@
  */
 const { query } = require('../configs/db.config');
 const { AppError } = require('../middlewares/error.middleware');
+const creditsService = require('./credits.service');
 
 const ALLOWED_STATUSES = ['trialing', 'active', 'suspended', 'cancelled'];
 
@@ -37,11 +38,13 @@ async function getAccount(accountId) {
     [accountId]
   );
   const [payments] = await query(
-    'SELECT id, type, status, amount, created_at FROM payments WHERE account_id = ? ORDER BY created_at DESC LIMIT 20',
+    'SELECT id, type, status, amount, credits_amount_cents, created_at FROM payments WHERE account_id = ? ORDER BY created_at DESC LIMIT 20',
     [accountId]
   );
+  const credits_balance_cents = await creditsService.getBalance(accountId);
+  const recent_credit_transactions = await creditsService.listTransactions(accountId, { limit: 20 });
 
-  return { ...rows[0], users, recent_payments: payments };
+  return { ...rows[0], users, recent_payments: payments, credits_balance_cents, recent_credit_transactions };
 }
 
 async function updateAccountStatus(accountId, status) {
@@ -55,4 +58,45 @@ async function listPlans() {
   return rows.map(r => ({ ...r, features: typeof r.features === 'string' ? JSON.parse(r.features) : r.features }));
 }
 
-module.exports = { listAccounts, getAccount, updateAccountStatus, listPlans };
+/**
+ * Ajuste manual de créditos de uma conta — único caminho de "reembolso"
+ * que existe no sistema, e só acionável pela equipe da intellsn aqui.
+ */
+async function adjustAccountCredits(accountId, amountCents, note, platformAdminId) {
+  return creditsService.adminAdjust(accountId, amountCents, note, platformAdminId);
+}
+
+/**
+ * Visão agregada de créditos: quanto foi vendido (comprado pelos tenants) vs.
+ * quanto foi consumido, por serviço. Serve pra conferir se o gasto real nos
+ * provedores externos está alinhado ao esperado — sinal de bug se divergir.
+ */
+async function getCreditsOverview() {
+  const [totals] = await query(
+    `SELECT
+       SUM(CASE WHEN type = 'purchase'    THEN amount_cents ELSE 0 END) AS total_purchased_cents,
+       SUM(CASE WHEN type = 'consumption' THEN -amount_cents ELSE 0 END) AS total_consumed_cents,
+       SUM(CASE WHEN type = 'refund'      THEN amount_cents ELSE 0 END) AS total_refunded_cents,
+       SUM(CASE WHEN type = 'adjustment'  THEN amount_cents ELSE 0 END) AS total_adjusted_cents
+     FROM credit_transactions`
+  );
+
+  const [byService] = await query(
+    `SELECT service_key,
+            COUNT(*) AS usage_count,
+            SUM(-amount_cents) AS consumed_cents
+     FROM credit_transactions
+     WHERE type = 'consumption'
+     GROUP BY service_key
+     ORDER BY consumed_cents DESC`
+  );
+
+  const [walletsTotal] = await query('SELECT SUM(balance_cents) AS total_balance_cents FROM credit_wallets');
+
+  return { ...totals[0], by_service: byService, total_wallets_balance_cents: walletsTotal[0].total_balance_cents || 0 };
+}
+
+module.exports = {
+  listAccounts, getAccount, updateAccountStatus, listPlans,
+  adjustAccountCredits, getCreditsOverview,
+};

@@ -153,7 +153,55 @@ Sem alterações — log histórico, propositalmente sem FK (não deve ser apaga
 
 ## 6. Pagamentos e NFS-e (`payments`, `nfse_records`)
 
-Sem alterações estruturais — ver [pagamentos.md](./pagamentos.md).
+Sem alterações estruturais — ver [pagamentos.md](./pagamentos.md). A única adição é a coluna `payments.credits_amount_cents` (abaixo).
+
+---
+
+## 7. Créditos — serviços pagos de terceiros
+
+Modelo de negócio (decisão do dono da plataforma): a **intellsn contrata e paga as APIs externas com uma única conta centralizada** (ex: aporta R$ 200 num provedor, e quando o saldo cai para R$ 100 aporta mais R$ 200). Os tenants **nunca** pagam o provedor diretamente — eles compram créditos pré-pagos na própria Foro (via Asaas), e cada consulta paga debita dessa carteira. Isso elimina o risco de um bug estourar o cartão da intellsn: o máximo debitável é sempre o que já foi efetivamente pago e creditado.
+
+**Não existe reembolso self-service.** Em caso de erro técnico do provedor, o crédito é devolvido automaticamente (sem ação do usuário). Em qualquer outro caso, o usuário final só vê "Erro na requisição, contate o suporte" — qualquer reembolso por insatisfação é decisão manual da intellsn, feita através do painel administrativo (`PATCH /api/admin/accounts/:id/credits/adjust`).
+
+### `credit_wallets`
+Saldo atual por conta — uma linha por tenant, criada de forma "lazy" (sob demanda) na primeira operação.
+
+| Coluna          | Tipo        | Descrição                              |
+|-----------------|-------------|------------------------------------------|
+| `account_id`    | VARCHAR(36) | PK, FK → `accounts.id`                   |
+| `balance_cents` | BIGINT      | Saldo em centavos (nunca negativo)       |
+
+### `credit_transactions`
+Ledger imutável — toda movimentação de saldo gera uma linha aqui; nunca há um `UPDATE` de saldo sem um registro correspondente.
+
+| Coluna                      | Tipo  | Descrição                                                        |
+|------------------------------|-------|---------------------------------------------------------------------|
+| `type`                       | ENUM  | `purchase` (compra confirmada via Asaas) / `consumption` (uso de serviço) / `refund` (devolução automática por falha técnica) / `adjustment` (ajuste manual do admin) |
+| `amount_cents`                | BIGINT| Positivo (`purchase`, `refund`, `adjustment` podem ser +/-) ou negativo (`consumption`) |
+| `balance_after_cents`         | BIGINT| Saldo resultante — permite auditar sem recalcular a soma inteira    |
+| `service_key`                 | VARCHAR(50) NULL | Qual serviço gerou o débito (ex: `cpf_lookup`)             |
+| `reference_type`/`reference_id`| —    | Aponta para o `payments.id` (compra) ou outra `credit_transactions.id` (refund) |
+| `created_by_platform_admin`   | VARCHAR(36) NULL | Preenchido só em `adjustment` — qual admin aplicou         |
+
+### `service_prices`
+Catálogo de preços cobrados do tenant por serviço (em créditos), com o custo real pago ao provedor para referência interna.
+
+| Coluna                | Descrição                                                      |
+|------------------------|-------------------------------------------------------------------|
+| `service_key`          | PK: `cnpj_lookup`, `cpf_lookup`, `process_lookup`, `process_summary_ai` |
+| `price_cents`          | Quanto o tenant paga (em créditos)                                |
+| `provider_cost_cents`  | Quanto a intellsn paga ao provedor (referência, não exposto ao tenant) |
+
+### `service_usage_log`
+Histórico de toda chamada (sucesso, não encontrado ou falha) — usado para suporte/auditoria, não para débito (isso já aconteceu em `credit_transactions`).
+
+| Coluna                  | Descrição                                                |
+|--------------------------|--------------------------------------------------------------|
+| `status`                 | `success` / `not_found` / `failed`                           |
+| `credit_transaction_id`  | NULL quando `failed` (o débito foi revertido)                |
+| `request_summary`        | JSON com o documento consultado (CPF é mascarado nos logs do serviço, mas aqui fica o input original para suporte) |
+
+**Fluxo de uma consulta paga** (`external-lookup.service.js::runPaidLookup`): debita → chama o provedor → se sucesso/não-encontrado mantém o débito e loga; se erro técnico (timeout/5xx/rede), devolve o crédito automaticamente, loga a falha e retorna ao tenant só a mensagem genérica "Erro na requisição... contate o suporte" — nunca o erro técnico real.
 
 ---
 
@@ -178,6 +226,10 @@ Sem alterações estruturais — ver [pagamentos.md](./pagamentos.md).
 | `audit_events`           | sim     | —                      | Log de auditoria                                |
 | `payments`               | sim     | `accounts`             | Pagamentos via Asaas                            |
 | `nfse_records`           | sim     | `payments`             | NFS-e emitidas via NFE.io                       |
+| `credit_wallets`         | sim     | `accounts`             | Saldo de créditos pré-pagos                     |
+| `credit_transactions`    | sim     | `accounts`             | Ledger imutável de créditos                     |
+| `service_prices`         | não     | —                      | Catálogo de preços dos serviços pagos           |
+| `service_usage_log`      | sim     | `accounts`             | Histórico de chamadas pagas (p/ suporte)        |
 
 ---
 

@@ -318,6 +318,7 @@ CREATE TABLE IF NOT EXISTS payments (
   description     TEXT          NULL,
   pix_qr_code     TEXT          NULL,
   pix_copy_paste  TEXT          NULL,
+  credits_amount_cents INT      NULL COMMENT 'preenchido quando este pagamento é uma compra de créditos (não assinatura) — ver credit_transactions',
   paid_at         DATETIME      NULL,
   created_at      DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at      DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
@@ -346,6 +347,91 @@ CREATE TABLE IF NOT EXISTS nfse_records (
   CONSTRAINT fk_nfse_payment FOREIGN KEY (payment_id) REFERENCES payments(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+-- ────────────────────────────────────────────────────────────────────────────
+-- 7. CRÉDITOS — serviços pagos de terceiros (CPF, CNPJ, consulta processual...)
+-- ────────────────────────────────────────────────────────────────────────────
+--
+-- Modelo de negócio: a intellsn contrata e paga as APIs externas com UMA conta
+-- centralizada (não é o tenant quem assina a API de terceiro). O tenant compra
+-- créditos pré-pagos na própria plataforma Foro (via Asaas — ver payments
+-- acima), e cada uso de um serviço pago (consulta de CPF/CNPJ, consulta
+-- processual, resumo de processo por IA) debita dessa carteira.
+--
+-- Isso é o que impede o "estouro de cartão" discutido com o usuário: o valor
+-- debitado é sempre LIMITADO ao saldo que o próprio tenant pré-pagou — nunca
+-- se chama a API externa sem crédito suficiente já debitado antes.
+--
+-- Importante: não existe endpoint de "solicitar reembolso" para o tenant.
+-- Em caso de erro na chamada externa, o crédito é automaticamente devolvido
+-- (ver credits.service.js::refund, chamado internamente pelo
+-- external-lookup.service.js) e o usuário só vê uma mensagem genérica de
+-- erro pedindo para contatar o suporte. Qualquer reembolso por insatisfação
+-- com o resultado (não por falha técnica) é decisão manual da intellsn,
+-- feita via PATCH /api/admin/accounts/:id/credits/adjust — nunca pelo tenant.
+
+-- Carteira de créditos — um saldo por conta (1:1 com accounts).
+CREATE TABLE IF NOT EXISTS credit_wallets (
+  account_id      VARCHAR(36) NOT NULL,
+  balance_cents   BIGINT      NOT NULL DEFAULT 0 COMMENT 'saldo em centavos de R$',
+  updated_at      DATETIME    NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (account_id),
+  CONSTRAINT fk_wallet_account FOREIGN KEY (account_id) REFERENCES accounts(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Extrato (ledger) — toda movimentação de crédito é um registro aqui, nunca
+-- só um UPDATE de saldo. Permite auditoria completa e reconciliação com o
+-- que foi efetivamente gasto nos provedores externos.
+CREATE TABLE IF NOT EXISTS credit_transactions (
+  id                        VARCHAR(36)  NOT NULL DEFAULT (UUID()),
+  account_id                VARCHAR(36)  NOT NULL,
+  type                      ENUM('purchase','consumption','refund','adjustment') NOT NULL,
+  amount_cents              BIGINT       NOT NULL COMMENT 'positivo = crédito, negativo = débito',
+  balance_after_cents       BIGINT       NOT NULL COMMENT 'saldo resultante, para auditoria sem precisar somar tudo',
+  service_key               VARCHAR(50)  NULL COMMENT 'preenchido só em consumption/refund — ver service_prices.service_key',
+  reference_type            ENUM('payment','service_usage','platform_admin') NULL,
+  reference_id              VARCHAR(36)  NULL COMMENT 'payments.id, service_usage_log.id ou platform_admins.id',
+  note                      VARCHAR(500) NULL COMMENT 'motivo, obrigatório em adjustment',
+  created_by_platform_admin VARCHAR(36)  NULL COMMENT 'preenchido só quando type=adjustment (ajuste manual via painel)',
+  created_at                DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  KEY idx_credit_tx_account (account_id, created_at),
+  KEY idx_credit_tx_service (service_key),
+  CONSTRAINT fk_credit_tx_account FOREIGN KEY (account_id) REFERENCES accounts(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Catálogo de serviços pagos e seus preços — fonte única de verdade (mesmo
+-- padrão da tabela `plans`). Ajustar aqui muda o preço sem tocar em código.
+CREATE TABLE IF NOT EXISTS service_prices (
+  service_key        VARCHAR(50)  NOT NULL COMMENT 'cpf_lookup, cnpj_lookup, process_lookup, process_summary_ai',
+  name                VARCHAR(100) NOT NULL,
+  price_cents         INT          NOT NULL COMMENT 'quanto é debitado do tenant por uso',
+  provider_cost_cents INT          NULL COMMENT 'quanto custa (aprox.) na API de terceiro — referência para calcular margem, não é cobrado diretamente',
+  provider            VARCHAR(100) NULL COMMENT 'nome do provedor configurado (TrackJud, Dabra, etc.)',
+  active              TINYINT(1)   NOT NULL DEFAULT 1,
+  description         VARCHAR(255) NULL,
+  created_at          DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at          DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (service_key)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Log de cada chamada a um serviço pago — para suporte, auditoria e
+-- reconciliação (créditos vendidos vs. efetivamente gastos no provedor).
+CREATE TABLE IF NOT EXISTS service_usage_log (
+  id                   VARCHAR(36)  NOT NULL DEFAULT (UUID()),
+  account_id           VARCHAR(36)  NOT NULL,
+  user_id              VARCHAR(36)  NULL,
+  service_key          VARCHAR(50)  NOT NULL,
+  status               ENUM('success','not_found','failed') NOT NULL,
+  credit_transaction_id VARCHAR(36) NULL COMMENT 'débito associado (NULL se falhou antes de debitar)',
+  request_summary      JSON         NULL COMMENT 'parâmetros da consulta, sem dados sensíveis desnecessários',
+  error_message        TEXT         NULL,
+  created_at           DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  KEY idx_usage_log_account (account_id, created_at),
+  KEY idx_usage_log_service (service_key, created_at),
+  CONSTRAINT fk_usage_log_account FOREIGN KEY (account_id) REFERENCES accounts(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 -- ════════════════════════════════════════════════════════════════════════════
 -- SEEDS — dados iniciais
 -- ════════════════════════════════════════════════════════════════════════════
@@ -365,6 +451,19 @@ INSERT INTO platform_admins (id, name, email, password_hash) VALUES
   (UUID(), 'Administrador Foro', 'admin@intellsn.com.br',
    '$2a$12$1ZllKUjAWNYVThWRPP2dteA3GwjvDJlN2xOWkstK7LEDgpQEF20dG')
 ON DUPLICATE KEY UPDATE name = VALUES(name);
+
+-- ─── Preços dos serviços pagos (créditos) ─────────────────────────────────────
+-- Valores iniciais sugeridos com margem sobre o custo estimado do provedor.
+-- Ajuste price_cents livremente — é lido em tempo real por credits.service.js,
+-- sem precisar de deploy.
+INSERT INTO service_prices (service_key, name, price_cents, provider_cost_cents, provider, description) VALUES
+  ('cnpj_lookup',        'Consulta de CNPJ',               50,   0, 'CNPJ_PROVIDER configurável',  'Dados cadastrais de empresa via CNPJ'),
+  ('cpf_lookup',         'Consulta de CPF',                100,  24, 'CPF_PROVIDER configurável',  'Situação cadastral de pessoa física via CPF'),
+  ('process_lookup',     'Consulta processual',            100,  10, 'PROCESS_PROVIDER configurável', 'Busca de processos por CPF/CNPJ/OAB'),
+  ('process_summary_ai', 'Resumo de processo por IA',       150, NULL, 'Anthropic Claude', 'Resumo em linguagem simples das movimentações do processo')
+ON DUPLICATE KEY UPDATE
+  name = VALUES(name), price_cents = VALUES(price_cents), provider_cost_cents = VALUES(provider_cost_cents),
+  provider = VALUES(provider), description = VALUES(description);
 
 -- Observação: os campos de sistema (area_juridica, preferencia_contato,
 -- descricao_caso, honorarios) NÃO são semeados aqui — são criados

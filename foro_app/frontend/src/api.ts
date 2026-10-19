@@ -151,6 +151,53 @@ export interface User {
   created_at: string
 }
 
+export interface ServicePrice {
+  service_key: string
+  name: string
+  price_cents: number
+  provider: string | null
+  active: boolean
+  description: string | null
+}
+
+export interface CreditTransaction {
+  id: string
+  type: 'purchase' | 'consumption' | 'refund' | 'adjustment'
+  amount_cents: number
+  balance_after_cents: number
+  service_key: string | null
+  note: string | null
+  created_at: string
+}
+
+export interface CnpjResult {
+  cnpj: string
+  razao_social?: string
+  nome_fantasia?: string
+  situacao_cadastral?: string
+  data_abertura?: string
+  [key: string]: unknown
+}
+
+export interface CpfResult {
+  cpf: string
+  nome?: string
+  situacao?: string
+  [key: string]: unknown
+}
+
+export interface ProcessoResult {
+  documento: string
+  processos: Array<{
+    numero_cnj: string
+    tribunal: string
+    classe: string
+    ultima_movimentacao: string
+    data_ultima_movimentacao: string
+  }>
+  [key: string]: unknown
+}
+
 // ─── AUTH ─────────────────────────────────────────────────────────────────────
 
 export const authApi = {
@@ -377,6 +424,53 @@ export const settingsApi = {
   /** GET /settings/plan */
   getPlan: () =>
     http.get('/settings/plan').then(r => r.data),
+}
+
+// ─── CRÉDITOS — carteira pré-paga p/ serviços pagos de terceiros ─────────────
+// Erro de provedor numa consulta devolve o crédito automaticamente no backend
+// e não existe endpoint de "solicitar reembolso" — em caso de erro, o usuário
+// só vê a mensagem genérica vinda da API ("chame o suporte").
+
+export const creditsApi = {
+  /** GET /credits/balance */
+  getBalance: () =>
+    http.get<{ balance_cents: number }>('/credits/balance').then(r => r.data),
+
+  /** GET /credits/prices */
+  listPrices: () =>
+    http.get<{ prices: ServicePrice[] }>('/credits/prices').then(r => r.data),
+
+  /** GET /credits/transactions */
+  listTransactions: (params?: { page?: number; limit?: number }) =>
+    http.get<{ transactions: CreditTransaction[] }>('/credits/transactions', { params }).then(r => r.data),
+
+  /** POST /credits/purchase/pix — retorna o pagamento com QR Code PIX p/ recarregar a carteira */
+  purchasePix: (data: { amount: number; description?: string }) =>
+    http.post<Payment>('/credits/purchase/pix', data).then(r => r.data),
+
+  /** POST /credits/purchase/card */
+  purchaseCard: (data: { amount: number; description?: string; card: Record<string, string> }) =>
+    http.post<Payment>('/credits/purchase/card', data).then(r => r.data),
+}
+
+// ─── LOOKUP — consultas pagas (CPF/CNPJ/processual) e resumo por IA ──────────
+
+export const lookupApi = {
+  /** POST /lookup/cnpj */
+  cnpj: (cnpj: string) =>
+    http.post<{ data: CnpjResult }>('/lookup/cnpj', { cnpj }).then(r => r.data.data),
+
+  /** POST /lookup/cpf */
+  cpf: (cpf: string) =>
+    http.post<{ data: CpfResult }>('/lookup/cpf', { cpf }).then(r => r.data.data),
+
+  /** POST /lookup/processo */
+  processo: (documento: string) =>
+    http.post<{ data: ProcessoResult }>('/lookup/processo', { documento }).then(r => r.data.data),
+
+  /** POST /lookup/processo/summary */
+  processoSummary: (processo: ProcessoResult) =>
+    http.post<{ data: { summary: string } }>('/lookup/processo/summary', { processo }).then(r => r.data.data),
 }
 
 export default http

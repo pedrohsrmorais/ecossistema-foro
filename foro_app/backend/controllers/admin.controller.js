@@ -20,4 +20,26 @@ async function listPlans(req, res) {
   res.json({ plans });
 }
 
-module.exports = { listAccounts, getAccount, updateAccountStatus, listPlans };
+/**
+ * PATCH /admin/accounts/:id/credits/adjust
+ * Único jeito de "reembolsar" ou ajustar créditos de um tenant — decisão
+ * manual da equipe intellsn, nunca self-service. Exige motivo (`note`).
+ * `amount_cents` pode ser negativo (desconto) ou positivo (crédito/reembolso).
+ */
+async function adjustCredits(req, res) {
+  const { amount_cents, note } = req.body;
+  const result = await adminService.adjustAccountCredits(
+    req.params.id,
+    Number(amount_cents),
+    note,
+    req.platformAdmin.platform_admin_id
+  );
+  res.json(result);
+}
+
+async function creditsOverview(req, res) {
+  const overview = await adminService.getCreditsOverview();
+  res.json({ overview });
+}
+
+module.exports = { listAccounts, getAccount, updateAccountStatus, listPlans, adjustCredits, creditsOverview };
