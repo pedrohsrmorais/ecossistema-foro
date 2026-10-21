@@ -214,7 +214,7 @@ Catálogo — um módulo por linha.
 
 | Coluna          | Descrição                                                        |
 |------------------|----------------------------------------------------------------------|
-| `module_key`     | PK: `crm`, `pesquisa_cpf_cnpj`, `pesquisa_processual`, `educacao`     |
+| `module_key`     | PK: `crm`, `pesquisa_cpf_cnpj`, `pesquisa_processual`, `educacao`, `provas_conceito`, `desafios_semanais`, `comunidade` |
 | `display_order`  | Ordem de exibição na tela de toggles do admin                        |
 
 ### `account_modules`
@@ -256,6 +256,69 @@ Progresso **por usuário individual** (não por conta — quem assiste é a pess
 
 ---
 
+## 10. Provas de conceito — quiz vinculado a uma aula
+
+Reforça o conteúdo de uma aula de Educação com um teste curto de múltipla escolha. Conteúdo é da plataforma (CMS do painel admin), igual Educação — no máximo **um quiz por aula**. Pontos são concedidos uma única vez por usuário, na primeira tentativa em que ele atinge `passing_score_pct`.
+
+### `quizzes`
+| Coluna               | Descrição                                                    |
+|-----------------------|-------------------------------------------------------------------|
+| `aula_id`             | FK → `aulas.id`, `UNIQUE` (um quiz por aula), `ON DELETE CASCADE`  |
+| `passing_score_pct`   | Nota mínima pra passar (padrão 70%)                                |
+| `points_awarded`      | Pontos concedidos ao passar pela primeira vez                     |
+
+### `quiz_questions`
+| Coluna               | Descrição                                                    |
+|-----------------------|-------------------------------------------------------------------|
+| `options`             | JSON — array de `{id, label}` (mesmo padrão de `field_definitions.options`) |
+| `correct_option_id`   | Qual `id` de `options` é a resposta certa                          |
+
+### `quiz_attempts`
+Histórico de tentativas — cada submissão gera uma linha, mesmo repetida.
+
+| Coluna               | Descrição                                                    |
+|-----------------------|-------------------------------------------------------------------|
+| `account_id`          | Desnormalizado — permite somar pontos por conta sem join em `users` |
+| `passed` / `score_pct`| Resultado da tentativa                                             |
+| `points_awarded`      | `0` se não passou, ou se já tinha passado antes (evita "farm")    |
+
+---
+
+## 11. Desafios semanais — conclusão auto-declarada
+
+Desafios publicados pela equipe intellsn, com janela de vigência (`starts_at`/`ends_at`). **Conclusão é auto-declarada**: o usuário clica "concluí" e pronto, sem verificação nem evidência anexada — decisão deliberada pra manter o MVP simples.
+
+### `weekly_challenges`
+| Coluna               | Descrição                                                    |
+|-----------------------|-------------------------------------------------------------------|
+| `attachment_url`      | Link externo opcional (ex: PDF) — ainda não existe upload de arquivo |
+| `published`           | Rascunhos (`0`) não aparecem para os tenants                       |
+
+### `weekly_challenge_completions`
+| Coluna               | Descrição                                                    |
+|-----------------------|-------------------------------------------------------------------|
+| `challenge_id` + `user_id` | `UNIQUE` — auto-declarado uma vez só por usuário               |
+| `account_id`          | Desnormalizado, mesmo motivo de `quiz_attempts.account_id`        |
+
+---
+
+## 12. Comunidade — feed por conta + ranking cross-tenant
+
+Duas coisas **deliberadamente separadas**:
+
+1. **Feed de conquistas** (`community_posts`) — isolado por conta. Escritórios de advocacia costumam ser concorrentes entre si, então o feed **nunca** mostra posts de outra conta.
+2. **Ranking de pontos** — esse **é** cross-tenant, por opção explícita do dono da plataforma. Não existe tabela própria: é agregação, calculada na hora, de `quiz_attempts.points_awarded` + `weekly_challenge_completions.points_awarded`, somados por `account_id` (ver `community.service.js::leaderboard`).
+
+### `community_posts`
+| Coluna                              | Descrição                                                    |
+|---------------------------------------|-------------------------------------------------------------------|
+| `account_id`                          | Feed isolado por conta — nunca cross-tenant                       |
+| `kind`                                | `mensagem` (escrita livre) ou `conquista` (gerado automaticamente) |
+| `related_quiz_attempt_id`             | Preenchido quando o post foi gerado ao passar numa prova de conceito |
+| `related_challenge_completion_id`     | Preenchido quando o post foi gerado ao concluir um desafio          |
+
+---
+
 ## Tabela-resumo
 
 | Tabela                   | Tenant? | Depende de            | Propósito                                      |
@@ -286,6 +349,12 @@ Progresso **por usuário individual** (não por conta — quem assiste é a pess
 | `trilhas`                | não     | —                      | Trilhas do módulo Educação (conteúdo da plataforma) |
 | `aulas`                  | não     | `trilhas`              | Aulas em vídeo de uma trilha                    |
 | `aula_progresso`         | —       | `users`, `aulas`       | Progresso por usuário (não por conta)           |
+| `quizzes`                | não     | `aulas`                | Prova de conceito de uma aula (conteúdo da plataforma) |
+| `quiz_questions`         | não     | `quizzes`              | Perguntas de múltipla escolha                   |
+| `quiz_attempts`          | sim     | `quizzes`, `users`     | Histórico de tentativas + pontos                |
+| `weekly_challenges`      | não     | —                      | Desafios semanais (conteúdo da plataforma)      |
+| `weekly_challenge_completions` | sim | `weekly_challenges`, `users` | Conclusão auto-declarada + pontos         |
+| `community_posts`        | sim     | `accounts`, `users`    | Feed de conquistas, isolado por conta           |
 
 ---
 

@@ -2,7 +2,7 @@ import { Outlet, NavLink, useNavigate, useLocation } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import {
   MessageSquare, Users, LayoutDashboard, CheckSquare, Settings, LogOut, Scale,
-  GraduationCap, Sparkles, Building2, UserSearch, Gavel, FlaskConical, Trophy,
+  GraduationCap, Sparkles, Building2, UserSearch, Gavel, FlaskConical, Trophy, Users2,
 } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
 import { modulesApi } from '../api'
@@ -40,8 +40,9 @@ const NAV_SECTIONS: { label: string; items: NavItem[] }[] = [
     label: 'Inteligência',
     items: [
       { to: '/education',           label: 'Educação',              icon: GraduationCap, module: 'educacao' },
-      { to: '/provas-de-conceito',  label: 'Provas de conceito',    icon: FlaskConical,  module: 'educacao' },
-      { to: '/desafios-semanais',   label: 'Desafios semanais',     icon: Trophy,        module: 'educacao' },
+      { to: '/provas-de-conceito',  label: 'Provas de conceito',    icon: FlaskConical,  module: 'provas_conceito' },
+      { to: '/desafios-semanais',   label: 'Desafios semanais',     icon: Trophy,        module: 'desafios_semanais' },
+      { to: '/comunidade',          label: 'Comunidade',            icon: Users2,        module: 'comunidade' },
     ],
   },
 ]

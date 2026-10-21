@@ -23,13 +23,18 @@ import ConsultaCpf from './pages/aplicativos/ConsultaCpf'
 import ConsultaProcessual from './pages/aplicativos/ConsultaProcessual'
 import PesquisaInteligente from './pages/aplicativos/PesquisaInteligente'
 import ProvasDeConceito from './pages/inteligencia/ProvasDeConceito'
+import QuizTake from './pages/inteligencia/QuizTake'
 import DesafiosSemanais from './pages/inteligencia/DesafiosSemanais'
+import Comunidade from './pages/inteligencia/Comunidade'
 import AdminLogin from './pages/admin/AdminLogin'
 import AdminAccounts from './pages/admin/AdminAccounts'
 import AdminAccountDetail from './pages/admin/AdminAccountDetail'
 import AdminCreditsOverview from './pages/admin/AdminCreditsOverview'
 import AdminEducationTrilhas from './pages/admin/AdminEducationTrilhas'
 import AdminEducationTrilhaDetail from './pages/admin/AdminEducationTrilhaDetail'
+import AdminQuizDetail from './pages/admin/AdminQuizDetail'
+import AdminChallenges from './pages/admin/AdminChallenges'
+import AdminCommunity from './pages/admin/AdminCommunity'
 import NotFound from './pages/NotFound'
 
 export default function App() {
@@ -66,9 +71,11 @@ export default function App() {
                 <Route path="/consulta-cpf"         element={<ConsultaCpf />} />
                 <Route path="/consulta-processual"  element={<ConsultaProcessual />} />
 
-                {/* Inteligência — placeholders do roadmap, sem backend ainda */}
-                <Route path="/provas-de-conceito" element={<ProvasDeConceito />} />
-                <Route path="/desafios-semanais"  element={<DesafiosSemanais />} />
+                {/* Inteligência — Provas de conceito, Desafios semanais, Comunidade */}
+                <Route path="/provas-de-conceito"          element={<ProvasDeConceito />} />
+                <Route path="/provas-de-conceito/:aulaId"  element={<QuizTake />} />
+                <Route path="/desafios-semanais"           element={<DesafiosSemanais />} />
+                <Route path="/comunidade"                  element={<Comunidade />} />
               </Route>
             </Route>
           </Route>
@@ -84,6 +91,9 @@ export default function App() {
               <Route path="/admin/credits"      element={<AdminCreditsOverview />} />
               <Route path="/admin/education"     element={<AdminEducationTrilhas />} />
               <Route path="/admin/education/:id" element={<AdminEducationTrilhaDetail />} />
+              <Route path="/admin/education/aulas/:aulaId/quiz" element={<AdminQuizDetail />} />
+              <Route path="/admin/challenges"    element={<AdminChallenges />} />
+              <Route path="/admin/community"     element={<AdminCommunity />} />
             </Route>
           </Route>
 

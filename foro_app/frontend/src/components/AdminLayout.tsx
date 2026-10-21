@@ -1,12 +1,14 @@
 import { Outlet, NavLink, useNavigate } from 'react-router-dom'
-import { Building2, Coins, GraduationCap, LogOut, ShieldCheck } from 'lucide-react'
+import { Building2, Coins, GraduationCap, Trophy, Users2, LogOut, ShieldCheck } from 'lucide-react'
 import { useAdminAuth } from '../context/AdminAuthContext'
 import clsx from 'clsx'
 
 const NAV = [
-  { to: '/admin/accounts', label: 'Contas',    icon: Building2 },
-  { to: '/admin/credits',  label: 'Créditos',  icon: Coins },
-  { to: '/admin/education', label: 'Educação', icon: GraduationCap },
+  { to: '/admin/accounts',   label: 'Contas',            icon: Building2 },
+  { to: '/admin/credits',    label: 'Créditos',          icon: Coins },
+  { to: '/admin/education',  label: 'Educação',          icon: GraduationCap },
+  { to: '/admin/challenges', label: 'Desafios semanais', icon: Trophy },
+  { to: '/admin/community',  label: 'Comunidade',        icon: Users2 },
 ]
 
 /**

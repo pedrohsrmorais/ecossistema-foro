@@ -16,8 +16,6 @@ export const LOCKED_FEATURES = {
   pesquisaCpf: true,
   pesquisaProcessual: true,
   pesquisaInteligente: true,
-  provasDeConceito: true,
-  desafiosSemanais: true,
 } as const
 
 export type LockedFeatureKey = keyof typeof LOCKED_FEATURES

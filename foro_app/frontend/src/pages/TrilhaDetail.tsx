@@ -1,8 +1,8 @@
 import { useState } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { educationApi, type Aula } from '../api'
-import { ArrowLeft, CheckCircle2, Circle, PlayCircle } from 'lucide-react'
+import { educationApi, quizzesApi, type Aula } from '../api'
+import { ArrowLeft, CheckCircle2, Circle, PlayCircle, FlaskConical } from 'lucide-react'
 
 function embedUrl(aula: Aula) {
   if (aula.video_provider === 'vimeo') return `https://player.vimeo.com/video/${aula.video_id}`
@@ -25,10 +25,20 @@ export default function TrilhaDetail() {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['education-trilha', id] }),
   })
 
+  const aulaAtual = trilha?.aulas.find(a => a.id === selectedAulaId) || trilha?.aulas[0]
+
+  // Só busca se existe prova de conceito pra essa aula quando ela está selecionada
+  // (evita N chamadas pra todas as aulas da trilha de uma vez).
+  const { data: quiz } = useQuery({
+    queryKey: ['quiz-for-aula', aulaAtual?.id],
+    queryFn: () => quizzesApi.getForAula(aulaAtual!.id),
+    enabled: !!aulaAtual?.id,
+  })
+
   if (isLoading) return <div className="p-6 text-sm text-slate-400">Carregando...</div>
   if (!trilha) return null
 
-  const aula = trilha.aulas.find(a => a.id === selectedAulaId) || trilha.aulas[0]
+  const aula = aulaAtual
 
   return (
     <div className="p-6">
@@ -68,17 +78,25 @@ export default function TrilhaDetail() {
                     <h2 className="font-medium text-slate-900 mb-1">{aula.title}</h2>
                     {aula.description && <p className="text-sm text-slate-500">{aula.description}</p>}
                   </div>
-                  <button
-                    onClick={() => completeMutation.mutate(aula.id)}
-                    disabled={!!aula.completed_at || completeMutation.isPending}
-                    className="btn-secondary shrink-0"
-                  >
-                    {aula.completed_at ? (
-                      <><CheckCircle2 className="w-4 h-4 text-green-600" /> Concluída</>
-                    ) : (
-                      'Marcar como concluída'
+                  <div className="flex items-center gap-2 shrink-0">
+                    {quiz && (
+                      <Link to={`/provas-de-conceito/${aula.id}`} className="btn-secondary">
+                        <FlaskConical className="w-4 h-4 text-accent-500" />
+                        {quiz.best_attempt?.passed ? 'Ver prova de conceito' : 'Fazer prova de conceito'}
+                      </Link>
                     )}
-                  </button>
+                    <button
+                      onClick={() => completeMutation.mutate(aula.id)}
+                      disabled={!!aula.completed_at || completeMutation.isPending}
+                      className="btn-secondary"
+                    >
+                      {aula.completed_at ? (
+                        <><CheckCircle2 className="w-4 h-4 text-green-600" /> Concluída</>
+                      ) : (
+                        'Marcar como concluída'
+                      )}
+                    </button>
+                  </div>
                 </div>
               </>
             )}

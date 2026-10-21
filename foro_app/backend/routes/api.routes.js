@@ -28,6 +28,9 @@ const creditsController     = require('../controllers/credits.controller');
 const lookupController      = require('../controllers/lookup.controller');
 const modulesController     = require('../controllers/modules.controller');
 const educationController   = require('../controllers/education.controller');
+const quizzesController     = require('../controllers/quizzes.controller');
+const challengesController  = require('../controllers/challenges.controller');
+const communityController   = require('../controllers/community.controller');
 
 const { authenticate, requireVerifiedEmail } = require('../middlewares/auth.middleware');
 const { loadClientContext }   = require('../middlewares/client.middleware');
@@ -68,6 +71,26 @@ router.delete('/admin/education/trilhas/:id',        authenticatePlatform, educa
 router.post  ('/admin/education/trilhas/:id/aulas',  authenticatePlatform, educationController.createAula);
 router.put   ('/admin/education/aulas/:aulaId',      authenticatePlatform, educationController.updateAula);
 router.delete('/admin/education/aulas/:aulaId',      authenticatePlatform, educationController.deleteAula);
+
+// CMS do módulo "Provas de conceito" — um quiz por aula, ver quizzes.service.js
+router.get   ('/admin/education/aulas/:aulaId/quiz',            authenticatePlatform, quizzesController.adminGetQuizForAula);
+router.post  ('/admin/education/aulas/:aulaId/quiz',             authenticatePlatform, quizzesController.createQuiz);
+router.put   ('/admin/quizzes/:id',                              authenticatePlatform, quizzesController.updateQuiz);
+router.delete('/admin/quizzes/:id',                              authenticatePlatform, quizzesController.deleteQuiz);
+router.post  ('/admin/quizzes/:id/questions',                    authenticatePlatform, quizzesController.addQuestion);
+router.put   ('/admin/quizzes/questions/:questionId',            authenticatePlatform, quizzesController.updateQuestion);
+router.delete('/admin/quizzes/questions/:questionId',            authenticatePlatform, quizzesController.deleteQuestion);
+
+// CMS do módulo "Desafios semanais" — ver challenges.service.js
+router.get   ('/admin/challenges',     authenticatePlatform, challengesController.adminList);
+router.post  ('/admin/challenges',     authenticatePlatform, challengesController.create);
+router.put   ('/admin/challenges/:id', authenticatePlatform, challengesController.update);
+router.delete('/admin/challenges/:id', authenticatePlatform, challengesController.remove);
+
+// Moderação do módulo "Comunidade" — feed é por conta, mas a equipe intellsn
+// pode remover qualquer post (ver community.service.js)
+router.get   ('/admin/community/posts',     authenticatePlatform, communityController.adminListRecentPosts);
+router.delete('/admin/community/posts/:id', authenticatePlatform, communityController.adminDeletePost);
 
 // ─── Webhooks (público — sem JWT; Asaas/NFE.io não enviam Bearer token) ───────
 // FICA ANTES de router.use(authenticate): se estivesse depois, toda chamada do
@@ -171,5 +194,20 @@ router.post  ('/lookup/processo/summary',  requireModule('pesquisa_processual'),
 router.get   ('/education/trilhas',               requireModule('educacao'), educationController.listTrilhas);
 router.get   ('/education/trilhas/:id',            requireModule('educacao'), educationController.getTrilha);
 router.put   ('/education/aulas/:aulaId/progress', requireModule('educacao'), educationController.updateProgress);
+
+// ─── Provas de conceito (módulo "provas_conceito") — quiz vinculado a uma aula ─
+router.get   ('/education/quizzes',                  requireModule('provas_conceito'), quizzesController.listAvailable);
+router.get   ('/education/aulas/:aulaId/quiz',       requireModule('provas_conceito'), quizzesController.getQuizForAula);
+router.post  ('/education/quizzes/:id/attempts',     requireModule('provas_conceito'), quizzesController.submitAttempt);
+
+// ─── Desafios semanais (módulo "desafios_semanais") — conclusão auto-declarada ─
+router.get   ('/challenges',              requireModule('desafios_semanais'), challengesController.listActive);
+router.post  ('/challenges/:id/complete', requireModule('desafios_semanais'), challengesController.complete);
+
+// ─── Comunidade (módulo "comunidade") — feed isolado por conta + ranking cross-tenant ─
+router.get   ('/community/posts',         requireModule('comunidade'), communityController.listFeed);
+router.post  ('/community/posts',         requireModule('comunidade'), communityController.createPost);
+router.delete('/community/posts/:id',     requireModule('comunidade'), communityController.deletePost);
+router.get   ('/community/leaderboard',   requireModule('comunidade'), communityController.leaderboard);
 
 module.exports = router;

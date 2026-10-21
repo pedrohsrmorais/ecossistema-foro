@@ -523,6 +523,124 @@ CREATE TABLE IF NOT EXISTS aula_progresso (
   CONSTRAINT fk_progresso_aula FOREIGN KEY (aula_id) REFERENCES aulas(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+-- ────────────────────────────────────────────────────────────────────────────
+-- 10. PROVAS DE CONCEITO — quiz curto vinculado a uma aula (módulo "provas_conceito")
+-- ────────────────────────────────────────────────────────────────────────────
+--
+-- Reforça o conteúdo de uma aula de Educação com um teste rápido de múltipla
+-- escolha. Criado pela equipe intellsn (CMS do painel admin) — no máximo um
+-- quiz por aula. Pontos são concedidos na primeira vez que o usuário atinge
+-- `passing_score_pct` (ver quizzes.service.js::submitAttempt) — tentativas
+-- seguintes ficam no histórico mas não pontuam de novo.
+
+CREATE TABLE IF NOT EXISTS quizzes (
+  id                 VARCHAR(36)  NOT NULL DEFAULT (UUID()),
+  aula_id            VARCHAR(36)  NOT NULL,
+  title              VARCHAR(150) NOT NULL,
+  passing_score_pct  TINYINT UNSIGNED NOT NULL DEFAULT 70,
+  points_awarded     INT UNSIGNED NOT NULL DEFAULT 10 COMMENT 'pontos concedidos ao passar, uma vez por usuário',
+  created_at         DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at         DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  UNIQUE KEY uk_quizzes_aula (aula_id),
+  CONSTRAINT fk_quizzes_aula FOREIGN KEY (aula_id) REFERENCES aulas(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS quiz_questions (
+  id                 VARCHAR(36)  NOT NULL DEFAULT (UUID()),
+  quiz_id            VARCHAR(36)  NOT NULL,
+  prompt             TEXT         NOT NULL,
+  options            JSON         NOT NULL COMMENT 'array de {id, label} — mesmo padrão de field_definitions.options',
+  correct_option_id  VARCHAR(10)  NOT NULL,
+  display_order      INT UNSIGNED NOT NULL DEFAULT 0,
+  created_at         DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  KEY idx_quiz_questions_quiz (quiz_id, display_order),
+  CONSTRAINT fk_quiz_questions_quiz FOREIGN KEY (quiz_id) REFERENCES quizzes(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS quiz_attempts (
+  id              VARCHAR(36)  NOT NULL DEFAULT (UUID()),
+  quiz_id         VARCHAR(36)  NOT NULL,
+  user_id         VARCHAR(36)  NOT NULL,
+  account_id      VARCHAR(36)  NOT NULL COMMENT 'desnormalizado — soma pontos por conta sem join em users',
+  score_pct       TINYINT UNSIGNED NOT NULL,
+  passed          TINYINT(1)   NOT NULL,
+  points_awarded  INT UNSIGNED NOT NULL DEFAULT 0 COMMENT '0 se não passou, ou se já tinha passado antes',
+  created_at      DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  KEY idx_quiz_attempts_user (user_id, created_at),
+  KEY idx_quiz_attempts_account (account_id),
+  CONSTRAINT fk_quiz_attempts_quiz    FOREIGN KEY (quiz_id)    REFERENCES quizzes(id)  ON DELETE CASCADE,
+  CONSTRAINT fk_quiz_attempts_user    FOREIGN KEY (user_id)    REFERENCES users(id)    ON DELETE CASCADE,
+  CONSTRAINT fk_quiz_attempts_account FOREIGN KEY (account_id) REFERENCES accounts(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ────────────────────────────────────────────────────────────────────────────
+-- 11. DESAFIOS SEMANAIS — conteúdo da plataforma, conclusão auto-declarada (módulo "desafios_semanais")
+-- ────────────────────────────────────────────────────────────────────────────
+--
+-- Desafios publicados pela equipe intellsn, com janela de vigência. Conclusão
+-- é auto-declarada pelo usuário (clica "concluí", sem verificação/evidência)
+-- — decisão deliberada para manter simples no MVP.
+
+CREATE TABLE IF NOT EXISTS weekly_challenges (
+  id              VARCHAR(36)  NOT NULL DEFAULT (UUID()),
+  title           VARCHAR(150) NOT NULL,
+  description     TEXT         NOT NULL,
+  attachment_url  VARCHAR(500) NULL COMMENT 'link externo opcional (ex: PDF) — não há upload de arquivo ainda',
+  points_awarded  INT UNSIGNED NOT NULL DEFAULT 10,
+  starts_at       DATE         NOT NULL,
+  ends_at         DATE         NOT NULL,
+  published       TINYINT(1)   NOT NULL DEFAULT 0,
+  created_at      DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at      DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  KEY idx_weekly_challenges_window (published, starts_at, ends_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS weekly_challenge_completions (
+  id              VARCHAR(36)  NOT NULL DEFAULT (UUID()),
+  challenge_id    VARCHAR(36)  NOT NULL,
+  user_id         VARCHAR(36)  NOT NULL,
+  account_id      VARCHAR(36)  NOT NULL COMMENT 'desnormalizado — mesmo motivo de quiz_attempts.account_id',
+  points_awarded  INT UNSIGNED NOT NULL,
+  created_at      DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  UNIQUE KEY uk_challenge_completion_user (challenge_id, user_id),
+  KEY idx_challenge_completions_account (account_id),
+  CONSTRAINT fk_challenge_completions_challenge FOREIGN KEY (challenge_id) REFERENCES weekly_challenges(id) ON DELETE CASCADE,
+  CONSTRAINT fk_challenge_completions_user      FOREIGN KEY (user_id)      REFERENCES users(id)             ON DELETE CASCADE,
+  CONSTRAINT fk_challenge_completions_account   FOREIGN KEY (account_id)   REFERENCES accounts(id)          ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ────────────────────────────────────────────────────────────────────────────
+-- 12. COMUNIDADE — feed de conquistas isolado por conta (módulo "comunidade")
+-- ────────────────────────────────────────────────────────────────────────────
+--
+-- Feed social, mas DELIBERADAMENTE restrito à própria conta: escritórios de
+-- advocacia costumam ser concorrentes entre si, então o feed de posts NUNCA é
+-- cross-tenant (diferente do ranking de pontos, que é cross-tenant por opção
+-- explícita do dono da plataforma — calculado por agregação sobre
+-- quiz_attempts/weekly_challenge_completions, sem tabela própria).
+
+CREATE TABLE IF NOT EXISTS community_posts (
+  id                              VARCHAR(36) NOT NULL DEFAULT (UUID()),
+  account_id                      VARCHAR(36) NOT NULL COMMENT 'feed isolado por conta — nunca cross-tenant',
+  user_id                         VARCHAR(36) NOT NULL,
+  content                         TEXT        NOT NULL,
+  kind                            ENUM('conquista','mensagem') NOT NULL DEFAULT 'mensagem',
+  related_quiz_attempt_id         VARCHAR(36) NULL COMMENT 'preenchido quando o post foi gerado automaticamente ao passar numa prova de conceito',
+  related_challenge_completion_id VARCHAR(36) NULL COMMENT 'preenchido quando o post foi gerado automaticamente ao concluir um desafio',
+  created_at                      DATETIME    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  KEY idx_community_posts_account (account_id, created_at),
+  CONSTRAINT fk_community_posts_account   FOREIGN KEY (account_id) REFERENCES accounts(id)                     ON DELETE CASCADE,
+  CONSTRAINT fk_community_posts_user      FOREIGN KEY (user_id)    REFERENCES users(id)                        ON DELETE CASCADE,
+  CONSTRAINT fk_community_posts_quiz      FOREIGN KEY (related_quiz_attempt_id)         REFERENCES quiz_attempts(id)                ON DELETE SET NULL,
+  CONSTRAINT fk_community_posts_challenge FOREIGN KEY (related_challenge_completion_id) REFERENCES weekly_challenge_completions(id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 -- ════════════════════════════════════════════════════════════════════════════
 -- SEEDS — dados iniciais
 -- ════════════════════════════════════════════════════════════════════════════
@@ -561,7 +679,10 @@ INSERT INTO modules (module_key, name, description, display_order) VALUES
   ('crm',                  'CRM com IA',          'Gestão de leads, funil, notas, tarefas e chat com IA', 1),
   ('pesquisa_cpf_cnpj',    'Consulta de CPF/CNPJ','Consulta de dados cadastrais, paga em créditos',       2),
   ('pesquisa_processual',  'Consulta processual', 'Busca de processos por CPF/CNPJ e resumo por IA',      3),
-  ('educacao',             'Educação',            'Trilhas e aulas em vídeo sobre tecnologia para escritórios', 4)
+  ('educacao',             'Educação',            'Trilhas e aulas em vídeo sobre tecnologia para escritórios', 4),
+  ('provas_conceito',      'Provas de conceito',  'Quiz curto vinculado a uma aula de Educação, com pontuação', 5),
+  ('desafios_semanais',    'Desafios semanais',   'Desafios publicados pela equipe intellsn, com pontuação',    6),
+  ('comunidade',           'Comunidade',          'Feed de conquistas por escritório + ranking de pontos entre escritórios', 7)
 ON DUPLICATE KEY UPDATE
   name = VALUES(name), description = VALUES(description), display_order = VALUES(display_order);
 

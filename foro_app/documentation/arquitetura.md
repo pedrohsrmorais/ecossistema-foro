@@ -100,6 +100,18 @@ Cada funcionalidade (`crm`, `pesquisa_cpf_cnpj`, `pesquisa_processual`, `educaca
 
 Módulo de trilhas/aulas em vídeo sobre tecnologia para escritórios de advocacia. Conteúdo é da **plataforma**, não por conta — criado pela equipe intellsn no CMS do painel administrativo, visível para todo tenant com o módulo `educacao` ativo. Vídeo hospedado externamente (Vimeo privado recomendado); o banco só guarda o `video_id`. Progresso (`aula_progresso`) é por usuário individual. Ver [banco-de-dados.md](./banco-de-dados.md#9-educação--trilhas-e-aulas-em-vídeo).
 
+### Provas de conceito, Desafios semanais e Comunidade — o "ecossistema"
+
+Três módulos novos que estendem a ideia de Educação pra um ciclo completo de engajamento: ver conteúdo → testar o que aprendeu → ganhar pontos → compartilhar com o escritório. Cada um é um módulo independente (`provas_conceito`, `desafios_semanais`, `comunidade`), desativável por conta como qualquer outro.
+
+- **Provas de conceito** (`quizzes.service.js`): um quiz de múltipla escolha vinculado a UMA aula (no máximo um por aula), criado no CMS do admin. Pontos (`quizzes.points_awarded`) são concedidos só na primeira vez que o usuário atinge a nota mínima — tentativas seguintes ficam no histórico (`quiz_attempts`) mas não pontuam de novo.
+- **Desafios semanais** (`challenges.service.js`): desafios publicados pela equipe intellsn, com janela de vigência (`starts_at`/`ends_at`). Conclusão é **auto-declarada** pelo usuário — sem verificação nem evidência — decisão deliberada pra manter o MVP simples.
+- **Comunidade** (`community.service.js`): duas coisas separadas por design —
+  1. Um **feed de conquistas isolado por conta** (`community_posts`) — nunca cross-tenant, porque escritórios de advocacia costumam ser concorrentes entre si. Posts são gerados automaticamente ao passar numa prova de conceito ou concluir um desafio, ou escritos livremente pelo usuário.
+  2. Um **ranking de pontos entre escritórios** (`GET /community/leaderboard`) — esse sim é cross-tenant, por decisão explícita do dono da plataforma. Não existe tabela de pontos própria: é agregação, calculada na hora, de `quiz_attempts.points_awarded` + `weekly_challenge_completions.points_awarded`.
+
+Ver [banco-de-dados.md](./banco-de-dados.md#10-provas-de-conceito--quiz-vinculado-a-uma-aula) (seções 10-12).
+
 ---
 
 ## IA como interface do CRM

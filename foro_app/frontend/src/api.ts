@@ -538,6 +538,122 @@ export const educationApi = {
     http.put(`/education/aulas/${aulaId}/progress`, data).then(r => r.data),
 }
 
+// ─── PROVAS DE CONCEITO — quiz vinculado a uma aula (módulo "provas_conceito") ─
+
+export interface QuizQuestion {
+  id: string
+  prompt: string
+  options: { id: string; label: string }[]
+  display_order: number
+}
+
+export interface QuizAttemptResult {
+  id: string
+  score_pct: number
+  passed: boolean
+  points_awarded: number
+  total_questions: number
+  correct_count: number
+}
+
+export interface Quiz {
+  id: string
+  aula_id: string
+  title: string
+  passing_score_pct: number
+  points_awarded: number
+  questions: QuizQuestion[]
+  best_attempt: { score_pct: number; passed: boolean; points_awarded: number; created_at: string } | null
+}
+
+export interface AvailableQuiz {
+  quiz_id: string
+  title: string
+  points_awarded: number
+  passing_score_pct: number
+  aula_id: string
+  aula_title: string
+  trilha_id: string
+  trilha_title: string
+  best_score_pct: number | null
+  best_passed: boolean
+}
+
+export const quizzesApi = {
+  /** GET /education/quizzes — todas as provas disponíveis + melhor resultado do usuário */
+  listAvailable: () =>
+    http.get<{ quizzes: AvailableQuiz[] }>('/education/quizzes').then(r => r.data.quizzes),
+
+  /** GET /education/aulas/:aulaId/quiz — null se a aula não tem prova de conceito */
+  getForAula: (aulaId: string) =>
+    http.get<{ quiz: Quiz | null }>(`/education/aulas/${aulaId}/quiz`).then(r => r.data.quiz),
+
+  /** POST /education/quizzes/:id/attempts */
+  submitAttempt: (quizId: string, answers: { question_id: string; option_id: string }[]) =>
+    http.post<{ attempt: QuizAttemptResult }>(`/education/quizzes/${quizId}/attempts`, { answers }).then(r => r.data.attempt),
+}
+
+// ─── DESAFIOS SEMANAIS — conclusão auto-declarada (módulo "desafios_semanais") ─
+
+export interface Challenge {
+  id: string
+  title: string
+  description: string
+  attachment_url: string | null
+  points_awarded: number
+  starts_at: string
+  ends_at: string
+  is_current: boolean
+  completed: boolean
+}
+
+export const challengesApi = {
+  /** GET /challenges */
+  listActive: () =>
+    http.get<{ challenges: Challenge[] }>('/challenges').then(r => r.data.challenges),
+
+  /** POST /challenges/:id/complete — auto-declarado, idempotente */
+  complete: (id: string) =>
+    http.post<{ completion: { points_awarded: number; already_completed: boolean } }>(`/challenges/${id}/complete`).then(r => r.data.completion),
+}
+
+// ─── COMUNIDADE — feed isolado por conta + ranking de pontos cross-tenant (módulo "comunidade") ─
+
+export interface CommunityPost {
+  id: string
+  content: string
+  kind: 'conquista' | 'mensagem'
+  created_at: string
+  user_id: string
+  user_name: string
+}
+
+export interface LeaderboardEntry {
+  account_id: string
+  account_name: string
+  total_points: number
+  pos: number
+  is_mine: boolean
+}
+
+export const communityApi = {
+  /** GET /community/posts — feed da PRÓPRIA conta, nunca cross-tenant */
+  listFeed: () =>
+    http.get<{ posts: CommunityPost[] }>('/community/posts').then(r => r.data.posts),
+
+  /** POST /community/posts */
+  createPost: (content: string) =>
+    http.post<{ post: CommunityPost }>('/community/posts', { content }).then(r => r.data.post),
+
+  /** DELETE /community/posts/:id — só a própria publicação (ou admin da conta) */
+  deletePost: (id: string) =>
+    http.delete(`/community/posts/${id}`).then(r => r.data),
+
+  /** GET /community/leaderboard — ranking de pontos entre escritórios (cross-tenant, por opção do produto) */
+  leaderboard: () =>
+    http.get<{ ranking: LeaderboardEntry[] }>('/community/leaderboard').then(r => r.data.ranking),
+}
+
 // ═══════════════════════════════════════════════════════════════════════════
 // PAINEL ADMINISTRATIVO DA PLATAFORMA (equipe intellsn) — autenticação própria,
 // sem account_id, cross-tenant. Nunca compartilha sessão/token com o app do
@@ -638,6 +754,46 @@ export interface AdminTrilhaDetail extends AdminTrilha {
   aulas: AdminAula[]
 }
 
+export interface AdminQuizQuestion {
+  id: string
+  quiz_id: string
+  prompt: string
+  options: { id: string; label: string }[]
+  correct_option_id: string
+  display_order: number
+}
+
+export interface AdminQuiz {
+  id: string
+  aula_id: string
+  title: string
+  passing_score_pct: number
+  points_awarded: number
+  questions: AdminQuizQuestion[]
+}
+
+export interface AdminChallenge {
+  id: string
+  title: string
+  description: string
+  attachment_url: string | null
+  points_awarded: number
+  starts_at: string
+  ends_at: string
+  published: boolean
+  total_conclusoes: number
+}
+
+export interface AdminCommunityPost {
+  id: string
+  content: string
+  kind: 'conquista' | 'mensagem'
+  created_at: string
+  user_name: string
+  account_name: string
+  account_id: string
+}
+
 export const adminApi = {
   /** POST /auth/platform-login */
   login: (email: string, password: string) =>
@@ -712,6 +868,64 @@ export const adminApi = {
   /** DELETE /admin/education/aulas/:aulaId */
   deleteAula: (aulaId: string) =>
     httpAdmin.delete(`/admin/education/aulas/${aulaId}`).then(r => r.data),
+
+  // ── CMS do módulo Provas de conceito — um quiz por aula ───────────────────
+
+  /** GET /admin/education/aulas/:aulaId/quiz — null se a aula ainda não tem prova */
+  getQuizForAula: (aulaId: string) =>
+    httpAdmin.get<{ quiz: AdminQuiz | null }>(`/admin/education/aulas/${aulaId}/quiz`).then(r => r.data.quiz),
+
+  /** POST /admin/education/aulas/:aulaId/quiz */
+  createQuiz: (aulaId: string, data: { title: string; passing_score_pct?: number; points_awarded?: number }) =>
+    httpAdmin.post<{ quiz: AdminQuiz }>(`/admin/education/aulas/${aulaId}/quiz`, data).then(r => r.data.quiz),
+
+  /** PUT /admin/quizzes/:id */
+  updateQuiz: (id: string, data: Partial<{ title: string; passing_score_pct: number; points_awarded: number }>) =>
+    httpAdmin.put<{ quiz: AdminQuiz }>(`/admin/quizzes/${id}`, data).then(r => r.data.quiz),
+
+  /** DELETE /admin/quizzes/:id */
+  deleteQuiz: (id: string) =>
+    httpAdmin.delete(`/admin/quizzes/${id}`).then(r => r.data),
+
+  /** POST /admin/quizzes/:id/questions */
+  addQuizQuestion: (quizId: string, data: { prompt: string; options: { id: string; label: string }[]; correct_option_id: string; display_order?: number }) =>
+    httpAdmin.post<{ question: AdminQuizQuestion }>(`/admin/quizzes/${quizId}/questions`, data).then(r => r.data.question),
+
+  /** PUT /admin/quizzes/questions/:questionId */
+  updateQuizQuestion: (questionId: string, data: Partial<{ prompt: string; options: { id: string; label: string }[]; correct_option_id: string; display_order: number }>) =>
+    httpAdmin.put<{ question: AdminQuizQuestion }>(`/admin/quizzes/questions/${questionId}`, data).then(r => r.data.question),
+
+  /** DELETE /admin/quizzes/questions/:questionId */
+  deleteQuizQuestion: (questionId: string) =>
+    httpAdmin.delete(`/admin/quizzes/questions/${questionId}`).then(r => r.data),
+
+  // ── CMS do módulo Desafios semanais ────────────────────────────────────────
+
+  /** GET /admin/challenges */
+  listChallenges: () =>
+    httpAdmin.get<{ challenges: AdminChallenge[] }>('/admin/challenges').then(r => r.data.challenges),
+
+  /** POST /admin/challenges */
+  createChallenge: (data: { title: string; description: string; attachment_url?: string; points_awarded?: number; starts_at: string; ends_at: string; published?: boolean }) =>
+    httpAdmin.post<{ challenge: AdminChallenge }>('/admin/challenges', data).then(r => r.data.challenge),
+
+  /** PUT /admin/challenges/:id */
+  updateChallenge: (id: string, data: Partial<{ title: string; description: string; attachment_url: string; points_awarded: number; starts_at: string; ends_at: string; published: boolean }>) =>
+    httpAdmin.put<{ challenge: AdminChallenge }>(`/admin/challenges/${id}`, data).then(r => r.data.challenge),
+
+  /** DELETE /admin/challenges/:id */
+  deleteChallenge: (id: string) =>
+    httpAdmin.delete(`/admin/challenges/${id}`).then(r => r.data),
+
+  // ── Moderação do módulo Comunidade ────────────────────────────────────────
+
+  /** GET /admin/community/posts */
+  listCommunityPosts: () =>
+    httpAdmin.get<{ posts: AdminCommunityPost[] }>('/admin/community/posts').then(r => r.data.posts),
+
+  /** DELETE /admin/community/posts/:id */
+  deleteCommunityPost: (id: string) =>
+    httpAdmin.delete(`/admin/community/posts/${id}`).then(r => r.data),
 }
 
 export default http

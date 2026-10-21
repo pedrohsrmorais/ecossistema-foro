@@ -560,6 +560,80 @@ Upsert — cada usuário tem seu próprio progresso, mesmo dentro da mesma conta
 
 ---
 
+## Provas de conceito
+
+Quiz de múltipla escolha vinculado a UMA aula de Educação, atrás do módulo `provas_conceito`. No máximo um quiz por aula — conteúdo é da plataforma, criado no CMS do admin.
+
+### Listar provas disponíveis (todas as trilhas) + melhor resultado do usuário
+```
+GET /education/quizzes
+Response 200: { quizzes: [{ quiz_id, title, points_awarded, passing_score_pct, aula_id, aula_title, trilha_id, trilha_title, best_score_pct, best_passed }] }
+```
+
+### Buscar a prova de uma aula específica (sem o gabarito)
+```
+GET /education/aulas/:aulaId/quiz
+Response 200: { quiz: { id, aula_id, title, passing_score_pct, points_awarded, questions: [{ id, prompt, options, display_order }], best_attempt } | null }
+```
+`options` é um array de `{ id, label }` — nunca inclui qual é a correta.
+
+### Submeter respostas
+```
+POST /education/quizzes/:id/attempts
+Body: { answers: [{ question_id, option_id }] }
+Response 201: { attempt: { id, score_pct, passed, points_awarded, total_questions, correct_count } }
+```
+`points_awarded` só é maior que zero na primeira vez que o usuário atinge `passing_score_pct` nesse quiz — tentativas repetidas (mesmo passando de novo) não pontuam de novo. Ao pontuar, um post de "conquista" é gerado automaticamente no feed de Comunidade da conta.
+
+---
+
+## Desafios semanais
+
+Desafios publicados pela equipe intellsn, atrás do módulo `desafios_semanais`. Conclusão é **auto-declarada** pelo usuário (sem verificação).
+
+### Listar desafios publicados
+```
+GET /challenges
+Response 200: { challenges: [{ id, title, description, attachment_url, points_awarded, starts_at, ends_at, is_current, completed }] }
+```
+`is_current` indica se hoje está dentro da janela `starts_at`–`ends_at`. `completed` já vem calculado para o usuário logado.
+
+### Marcar um desafio como concluído
+```
+POST /challenges/:id/complete
+Response 201: { completion: { points_awarded, already_completed } }
+```
+Idempotente — chamar de novo num desafio já concluído não gera pontos duplicados (`already_completed: true`, `points_awarded: 0`). Gera um post de "conquista" automático no feed de Comunidade na primeira conclusão.
+
+---
+
+## Comunidade
+
+Atrás do módulo `comunidade`. Duas coisas deliberadamente separadas — ver [arquitetura.md](./arquitetura.md#provas-de-conceito-desafios-semanais-e-comunidade--o-ecossistema).
+
+### Feed da própria conta (nunca cross-tenant)
+```
+GET /community/posts
+Response 200: { posts: [{ id, content, kind, created_at, user_id, user_name }] }
+
+POST /community/posts
+Body: { content }
+Response 201: { post }
+
+DELETE /community/posts/:id
+Response 204
+```
+`DELETE` só funciona na própria publicação, ou em qualquer uma da conta se o usuário for `role: admin`.
+
+### Ranking de pontos entre escritórios (cross-tenant)
+```
+GET /community/leaderboard
+Response 200: { ranking: [{ account_id, account_name, total_points, pos, is_mine }] }
+```
+Top 10 contas por pontos totais (soma de `quiz_attempts` + `weekly_challenge_completions`), **mais a posição da própria conta mesmo se estiver fora do top 10** — `is_mine: true` marca essa linha. Esse endpoint é cross-tenant por decisão explícita do dono da plataforma; o feed de posts acima não é.
+
+---
+
 ## Painel administrativo (plataforma)
 
 Rotas exclusivas da equipe intellsn — autenticação própria (`platform-login`), **não** usam `account_id`. Veem e gerenciam todos os tenants.
@@ -652,6 +726,40 @@ PUT    /admin/education/aulas/:aulaId          Body: campos parciais
 DELETE /admin/education/aulas/:aulaId          → 204
 ```
 Trilhas/aulas nascem com `published: false` (rascunho) — só aparecem para os tenants depois de publicadas explicitamente.
+
+### CMS do módulo Provas de conceito
+
+Um quiz por aula — criado a partir da aula (`aulaId`), editado/apagado pelo próprio `id` do quiz.
+
+```
+GET    /admin/education/aulas/:aulaId/quiz    → { quiz: { ...quiz, questions: [...] } | null }
+POST   /admin/education/aulas/:aulaId/quiz    Body: { title, passing_score_pct?, points_awarded? }   → 409 se a aula já tem quiz
+PUT    /admin/quizzes/:id                     Body: campos parciais
+DELETE /admin/quizzes/:id                     → 204 (apaga perguntas e tentativas em cascata)
+
+POST   /admin/quizzes/:id/questions                Body: { prompt, options: [{id,label}], correct_option_id, display_order? }
+PUT    /admin/quizzes/questions/:questionId        Body: campos parciais
+DELETE /admin/quizzes/questions/:questionId        → 204
+```
+
+### CMS do módulo Desafios semanais
+
+```
+GET    /admin/challenges     → { challenges: [{ ...challenge, total_conclusoes }] }
+POST   /admin/challenges     Body: { title, description, attachment_url?, points_awarded?, starts_at, ends_at, published? }
+PUT    /admin/challenges/:id Body: campos parciais
+DELETE /admin/challenges/:id → 204
+```
+Datas em formato `YYYY-MM-DD`. Nasce com `published: false` por padrão (igual Educação).
+
+### Moderação do módulo Comunidade
+
+O feed de cada conta só é visível pra ela mesma (ver seção **Comunidade**), mas a equipe intellsn pode ver e remover qualquer post, de qualquer conta.
+
+```
+GET    /admin/community/posts     → { posts: [{ ...post, account_name, account_id }] }   // 100 mais recentes, todas as contas
+DELETE /admin/community/posts/:id → 204
+```
 
 ---
 

@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { useParams, Link, useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { adminApi, type AdminAula } from '../../api'
-import { ArrowLeft, Plus, Trash2 } from 'lucide-react'
+import { ArrowLeft, Plus, Trash2, FlaskConical } from 'lucide-react'
 
 type VideoProvider = 'vimeo' | 'youtube' | 'url'
 const emptyAulaForm: { title: string; video_provider: VideoProvider; video_id: string; description: string } = {
@@ -134,6 +134,9 @@ export default function AdminEducationTrilhaDetail() {
                 <p className="text-xs text-slate-500">{a.video_provider} · {a.video_id}</p>
               </div>
               <div className="flex items-center gap-3">
+                <Link to={`/admin/education/aulas/${a.id}/quiz`} className="inline-flex items-center gap-1 text-xs text-accent-700 hover:underline">
+                  <FlaskConical className="w-3.5 h-3.5" /> Prova de conceito
+                </Link>
                 <label className="flex items-center gap-1.5 text-xs text-slate-500">
                   <input
                     type="checkbox" checked={a.published}

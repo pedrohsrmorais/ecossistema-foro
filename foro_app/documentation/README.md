@@ -43,7 +43,10 @@ foro_app/
 │   │   ├── settings.controller.js
 │   │   ├── admin.controller.js     # Painel administrativo (equipe intellsn)
 │   │   ├── credits.controller.js   # Carteira de créditos pré-pagos
-│   │   └── lookup.controller.js    # Consultas pagas (CPF/CNPJ/processual + resumo IA)
+│   │   ├── lookup.controller.js    # Consultas pagas (CPF/CNPJ/processual + resumo IA)
+│   │   ├── quizzes.controller.js   # Provas de conceito (tenant) + CMS (admin)
+│   │   ├── challenges.controller.js # Desafios semanais (tenant) + CMS (admin)
+│   │   └── community.controller.js  # Comunidade: feed por conta + ranking cross-tenant + moderação (admin)
 │   ├── services/               # Lógica de negócio e acesso ao banco
 │   │   ├── auth.service.js
 │   │   ├── users.service.js
@@ -58,7 +61,10 @@ foro_app/
 │   │   ├── external-lookup.service.js # Wrapper único: debita → chama provedor → reembolsa se falhar
 │   │   ├── cnpj.service.js / cpf.service.js / processo.service.js # Consultas pagas por provedor externo
 │   │   ├── modules.service.js      # Catálogo de módulos + estado (ativo/inativo) por conta
-│   │   └── education.service.js    # Trilhas/aulas (tenant) + CMS (admin)
+│   │   ├── education.service.js    # Trilhas/aulas (tenant) + CMS (admin)
+│   │   ├── quizzes.service.js      # Quiz por aula, pontuação só na 1ª aprovação
+│   │   ├── challenges.service.js   # Desafios semanais, conclusão auto-declarada
+│   │   └── community.service.js    # Feed por conta (nunca cross-tenant) + ranking de pontos (cross-tenant)
 │   ├── middlewares/
 │   │   ├── auth.middleware.js       # Valida JWT
 │   │   ├── client.middleware.js     # Carrega contexto do tenant
@@ -102,14 +108,19 @@ foro_app/
 │   │       │   ├── PesquisaInteligente.tsx   # Entrada única — detecta CPF/CNPJ e busca tudo
 │   │       │   ├── ConsultaCnpj.tsx / ConsultaCpf.tsx
 │   │       │   └── ConsultaProcessual.tsx    # + resumo por IA
-│   │       ├── inteligencia/   # Roadmap do ecossistema — hoje são placeholders, sem backend
-│   │       │   ├── ProvasDeConceito.tsx
-│   │       │   └── DesafiosSemanais.tsx
+│   │       ├── inteligencia/   # Fecha o ciclo: conteúdo → prova → pontos → comunidade
+│   │       │   ├── ProvasDeConceito.tsx      # Lista de provas disponíveis + melhor resultado
+│   │       │   ├── QuizTake.tsx              # Fazer uma prova (/provas-de-conceito/:aulaId)
+│   │       │   ├── DesafiosSemanais.tsx      # Lista + "marcar como concluído" (auto-declarado)
+│   │       │   └── Comunidade.tsx            # Feed por conta + ranking entre escritórios
 │   │       └── admin/   # Painel administrativo — login e sessão à parte do app do tenant
 │   │           ├── AdminLogin.tsx
 │   │           ├── AdminAccounts.tsx / AdminAccountDetail.tsx
 │   │           ├── AdminCreditsOverview.tsx
-│   │           └── AdminEducationTrilhas.tsx / AdminEducationTrilhaDetail.tsx  # CMS de Educação
+│   │           ├── AdminEducationTrilhas.tsx / AdminEducationTrilhaDetail.tsx  # CMS de Educação
+│   │           ├── AdminQuizDetail.tsx       # CMS de Provas de conceito (quiz de uma aula)
+│   │           ├── AdminChallenges.tsx       # CMS de Desafios semanais
+│   │           └── AdminCommunity.tsx        # Moderação do feed de Comunidade (todas as contas)
 │   ├── index.html
 │   ├── package.json
 │   ├── vite.config.ts          # Build aponta para ../backend/dist
