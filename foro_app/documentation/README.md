@@ -80,9 +80,12 @@ foro_app/
 │   │   ├── context/
 │   │   │   ├── AuthContext.tsx       # Sessão do tenant (escritório)
 │   │   │   └── AdminAuthContext.tsx  # Sessão do admin da plataforma — totalmente separada
+│   │   ├── config/
+│   │   │   └── featureFlags.ts         # LOCKED_FEATURES — "em breve" por recurso, independente do toggle de módulo
 │   │   ├── components/
-│   │   │   ├── Layout.tsx              # Sidebar do app do tenant (menu filtrado por módulo ativo)
+│   │   │   ├── Layout.tsx              # Sidebar do app do tenant — nav em Aplicativos/Inteligência, filtrada por módulo ativo
 │   │   │   ├── AdminLayout.tsx         # Sidebar do painel administrativo
+│   │   │   ├── ComingSoon.tsx          # Selo "Em breve" reutilizável (ver featureFlags.ts)
 │   │   │   ├── ProtectedRoute.tsx / AdminProtectedRoute.tsx
 │   │   │   └── RequireVerified.tsx
 │   │   └── pages/
@@ -95,6 +98,13 @@ foro_app/
 │   │       ├── Settings.tsx
 │   │       ├── Education.tsx / TrilhaDetail.tsx   # Módulo Educação (tenant)
 │   │       ├── ModuloDesativado.tsx                # Tela ao cair num módulo desativado
+│   │       ├── aplicativos/    # Consultas pagas — construídas, travadas por LOCKED_FEATURES
+│   │       │   ├── PesquisaInteligente.tsx   # Entrada única — detecta CPF/CNPJ e busca tudo
+│   │       │   ├── ConsultaCnpj.tsx / ConsultaCpf.tsx
+│   │       │   └── ConsultaProcessual.tsx    # + resumo por IA
+│   │       ├── inteligencia/   # Roadmap do ecossistema — hoje são placeholders, sem backend
+│   │       │   ├── ProvasDeConceito.tsx
+│   │       │   └── DesafiosSemanais.tsx
 │   │       └── admin/   # Painel administrativo — login e sessão à parte do app do tenant
 │   │           ├── AdminLogin.tsx
 │   │           ├── AdminAccounts.tsx / AdminAccountDetail.tsx

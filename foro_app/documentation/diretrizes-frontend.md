@@ -119,11 +119,11 @@ Essas regras vieram de decisão explícita do dono da plataforma. Não são suge
 - Recarga via PIX (QR Code + copia-e-cola) e via cartão.
 - **Nenhum botão de reembolso** (ver seção 3).
 
-### 4.8 Consultas pagas — CPF / CNPJ / processual + resumo por IA (⚠️ ainda sem tela no frontend de referência — precisa ser construído)
-- Formulário de consulta de CNPJ (`POST /lookup/cnpj`) e CPF (`POST /lookup/cpf`), mostrando o custo em créditos antes de confirmar.
-- Busca de processos por CPF/CNPJ (`POST /lookup/processo`) e, a partir do resultado, botão para gerar o resumo por IA (`POST /lookup/processo/summary`, passando o objeto retornado pela busca).
-- Tratar `402` (sem saldo) e `502` (falha técnica, já reembolsado) conforme seção 3.
-- Enquanto nenhum provedor externo estiver contratado, essas rotas respondem com dado **mock** (tem um campo `_mock: true`/`aviso` no retorno) — o frontend pode (opcionalmente) mostrar um aviso discreto de "dados de exemplo" quando esse campo vier preenchido.
+### 4.8 Consultas pagas — CPF / CNPJ / processual + resumo por IA (✅ telas construídas, 🔒 travadas por flag de produto — ver seção 4.12)
+- `pages/aplicativos/ConsultaCnpj.tsx` (`POST /lookup/cnpj`) e `ConsultaCpf.tsx` (`POST /lookup/cpf`), mostrando o custo em créditos (via `GET /credits/prices`) antes de confirmar.
+- `ConsultaProcessual.tsx`: busca de processos por CPF/CNPJ (`POST /lookup/processo`) e, a partir do resultado, botão para gerar o resumo por IA (`POST /lookup/processo/summary`, passando o objeto retornado pela busca).
+- Tratamento de erro via `err.response.data.error` (mensagem pronta da API), seguindo o padrão do resto do projeto — ainda não há tratamento visual **diferenciado** para `402`/`502` (hoje cai no mesmo bloco de erro genérico); isso é o que falta antes de destravar essas telas, ver seção 7.
+- Enquanto nenhum provedor externo estiver contratado, essas rotas respondem com dado **mock** (tem um campo `_mock: true`/`aviso` no retorno) — ainda não há aviso visual de "dados de exemplo" nas telas novas.
 
 ### 4.9 Pagamentos / Assinatura (⚠️ ainda sem tela — precisa ser construído)
 - Tela de planos (`GET /settings/plan` para o atual; os planos disponíveis hoje vêm da tabela `plans` via painel admin — avaliar expor um `GET /plans` público ou puxar do admin).
@@ -141,6 +141,16 @@ Produto separado dentro do mesmo build — login próprio (`/admin/login`, `POST
 ### 4.11 Módulos e Educação (✅ implementado)
 - **Toggle de módulos**: `GET /modules` traz quais módulos (`crm`, `pesquisa_cpf_cnpj`, `pesquisa_processual`, `educacao`) estão ativos pra conta logada — `Layout.tsx` usa isso pra esconder itens de menu desativados. Se o usuário acessar uma rota de um módulo desativado diretamente (ou por link antigo), a API responde `403 { code: 'MODULE_DISABLED' }` e o interceptor do Axios (`api.ts`) já redireciona pra `/modulo-desativado`, uma tela amigável — **nunca deixe essa resposta quebrar a tela sem tratamento**, esse é o padrão a seguir pra qualquer nova rota gateada por módulo.
 - **Educação**: `Education.tsx` (grade de trilhas com progresso) → `TrilhaDetail.tsx` (player embutido — Vimeo/YouTube via `iframe`, ou link direto — e marcação de aula concluída). Conteúdo não é por conta: é criado pela intellsn no CMS do painel admin e visível pra todo tenant com o módulo ativo.
+
+### 4.12 Ecossistema — navegação em "Aplicativos" / "Inteligência" (✅ implementado) e flag de "em breve" por recurso
+A ideia de produto é um ecossistema de serviços vinculados ao CRM, crescendo aos poucos. Isso virou duas coisas concretas no frontend:
+
+- **Agrupamento de menu** (`Layout.tsx`, arrays `NAV_TOP`/`NAV_SECTIONS`/`NAV_BOTTOM`): IA/Leads/Painel/Tarefas ficam soltos no topo (são o core, não "um app"); **Aplicativos** reúne as ferramentas utilitárias avulsas (Pesquisa inteligente, Consulta CNPJ/CPF/processual); **Inteligência** reúne tudo que gira em torno do conteúdo educativo (Educação, Provas de conceito, Desafios semanais). Cada seção só aparece se tiver pelo menos um item visível depois do filtro de módulo.
+- **`config/featureFlags.ts` (`LOCKED_FEATURES`)**: flag de **estágio de produto**, diferente do toggle de módulo por conta (seção 4.11). Uma tela pode já existir e já falar com a API real, mas ainda estar marcada como "em breve" pra **todo mundo**, até o negócio decidir lançar (ex: preço definido, provedor contratado). `components/ComingSoon.tsx` é o selo reutilizável — recebe a tela real como `children` e desenha um cartão de cadeado por cima, com a tela borrada ao fundo. Lançar um recurso é só virar a flag pra `false`, sem mexer em backend.
+  - `pesquisa-inteligente` (nova — ver abaixo), `pesquisa-cnpj`, `pesquisa-cpf`, `pesquisa-processual`, `provas-de-conceito` e `desafios-semanais` nascem travados.
+- **`pages/aplicativos/PesquisaInteligente.tsx`**: ponto de entrada único pra consulta — o usuário cola um CPF ou CNPJ, o frontend detecta o tipo pela quantidade de dígitos (11 → CPF, 14 → CNPJ) e dispara a consulta cadastral **e** a busca de processos vinculados em paralelo, com o mesmo botão de resumo por IA das outras telas. Não existe rota nova no backend pra isso — é só uma composição das rotas de `/lookup/*` que já existem.
+- **`pages/inteligencia/ProvasDeConceito.tsx` e `DesafiosSemanais.tsx`**: placeholders puros (sem schema, sem rota, sem lógica) — só o selo "Em breve" explicando a ideia. Ver seção 7 e a conversa com o dono do produto sobre escopo antes de construir isso de verdade.
+- **Animações**: `tailwind.config.js` ganhou utilities (`animate-fade-in`, `animate-scale-in`, `animate-pulse-glow`, `animate-shimmer`) usadas no selo "Em breve", nos cards de resultado das consultas e numa transição sutil de troca de rota (`Layout.tsx` remonta o `<Outlet/>` com `key={pathname}`). Propositalmente discretas e via CSS puro (sem framer-motion) pra não pesar o bundle nem destoar do tom institucional.
 
 ---
 
@@ -175,9 +185,12 @@ Se a decisão for trocar de stack (Next.js, outra lib de estado, etc.), o único
 - [x] CRM completo: leads, campos customizáveis dinâmicos, notas, tarefas.
 - [x] Chat com IA mostrando quando uma ação real foi executada (não só texto).
 - [x] Carteira de créditos: saldo, preços, recarga via PIX, extrato — **sem botão de reembolso**.
-- [ ] Telas de consulta paga (CPF/CNPJ/processual + resumo IA) tratando `402` e `502` conforme a seção 3. **Ainda não construído** — maior lacuna restante.
+- [x] Telas de consulta paga (CPF/CNPJ/processual + Pesquisa inteligente + resumo IA) construídas e já atrás do selo "Em breve" (`config/featureFlags.ts`) — **falta** tratamento visual diferenciado pra `402`/`502` (seção 3) antes de destravar pra valer.
 - [ ] Tela de assinatura/planos e histórico de pagamentos com acesso à NFS-e. **Ainda não construído.**
 - [x] Painel administrativo separado, com login próprio, incluindo a tela de ajuste manual de créditos.
 - [x] Toggle de módulos (CRM/pesquisa/educação) por conta, só pelo admin da plataforma, com tela de "módulo desativado" pro tenant.
 - [x] Módulo Educação: trilhas/aulas em vídeo + CMS no painel admin.
+- [x] Navegação reorganizada em Aplicativos/Inteligência, com flag de estágio de produto (`LOCKED_FEATURES`) separada do toggle de módulo por conta.
+- [ ] **Provas de conceito** e **Desafios semanais**: hoje são só placeholders visuais (`pages/inteligencia/`), sem schema nem backend — escopo (formato do exercício, regra de pontuação, quem modera) ainda em aberto com o dono do produto.
+- [ ] **Comunidade**: discutido, ainda sem decisão de escopo nem implementação — ver observação na conversa sobre até onde isso deveria ir sem distanciar do produto original.
 - [x] Toda mensagem de erro mostrada ao usuário vem do campo `error` da API, sem reescrever o texto.

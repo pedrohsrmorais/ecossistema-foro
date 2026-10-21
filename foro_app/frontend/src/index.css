@@ -36,6 +36,12 @@
   .logo-wordmark {
     @apply font-serif font-semibold tracking-tight;
   }
+  /* Selo "Em breve" — brilho dourado sutil passando pelo texto, só pra dar
+     uma sensação de "coisa viva/chegando" sem ser chamativo. */
+  .badge-shimmer {
+    background: linear-gradient(90deg, theme('colors.accent.100') 0%, theme('colors.accent.50') 25%, theme('colors.accent.200') 50%, theme('colors.accent.50') 75%, theme('colors.accent.100') 100%);
+    background-size: 200% 100%;
+  }
 }
 
 /* Scrollbar customizada */

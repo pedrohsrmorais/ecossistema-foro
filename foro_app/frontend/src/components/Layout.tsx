@@ -1,35 +1,89 @@
-import { Outlet, NavLink, useNavigate } from 'react-router-dom'
+import { Outlet, NavLink, useNavigate, useLocation } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
-import { MessageSquare, Users, LayoutDashboard, CheckSquare, Settings, LogOut, Scale, GraduationCap } from 'lucide-react'
+import {
+  MessageSquare, Users, LayoutDashboard, CheckSquare, Settings, LogOut, Scale,
+  GraduationCap, Sparkles, Building2, UserSearch, Gavel, FlaskConical, Trophy,
+} from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
 import { modulesApi } from '../api'
 import clsx from 'clsx'
 
-// `module` é opcional: item sem módulo associado (ex: Configurações) nunca
-// é escondido. Os demais só aparecem se o módulo estiver ativo pra conta —
-// ver GET /modules e modules.middleware.js::requireModule no backend.
-const NAV = [
-  { to: '/chat',      label: 'IA',          icon: MessageSquare,     module: 'crm' },
-  { to: '/leads',     label: 'Leads',       icon: Users,             module: 'crm' },
-  { to: '/dashboard', label: 'Painel',      icon: LayoutDashboard,   module: 'crm' },
-  { to: '/tasks',     label: 'Tarefas',     icon: CheckSquare,       module: 'crm' },
-  { to: '/education', label: 'Educação',    icon: GraduationCap,     module: 'educacao' },
-  { to: '/settings',  label: 'Configurações', icon: Settings,        module: null as string | null },
+type NavItem = { to: string; label: string; icon: typeof Scale; module: string | null }
+
+// `module` é opcional: item sem módulo associado nunca é escondido. Os
+// demais só aparecem se o módulo estiver ativo pra conta — ver GET /modules
+// e modules.middleware.js::requireModule no backend.
+//
+// A IA é o produto core (não é "um app"), por isso fica solta no topo junto
+// com CRM. "Aplicativos" e "Inteligência" são as duas frentes do ecossistema:
+// a primeira reúne ferramentas utilitárias avulsas (consultas pagas, que vão
+// crescendo com o tempo); a segunda reúne o conteúdo educativo e tudo que
+// gira em torno dele (provas de conceito, desafios semanais).
+const NAV_TOP: NavItem[] = [
+  { to: '/chat',      label: 'IA',      icon: MessageSquare,   module: 'crm' },
+  { to: '/leads',     label: 'Leads',   icon: Users,           module: 'crm' },
+  { to: '/dashboard', label: 'Painel',  icon: LayoutDashboard, module: 'crm' },
+  { to: '/tasks',     label: 'Tarefas', icon: CheckSquare,     module: 'crm' },
+]
+
+const NAV_SECTIONS: { label: string; items: NavItem[] }[] = [
+  {
+    label: 'Aplicativos',
+    items: [
+      { to: '/pesquisa-inteligente', label: 'Pesquisa inteligente',  icon: Sparkles,    module: null },
+      { to: '/consulta-cnpj',        label: 'Consulta CNPJ',         icon: Building2,   module: 'pesquisa_cpf_cnpj' },
+      { to: '/consulta-cpf',         label: 'Consulta CPF',          icon: UserSearch,  module: 'pesquisa_cpf_cnpj' },
+      { to: '/consulta-processual',  label: 'Consulta processual',   icon: Gavel,       module: 'pesquisa_processual' },
+    ],
+  },
+  {
+    label: 'Inteligência',
+    items: [
+      { to: '/education',           label: 'Educação',              icon: GraduationCap, module: 'educacao' },
+      { to: '/provas-de-conceito',  label: 'Provas de conceito',    icon: FlaskConical,  module: 'educacao' },
+      { to: '/desafios-semanais',   label: 'Desafios semanais',     icon: Trophy,        module: 'educacao' },
+    ],
+  },
+]
+
+const NAV_BOTTOM: NavItem[] = [
+  { to: '/settings', label: 'Configurações', icon: Settings, module: null },
 ]
 
 export default function Layout() {
   const { user, logout } = useAuth()
   const navigate = useNavigate()
+  const location = useLocation()
 
   // Enquanto não carrega, mostra tudo (evita flicker) — depois de carregar,
   // esconde o que o admin da plataforma desativou pra essa conta.
   const { data: modules } = useQuery({ queryKey: ['modules'], queryFn: modulesApi.list, staleTime: 5 * 60 * 1000 })
-  const disabled = new Set((modules || []).filter(m => !m.enabled).map(m => m.module_key))
-  const nav = NAV.filter(item => !item.module || !disabled.has(item.module))
+  const disabledModules = new Set((modules || []).filter(m => !m.enabled).map(m => m.module_key))
+  const visible = (item: NavItem) => !item.module || !disabledModules.has(item.module)
 
   function handleLogout() {
     logout()
     navigate('/login')
+  }
+
+  function renderNavItem({ to, label, icon: Icon }: NavItem) {
+    return (
+      <NavLink
+        key={to}
+        to={to}
+        className={({ isActive }) =>
+          clsx(
+            'flex items-center gap-2.5 px-3 py-2 rounded-md text-sm font-medium transition-all border-l-2',
+            isActive
+              ? 'bg-white/10 text-white border-accent-400'
+              : 'text-brand-200 border-transparent hover:bg-white/5 hover:text-white hover:translate-x-0.5'
+          )
+        }
+      >
+        <Icon className="w-4 h-4 shrink-0" />
+        {label}
+      </NavLink>
+    )
   }
 
   return (
@@ -45,23 +99,24 @@ export default function Layout() {
 
         {/* Nav */}
         <nav className="flex-1 p-3 space-y-1 overflow-y-auto">
-          {nav.map(({ to, label, icon: Icon }) => (
-            <NavLink
-              key={to}
-              to={to}
-              className={({ isActive }) =>
-                clsx(
-                  'flex items-center gap-2.5 px-3 py-2 rounded-md text-sm font-medium transition-colors border-l-2',
-                  isActive
-                    ? 'bg-white/10 text-white border-accent-400'
-                    : 'text-brand-200 border-transparent hover:bg-white/5 hover:text-white'
-                )
-              }
-            >
-              <Icon className="w-4 h-4 shrink-0" />
-              {label}
-            </NavLink>
-          ))}
+          {NAV_TOP.filter(visible).map(renderNavItem)}
+
+          {NAV_SECTIONS.map(section => {
+            const items = section.items.filter(visible)
+            if (items.length === 0) return null
+            return (
+              <div key={section.label} className="pt-3">
+                <p className="px-3 pb-1.5 text-[11px] font-semibold uppercase tracking-wider text-accent-400/80">
+                  {section.label}
+                </p>
+                {items.map(renderNavItem)}
+              </div>
+            )
+          })}
+
+          <div className="pt-3">
+            {NAV_BOTTOM.filter(visible).map(renderNavItem)}
+          </div>
         </nav>
 
         {/* User */}
@@ -81,9 +136,12 @@ export default function Layout() {
         </div>
       </aside>
 
-      {/* Main */}
+      {/* Main — key pelo pathname faz cada troca de rota remontar com um
+          fade-in sutil, em vez de trocar o conteúdo seco. */}
       <main className="flex-1 overflow-y-auto">
-        <Outlet />
+        <div key={location.pathname} className="animate-fade-in">
+          <Outlet />
+        </div>
       </main>
     </div>
   )

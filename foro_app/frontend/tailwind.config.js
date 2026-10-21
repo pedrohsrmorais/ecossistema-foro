@@ -57,6 +57,33 @@ export default {
         '3xl': '0.875rem',
         full: '9999px',
       },
+      // Animações discretas (transição de página, selos "em breve" etc) —
+      // CSS puro via Tailwind, sem dependência nova (framer-motion seria
+      // overkill pro que a UI precisa aqui).
+      keyframes: {
+        'fade-in': {
+          '0%':   { opacity: '0', transform: 'translateY(4px)' },
+          '100%': { opacity: '1', transform: 'translateY(0)' },
+        },
+        'scale-in': {
+          '0%':   { opacity: '0', transform: 'scale(0.96)' },
+          '100%': { opacity: '1', transform: 'scale(1)' },
+        },
+        'pulse-glow': {
+          '0%, 100%': { boxShadow: '0 0 0 0 rgba(176, 141, 87, 0.35)' },
+          '50%':      { boxShadow: '0 0 0 8px rgba(176, 141, 87, 0)' },
+        },
+        shimmer: {
+          '0%':   { backgroundPosition: '-200% 0' },
+          '100%': { backgroundPosition: '200% 0' },
+        },
+      },
+      animation: {
+        'fade-in': 'fade-in 0.25s ease-out',
+        'scale-in': 'scale-in 0.2s ease-out',
+        'pulse-glow': 'pulse-glow 2.2s ease-in-out infinite',
+        shimmer: 'shimmer 2.5s linear infinite',
+      },
     },
   },
   plugins: [require('@tailwindcss/typography')],

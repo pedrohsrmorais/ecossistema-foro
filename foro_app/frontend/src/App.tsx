@@ -18,6 +18,12 @@ import Settings from './pages/Settings'
 import Education from './pages/Education'
 import TrilhaDetail from './pages/TrilhaDetail'
 import ModuloDesativado from './pages/ModuloDesativado'
+import ConsultaCnpj from './pages/aplicativos/ConsultaCnpj'
+import ConsultaCpf from './pages/aplicativos/ConsultaCpf'
+import ConsultaProcessual from './pages/aplicativos/ConsultaProcessual'
+import PesquisaInteligente from './pages/aplicativos/PesquisaInteligente'
+import ProvasDeConceito from './pages/inteligencia/ProvasDeConceito'
+import DesafiosSemanais from './pages/inteligencia/DesafiosSemanais'
 import AdminLogin from './pages/admin/AdminLogin'
 import AdminAccounts from './pages/admin/AdminAccounts'
 import AdminAccountDetail from './pages/admin/AdminAccountDetail'
@@ -52,6 +58,17 @@ export default function App() {
                 <Route path="/education"      element={<Education />} />
                 <Route path="/education/:id"  element={<TrilhaDetail />} />
                 <Route path="/modulo-desativado" element={<ModuloDesativado />} />
+
+                {/* Aplicativos — consultas pagas (todas atrás de "Em breve" por
+                    enquanto, ver config/featureFlags.ts) */}
+                <Route path="/pesquisa-inteligente" element={<PesquisaInteligente />} />
+                <Route path="/consulta-cnpj"        element={<ConsultaCnpj />} />
+                <Route path="/consulta-cpf"         element={<ConsultaCpf />} />
+                <Route path="/consulta-processual"  element={<ConsultaProcessual />} />
+
+                {/* Inteligência — placeholders do roadmap, sem backend ainda */}
+                <Route path="/provas-de-conceito" element={<ProvasDeConceito />} />
+                <Route path="/desafios-semanais"  element={<DesafiosSemanais />} />
               </Route>
             </Route>
           </Route>
