@@ -1,8 +1,11 @@
 import { Routes, Route, Navigate } from 'react-router-dom'
 import { AuthProvider } from './context/AuthContext'
+import { AdminAuthProvider } from './context/AdminAuthContext'
 import ProtectedRoute from './components/ProtectedRoute'
 import RequireVerified from './components/RequireVerified'
+import AdminProtectedRoute from './components/AdminProtectedRoute'
 import Layout from './components/Layout'
+import AdminLayout from './components/AdminLayout'
 import Login from './pages/Login'
 import Register from './pages/Register'
 import VerifyEmail from './pages/VerifyEmail'
@@ -12,36 +15,64 @@ import Leads from './pages/Leads'
 import LeadDetail from './pages/LeadDetail'
 import Tasks from './pages/Tasks'
 import Settings from './pages/Settings'
+import Education from './pages/Education'
+import TrilhaDetail from './pages/TrilhaDetail'
+import ModuloDesativado from './pages/ModuloDesativado'
+import AdminLogin from './pages/admin/AdminLogin'
+import AdminAccounts from './pages/admin/AdminAccounts'
+import AdminAccountDetail from './pages/admin/AdminAccountDetail'
+import AdminCreditsOverview from './pages/admin/AdminCreditsOverview'
+import AdminEducationTrilhas from './pages/admin/AdminEducationTrilhas'
+import AdminEducationTrilhaDetail from './pages/admin/AdminEducationTrilhaDetail'
 import NotFound from './pages/NotFound'
 
 export default function App() {
   return (
     <AuthProvider>
-      <Routes>
-        {/* Públicas */}
-        <Route path="/login"    element={<Login />} />
-        <Route path="/register" element={<Register />} />
+      <AdminAuthProvider>
+        <Routes>
+          {/* Públicas (app do escritório) */}
+          <Route path="/login"    element={<Login />} />
+          <Route path="/register" element={<Register />} />
 
-        {/* Logado (pode ainda não ter confirmado o e-mail) */}
-        <Route element={<ProtectedRoute />}>
-          <Route path="/verify-email" element={<VerifyEmail />} />
+          {/* Logado (pode ainda não ter confirmado o e-mail) */}
+          <Route element={<ProtectedRoute />}>
+            <Route path="/verify-email" element={<VerifyEmail />} />
 
-          {/* Logado + e-mail confirmado */}
-          <Route element={<RequireVerified />}>
-            <Route element={<Layout />}>
-              <Route index element={<Navigate to="/chat" replace />} />
-              <Route path="/dashboard" element={<Dashboard />} />
-              <Route path="/chat"      element={<Chat />} />
-              <Route path="/leads"     element={<Leads />} />
-              <Route path="/leads/:id" element={<LeadDetail />} />
-              <Route path="/tasks"     element={<Tasks />} />
-              <Route path="/settings"  element={<Settings />} />
+            {/* Logado + e-mail confirmado */}
+            <Route element={<RequireVerified />}>
+              <Route element={<Layout />}>
+                <Route index element={<Navigate to="/chat" replace />} />
+                <Route path="/dashboard" element={<Dashboard />} />
+                <Route path="/chat"      element={<Chat />} />
+                <Route path="/leads"     element={<Leads />} />
+                <Route path="/leads/:id" element={<LeadDetail />} />
+                <Route path="/tasks"     element={<Tasks />} />
+                <Route path="/settings"  element={<Settings />} />
+                <Route path="/education"      element={<Education />} />
+                <Route path="/education/:id"  element={<TrilhaDetail />} />
+                <Route path="/modulo-desativado" element={<ModuloDesativado />} />
+              </Route>
             </Route>
           </Route>
-        </Route>
 
-        <Route path="*" element={<NotFound />} />
-      </Routes>
+          {/* Painel administrativo da plataforma (equipe intellsn) — sessão e
+              autenticação totalmente separadas do app do escritório acima. */}
+          <Route path="/admin/login" element={<AdminLogin />} />
+          <Route element={<AdminProtectedRoute />}>
+            <Route element={<AdminLayout />}>
+              <Route path="/admin" element={<Navigate to="/admin/accounts" replace />} />
+              <Route path="/admin/accounts"     element={<AdminAccounts />} />
+              <Route path="/admin/accounts/:id" element={<AdminAccountDetail />} />
+              <Route path="/admin/credits"      element={<AdminCreditsOverview />} />
+              <Route path="/admin/education"     element={<AdminEducationTrilhas />} />
+              <Route path="/admin/education/:id" element={<AdminEducationTrilhaDetail />} />
+            </Route>
+          </Route>
+
+          <Route path="*" element={<NotFound />} />
+        </Routes>
+      </AdminAuthProvider>
     </AuthProvider>
   )
 }

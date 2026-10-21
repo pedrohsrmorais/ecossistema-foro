@@ -57,10 +57,13 @@ foro_app/
 │   │   ├── credits.service.js      # Ledger/carteira de créditos (débito, reembolso, ajuste manual)
 │   │   ├── external-lookup.service.js # Wrapper único: debita → chama provedor → reembolsa se falhar
 │   │   ├── cnpj.service.js / cpf.service.js / processo.service.js # Consultas pagas por provedor externo
+│   │   ├── modules.service.js      # Catálogo de módulos + estado (ativo/inativo) por conta
+│   │   └── education.service.js    # Trilhas/aulas (tenant) + CMS (admin)
 │   ├── middlewares/
 │   │   ├── auth.middleware.js       # Valida JWT
 │   │   ├── client.middleware.js     # Carrega contexto do tenant
 │   │   ├── error.middleware.js      # Handler global de erros
+│   │   ├── modules.middleware.js    # requireModule('crm') — bloqueia rota se módulo desativado
 │   │   ├── validation.middleware.js # Express-validator helper
 │   │   └── validators.js            # Regras de validação
 │   ├── configs/
@@ -75,10 +78,13 @@ foro_app/
 │   │   ├── main.tsx
 │   │   ├── App.tsx             # Roteamento SPA
 │   │   ├── context/
-│   │   │   └── AuthContext.tsx
+│   │   │   ├── AuthContext.tsx       # Sessão do tenant (escritório)
+│   │   │   └── AdminAuthContext.tsx  # Sessão do admin da plataforma — totalmente separada
 │   │   ├── components/
-│   │   │   ├── Layout.tsx
-│   │   │   └── ProtectedRoute.tsx
+│   │   │   ├── Layout.tsx              # Sidebar do app do tenant (menu filtrado por módulo ativo)
+│   │   │   ├── AdminLayout.tsx         # Sidebar do painel administrativo
+│   │   │   ├── ProtectedRoute.tsx / AdminProtectedRoute.tsx
+│   │   │   └── RequireVerified.tsx
 │   │   └── pages/
 │   │       ├── Login.tsx / Register.tsx
 │   │       ├── Chat.tsx        # Interface principal da IA
@@ -86,7 +92,14 @@ foro_app/
 │   │       ├── Leads.tsx       # Lista de leads
 │   │       ├── LeadDetail.tsx  # Detalhe com notas e tarefas
 │   │       ├── Tasks.tsx
-│   │       └── Settings.tsx
+│   │       ├── Settings.tsx
+│   │       ├── Education.tsx / TrilhaDetail.tsx   # Módulo Educação (tenant)
+│   │       ├── ModuloDesativado.tsx                # Tela ao cair num módulo desativado
+│   │       └── admin/   # Painel administrativo — login e sessão à parte do app do tenant
+│   │           ├── AdminLogin.tsx
+│   │           ├── AdminAccounts.tsx / AdminAccountDetail.tsx
+│   │           ├── AdminCreditsOverview.tsx
+│   │           └── AdminEducationTrilhas.tsx / AdminEducationTrilhaDetail.tsx  # CMS de Educação
 │   ├── index.html
 │   ├── package.json
 │   ├── vite.config.ts          # Build aponta para ../backend/dist

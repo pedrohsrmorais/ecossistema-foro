@@ -30,8 +30,8 @@ export default function Login() {
       <div className="w-full max-w-sm">
         {/* Logo */}
         <div className="flex items-center justify-center gap-2 mb-8">
-          <Scale className="w-8 h-8 text-brand-600" />
-          <span className="text-2xl font-bold text-slate-900">Foro</span>
+          <Scale className="w-8 h-8 text-brand-800" />
+          <span className="logo-wordmark text-2xl text-brand-950">Foro</span>
         </div>
 
         <div className="card p-6">

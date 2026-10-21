@@ -520,6 +520,46 @@ Sem nenhum provedor configurado (`CNPJ_PROVIDER_BASE_URL`, `CPF_PROVIDER_BASE_UR
 
 ---
 
+## Módulos
+
+Cada funcionalidade do produto (CRM, pesquisa, educação) é um módulo que pode ser desativado por conta — exclusivamente pelos admins da plataforma (ver seção **Painel administrativo**). Rotas de CRM, `/lookup/*` e `/education/*` retornam `403 { code: 'MODULE_DISABLED' }` quando o módulo correspondente está desativado para a conta.
+
+### Quais módulos estão ativos para a conta logada
+```
+GET /modules
+Response 200: { modules: [{ module_key, name, description, display_order, enabled }] }
+```
+Usado pelo frontend para decidir o que mostrar no menu sem precisar tentar cada rota.
+
+---
+
+## Educação
+
+Trilhas e aulas em vídeo sobre tecnologia/automação/IA, atrás do módulo `educacao`. O conteúdo é da plataforma (criado pela intellsn), não por conta — ver **CMS do módulo Educação** na seção de admin para criar/editar.
+
+### Listar trilhas publicadas
+```
+GET /education/trilhas
+Response 200: { trilhas: [{ id, title, description, cover_image_url, display_order, total_aulas, aulas_concluidas }] }
+```
+`aulas_concluidas` já vem calculado para o usuário logado.
+
+### Detalhar uma trilha (com aulas e progresso do usuário)
+```
+GET /education/trilhas/:id
+Response 200: { trilha: { ...trilha, aulas: [{ id, title, description, video_provider, video_id, duration_seconds, last_position_seconds, completed_at }] } }
+```
+
+### Atualizar progresso de uma aula
+```
+PUT /education/aulas/:aulaId/progress
+Body: { last_position_seconds?, completed? }
+Response 200: { progress }
+```
+Upsert — cada usuário tem seu próprio progresso, mesmo dentro da mesma conta.
+
+---
+
 ## Painel administrativo (plataforma)
 
 Rotas exclusivas da equipe intellsn — autenticação própria (`platform-login`), **não** usam `account_id`. Veem e gerenciam todos os tenants.
@@ -582,6 +622,37 @@ Response 200: { transactionId, balance_cents }
 ```
 **Este é o único endpoint que reverte créditos por decisão de reembolso.** Não existe equivalente acionável pelo tenant — conforme definido pelo dono da plataforma, qualquer pedido de reembolso é tratado diretamente com a intellsn, nunca dentro do produto.
 
+### Módulos — catálogo e liga/desliga por conta
+```
+GET /admin/modules
+Response 200: { modules: [{ module_key, name, description, display_order }] }
+
+GET /admin/accounts/:id/modules
+Response 200: { modules: [{ module_key, name, description, display_order, enabled }] }
+
+PATCH /admin/accounts/:id/modules/:moduleKey
+Body: { enabled: true | false }
+Response 200: { modules: [...] }   // estado atualizado de todos os módulos da conta
+```
+Único jeito do sistema de desativar CRM/pesquisa/educação para um tenant específico — nunca acionável pelo próprio tenant.
+
+### CMS do módulo Educação
+
+Conteúdo é da plataforma (não por conta) — toda conta com o módulo `educacao` ativo vê o mesmo catálogo de trilhas publicadas.
+
+```
+GET    /admin/education/trilhas              → { trilhas: [...] }  (inclui rascunhos)
+GET    /admin/education/trilhas/:id           → { trilha: { ...trilha, aulas: [...] } }
+POST   /admin/education/trilhas               Body: { title, description?, cover_image_url?, display_order?, published? }
+PUT    /admin/education/trilhas/:id            Body: campos parciais
+DELETE /admin/education/trilhas/:id            → 204 (apaga a trilha e suas aulas em cascata)
+
+POST   /admin/education/trilhas/:id/aulas      Body: { title, description?, video_provider?, video_id, duration_seconds?, display_order?, published? }
+PUT    /admin/education/aulas/:aulaId          Body: campos parciais
+DELETE /admin/education/aulas/:aulaId          → 204
+```
+Trilhas/aulas nascem com `published: false` (rascunho) — só aparecem para os tenants depois de publicadas explicitamente.
+
 ---
 
 ## Webhooks (sem autenticação)
@@ -612,6 +683,7 @@ Response 200: { received: true }
 | `404`  | Recurso não encontrado                                      |
 | `409`  | Conflito (email já cadastrado, etc.)                        |
 | `402`  | Créditos insuficientes (rotas de `/lookup/*`)               |
+| `403` com `code: "MODULE_DISABLED"` | Módulo desativado para a conta por um admin da plataforma |
 | `500`  | Erro interno do servidor                                    |
 | `502`  | Falha técnica num provedor externo pago (crédito já devolvido automaticamente) |
 

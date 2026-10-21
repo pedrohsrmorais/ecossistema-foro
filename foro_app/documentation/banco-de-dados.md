@@ -205,6 +205,57 @@ Histórico de toda chamada (sucesso, não encontrado ou falha) — usado para su
 
 ---
 
+## 8. Módulos — liga/desliga funcionalidade por conta
+
+Cada funcionalidade do produto (CRM, consultas pagas, educação...) é um **módulo**. Por padrão todo módulo está ativo para toda conta; só **admins da plataforma** (nunca o tenant) podem desativar um módulo para uma conta específica — ver [plataforma-e-precificacao.md](./plataforma-e-precificacao.md) para o raciocínio de produto por trás disso.
+
+### `modules`
+Catálogo — um módulo por linha.
+
+| Coluna          | Descrição                                                        |
+|------------------|----------------------------------------------------------------------|
+| `module_key`     | PK: `crm`, `pesquisa_cpf_cnpj`, `pesquisa_processual`, `educacao`     |
+| `display_order`  | Ordem de exibição na tela de toggles do admin                        |
+
+### `account_modules`
+Override por conta. **Ausência de linha = módulo ativo** (padrão) — só existe registro aqui quando um admin mudou esse padrão para aquela conta.
+
+| Coluna                      | Descrição                                                  |
+|------------------------------|----------------------------------------------------------------|
+| `account_id` + `module_key`  | PK composta                                                    |
+| `enabled`                    | `0` desativa o módulo só para essa conta                       |
+| `updated_by_platform_admin`  | Qual admin fez a última alteração (auditoria)                  |
+
+Checado em toda requisição pelo middleware `requireModule('crm')` (`middlewares/modules.middleware.js`), que retorna `403 { code: 'MODULE_DISABLED' }` quando desativado.
+
+---
+
+## 9. Educação — trilhas e aulas em vídeo
+
+Conteúdo sobre tecnologia/automação/IA para escritórios de advocacia. **Diferente do CRM, não é isolado por conta** — é criado pela equipe intellsn (CMS no painel administrativo) e fica visível para toda conta com o módulo `educacao` ativo. O vídeo em si é hospedado fora (Vimeo privado recomendado — ver `plataforma-e-precificacao.md`); aqui só guardamos o `video_id`.
+
+### `trilhas`
+| Coluna       | Descrição                                           |
+|---------------|--------------------------------------------------------|
+| `published`   | Rascunhos (`0`) não aparecem para os tenants            |
+
+### `aulas`
+| Coluna            | Descrição                                                          |
+|--------------------|-------------------------------------------------------------------------|
+| `trilha_id`        | FK → `trilhas.id`, `ON DELETE CASCADE`                                  |
+| `video_provider`   | `vimeo` / `youtube` / `url` (link direto, sem embed)                    |
+| `video_id`         | ID do vídeo no provedor, ou a URL completa se `provider = url`          |
+
+### `aula_progresso`
+Progresso **por usuário individual** (não por conta — quem assiste é a pessoa).
+
+| Coluna                   | Descrição                                               |
+|---------------------------|--------------------------------------------------------------|
+| `user_id` + `aula_id`     | `UNIQUE` — upsert a cada atualização de progresso             |
+| `completed_at`            | `NULL` até o usuário marcar a aula como concluída             |
+
+---
+
 ## Tabela-resumo
 
 | Tabela                   | Tenant? | Depende de            | Propósito                                      |
@@ -230,6 +281,11 @@ Histórico de toda chamada (sucesso, não encontrado ou falha) — usado para su
 | `credit_transactions`    | sim     | `accounts`             | Ledger imutável de créditos                     |
 | `service_prices`         | não     | —                      | Catálogo de preços dos serviços pagos           |
 | `service_usage_log`      | sim     | `accounts`             | Histórico de chamadas pagas (p/ suporte)        |
+| `modules`                | não     | —                      | Catálogo de módulos (features) do produto       |
+| `account_modules`        | sim     | `accounts`, `modules`  | Override de módulo ativo/inativo por conta      |
+| `trilhas`                | não     | —                      | Trilhas do módulo Educação (conteúdo da plataforma) |
+| `aulas`                  | não     | `trilhas`              | Aulas em vídeo de uma trilha                    |
+| `aula_progresso`         | —       | `users`, `aulas`       | Progresso por usuário (não por conta)           |
 
 ---
 

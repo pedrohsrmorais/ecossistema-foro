@@ -36,6 +36,13 @@ http.interceptors.response.use(
     if (err.response?.status === 403 && err.response?.data?.code === 'EMAIL_NOT_VERIFIED') {
       window.location.href = '/verify-email'
     }
+    // Módulo desativado para a conta pelo admin da plataforma (ver
+    // modules.middleware.js::requireModule) — manda pra uma tela amigável
+    // em vez de deixar a página quebrada com um 403 cru.
+    if (err.response?.status === 403 && err.response?.data?.code === 'MODULE_DISABLED') {
+      const msg = encodeURIComponent(err.response.data.error || 'Este módulo está desativado para sua conta.')
+      window.location.href = `/modulo-desativado?msg=${msg}`
+    }
     return Promise.reject(err)
   }
 )
@@ -471,6 +478,240 @@ export const lookupApi = {
   /** POST /lookup/processo/summary */
   processoSummary: (processo: ProcessoResult) =>
     http.post<{ data: { summary: string } }>('/lookup/processo/summary', { processo }).then(r => r.data.data),
+}
+
+// ─── MÓDULOS — liga/desliga de funcionalidade por conta, só pelo admin da plataforma ─
+
+export interface ModuleStatus {
+  module_key: string
+  name: string
+  description: string | null
+  display_order: number
+  enabled: boolean
+}
+
+export const modulesApi = {
+  /** GET /modules — quais módulos estão ativos para a conta logada */
+  list: () =>
+    http.get<{ modules: ModuleStatus[] }>('/modules').then(r => r.data.modules),
+}
+
+// ─── EDUCAÇÃO — trilhas e aulas em vídeo (módulo "educacao") ─────────────────
+
+export interface Trilha {
+  id: string
+  title: string
+  description: string | null
+  cover_image_url: string | null
+  display_order: number
+  total_aulas: number
+  aulas_concluidas: number
+}
+
+export interface Aula {
+  id: string
+  title: string
+  description: string | null
+  video_provider: 'vimeo' | 'youtube' | 'url'
+  video_id: string
+  duration_seconds: number | null
+  display_order: number
+  last_position_seconds: number | null
+  completed_at: string | null
+}
+
+export interface TrilhaDetail extends Trilha {
+  aulas: Aula[]
+}
+
+export const educationApi = {
+  /** GET /education/trilhas */
+  listTrilhas: () =>
+    http.get<{ trilhas: Trilha[] }>('/education/trilhas').then(r => r.data.trilhas),
+
+  /** GET /education/trilhas/:id */
+  getTrilha: (id: string) =>
+    http.get<{ trilha: TrilhaDetail }>(`/education/trilhas/${id}`).then(r => r.data.trilha),
+
+  /** PUT /education/aulas/:aulaId/progress */
+  updateProgress: (aulaId: string, data: { last_position_seconds?: number; completed?: boolean }) =>
+    http.put(`/education/aulas/${aulaId}/progress`, data).then(r => r.data),
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// PAINEL ADMINISTRATIVO DA PLATAFORMA (equipe intellsn) — autenticação própria,
+// sem account_id, cross-tenant. Nunca compartilha sessão/token com o app do
+// escritório (ver AdminAuthContext.tsx) — por isso é um cliente axios à parte.
+// ═══════════════════════════════════════════════════════════════════════════
+
+const httpAdmin = axios.create({
+  baseURL: '/api',
+  headers: { 'Content-Type': 'application/json' },
+})
+
+httpAdmin.interceptors.request.use((config) => {
+  const token = localStorage.getItem('foro_admin_token')
+  if (token) config.headers.Authorization = `Bearer ${token}`
+  return config
+})
+
+httpAdmin.interceptors.response.use(
+  (res) => res,
+  (err) => {
+    if (err.response?.status === 401) {
+      localStorage.removeItem('foro_admin_token')
+      localStorage.removeItem('foro_admin_user')
+      window.location.href = '/admin/login'
+    }
+    return Promise.reject(err)
+  }
+)
+
+export interface PlatformAdminAuthResponse {
+  token: string
+  admin: { id: string; name: string; email: string }
+}
+
+export interface AccountSummary {
+  id: string
+  name: string
+  slug: string
+  status: 'trialing' | 'active' | 'suspended' | 'cancelled'
+  plan_id: string
+  plan_name: string | null
+  plan_price: number | null
+  trial_ends_at: string | null
+  users_count: number
+  leads_count: number
+  created_at: string
+}
+
+export interface AccountDetail extends AccountSummary {
+  users: Array<{ id: string; name: string; email: string; role: string; active: boolean; email_verified_at: string | null; phone_verified_at: string | null; created_at: string }>
+  recent_payments: Array<{ id: string; type: string; status: string; amount: number; credits_amount_cents: number | null; created_at: string }>
+  credits_balance_cents: number
+  recent_credit_transactions: CreditTransaction[]
+}
+
+export interface Plan {
+  id: string
+  name: string
+  price: number
+  max_users: number | null
+  max_leads: number | null
+  features: string[]
+  active: boolean
+}
+
+export interface CreditsOverview {
+  total_purchased_cents: number
+  total_consumed_cents: number
+  total_refunded_cents: number
+  total_adjusted_cents: number
+  by_service: Array<{ service_key: string; usage_count: number; consumed_cents: number }>
+  total_wallets_balance_cents: number
+}
+
+export interface AdminAula {
+  id: string
+  trilha_id?: string
+  title: string
+  description: string | null
+  video_provider: 'vimeo' | 'youtube' | 'url'
+  video_id: string
+  duration_seconds: number | null
+  display_order: number
+  published: boolean
+}
+
+export interface AdminTrilha {
+  id: string
+  title: string
+  description: string | null
+  cover_image_url: string | null
+  display_order: number
+  published: boolean
+  total_aulas: number
+}
+
+export interface AdminTrilhaDetail extends AdminTrilha {
+  aulas: AdminAula[]
+}
+
+export const adminApi = {
+  /** POST /auth/platform-login */
+  login: (email: string, password: string) =>
+    httpAdmin.post<PlatformAdminAuthResponse>('/auth/platform-login', { email, password }).then(r => r.data),
+
+  /** GET /admin/accounts */
+  listAccounts: () =>
+    httpAdmin.get<{ accounts: AccountSummary[] }>('/admin/accounts').then(r => r.data.accounts),
+
+  /** GET /admin/accounts/:id */
+  getAccount: (id: string) =>
+    httpAdmin.get<{ account: AccountDetail }>(`/admin/accounts/${id}`).then(r => r.data.account),
+
+  /** PATCH /admin/accounts/:id/status */
+  updateAccountStatus: (id: string, status: AccountSummary['status']) =>
+    httpAdmin.patch<{ account: AccountDetail }>(`/admin/accounts/${id}/status`, { status }).then(r => r.data.account),
+
+  /** GET /admin/plans */
+  listPlans: () =>
+    httpAdmin.get<{ plans: Plan[] }>('/admin/plans').then(r => r.data.plans),
+
+  /** GET /admin/credits/overview */
+  creditsOverview: () =>
+    httpAdmin.get<{ overview: CreditsOverview }>('/admin/credits/overview').then(r => r.data.overview),
+
+  /** PATCH /admin/accounts/:id/credits/adjust — único caminho de reembolso/ajuste, exige nota */
+  adjustCredits: (id: string, data: { amount_cents: number; note: string }) =>
+    httpAdmin.patch(`/admin/accounts/${id}/credits/adjust`, data).then(r => r.data),
+
+  /** GET /admin/modules — catálogo completo de módulos */
+  listModulesCatalog: () =>
+    httpAdmin.get<{ modules: ModuleStatus[] }>('/admin/modules').then(r => r.data.modules),
+
+  /** GET /admin/accounts/:id/modules — estado dos módulos de uma conta */
+  getAccountModules: (accountId: string) =>
+    httpAdmin.get<{ modules: ModuleStatus[] }>(`/admin/accounts/${accountId}/modules`).then(r => r.data.modules),
+
+  /** PATCH /admin/accounts/:id/modules/:moduleKey — liga/desliga, exclusivo do admin da plataforma */
+  setAccountModule: (accountId: string, moduleKey: string, enabled: boolean) =>
+    httpAdmin.patch<{ modules: ModuleStatus[] }>(`/admin/accounts/${accountId}/modules/${moduleKey}`, { enabled }).then(r => r.data.modules),
+
+  // ── CMS do módulo Educação (conteúdo da plataforma, não por conta) ────────
+
+  /** GET /admin/education/trilhas */
+  listTrilhas: () =>
+    httpAdmin.get<{ trilhas: AdminTrilha[] }>('/admin/education/trilhas').then(r => r.data.trilhas),
+
+  /** GET /admin/education/trilhas/:id */
+  getTrilha: (id: string) =>
+    httpAdmin.get<{ trilha: AdminTrilhaDetail }>(`/admin/education/trilhas/${id}`).then(r => r.data.trilha),
+
+  /** POST /admin/education/trilhas */
+  createTrilha: (data: { title: string; description?: string; cover_image_url?: string; display_order?: number; published?: boolean }) =>
+    httpAdmin.post<{ trilha: AdminTrilhaDetail }>('/admin/education/trilhas', data).then(r => r.data.trilha),
+
+  /** PUT /admin/education/trilhas/:id */
+  updateTrilha: (id: string, data: Partial<{ title: string; description: string; cover_image_url: string; display_order: number; published: boolean }>) =>
+    httpAdmin.put<{ trilha: AdminTrilhaDetail }>(`/admin/education/trilhas/${id}`, data).then(r => r.data.trilha),
+
+  /** DELETE /admin/education/trilhas/:id */
+  deleteTrilha: (id: string) =>
+    httpAdmin.delete(`/admin/education/trilhas/${id}`).then(r => r.data),
+
+  /** POST /admin/education/trilhas/:id/aulas */
+  createAula: (trilhaId: string, data: { title: string; description?: string; video_provider?: string; video_id: string; duration_seconds?: number; display_order?: number; published?: boolean }) =>
+    httpAdmin.post<{ aula: AdminAula }>(`/admin/education/trilhas/${trilhaId}/aulas`, data).then(r => r.data.aula),
+
+  /** PUT /admin/education/aulas/:aulaId */
+  updateAula: (aulaId: string, data: Partial<{ title: string; description: string; video_provider: string; video_id: string; duration_seconds: number; display_order: number; published: boolean }>) =>
+    httpAdmin.put<{ aula: AdminAula }>(`/admin/education/aulas/${aulaId}`, data).then(r => r.data.aula),
+
+  /** DELETE /admin/education/aulas/:aulaId */
+  deleteAula: (aulaId: string) =>
+    httpAdmin.delete(`/admin/education/aulas/${aulaId}`).then(r => r.data),
 }
 
 export default http

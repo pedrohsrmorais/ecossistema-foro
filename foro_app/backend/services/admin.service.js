@@ -8,6 +8,7 @@
 const { query } = require('../configs/db.config');
 const { AppError } = require('../middlewares/error.middleware');
 const creditsService = require('./credits.service');
+const modulesService = require('./modules.service');
 
 const ALLOWED_STATUSES = ['trialing', 'active', 'suspended', 'cancelled'];
 
@@ -96,7 +97,25 @@ async function getCreditsOverview() {
   return { ...totals[0], by_service: byService, total_wallets_balance_cents: walletsTotal[0].total_balance_cents || 0 };
 }
 
+/**
+ * Módulos (CRM, pesquisa, educação...) e seu estado para uma conta —
+ * usado pela tela de detalhe de conta no painel administrativo.
+ */
+async function getAccountModules(accountId) {
+  return modulesService.listForAccount(accountId);
+}
+
+/**
+ * Liga/desliga um módulo para uma conta específica. Único caminho do
+ * sistema que faz isso — decisão exclusiva da equipe da intellsn, nunca do
+ * próprio tenant (ver modules.service.js e middlewares/modules.middleware.js).
+ */
+async function setAccountModule(accountId, moduleKey, enabled, platformAdminId) {
+  return modulesService.setEnabled(accountId, moduleKey, enabled, platformAdminId);
+}
+
 module.exports = {
   listAccounts, getAccount, updateAccountStatus, listPlans,
   adjustAccountCredits, getCreditsOverview,
+  getAccountModules, setAccountModule,
 };

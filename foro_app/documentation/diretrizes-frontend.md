@@ -131,13 +131,16 @@ Essas regras vieram de decisão explícita do dono da plataforma. Não são suge
 - Histórico de pagamentos (`GET /payments`) e acesso à NFS-e de cada pagamento (`GET /payments/:id/nfse`).
 - Essa tela é o que resolve o bloqueio de `TRIAL_EXPIRED` citado na seção 2 — o modal de trial expirado deve linkar direto para aqui.
 
-### 4.10 Painel administrativo da plataforma (⚠️ produto separado — não é uma aba dentro do app do escritório)
-Login próprio (`POST /auth/platform-login`), nunca compartilha sessão/token com o app do tenant. Telas mínimas:
-- Listar contas (`GET /admin/accounts`) com status, plano, contagem de usuários/leads.
-- Detalhar conta (`GET /admin/accounts/:id`) — inclui saldo de créditos e últimas transações do tenant.
-- Alterar status da conta — suspender/reativar/cancelar (`PATCH /admin/accounts/:id/status`).
-- Visão agregada de créditos de todos os tenants (`GET /admin/credits/overview`) — útil para o dono bater o gasto real nos provedores externos contra o que foi vendido em créditos.
-- **Ajuste manual de créditos** (`PATCH /admin/accounts/:id/credits/adjust`, exige `amount_cents` e `note`) — esse é o único lugar do sistema inteiro onde um reembolso/ajuste de crédito acontece, e só a equipe da intellsn tem acesso. Vale um campo de nota obrigatório na tela também, espelhando a obrigatoriedade da API.
+### 4.10 Painel administrativo da plataforma (✅ implementado em `frontend/src/pages/admin/`)
+Produto separado dentro do mesmo build — login próprio (`/admin/login`, `POST /auth/platform-login`), contexto de auth separado (`AdminAuthContext.tsx`, chaves de `localStorage` próprias), nunca compartilha sessão/token com o app do tenant. Visual também deliberadamente distinto (ver seção 6) pra deixar claro que é backoffice, não um módulo do produto. Telas:
+- `AdminAccounts.tsx` — lista de contas com status, plano, contagem de usuários/leads.
+- `AdminAccountDetail.tsx` — detalhe da conta: usuários, pagamentos, saldo e extrato de créditos, **toggles de módulo** (seção 4.11) e o formulário de ajuste manual de créditos (`amount_cents` + `note` obrigatória — único lugar do sistema onde isso acontece).
+- `AdminCreditsOverview.tsx` — visão agregada de créditos de todos os tenants.
+- `AdminEducationTrilhas.tsx` / `AdminEducationTrilhaDetail.tsx` — CMS do módulo Educação (seção 4.11).
+
+### 4.11 Módulos e Educação (✅ implementado)
+- **Toggle de módulos**: `GET /modules` traz quais módulos (`crm`, `pesquisa_cpf_cnpj`, `pesquisa_processual`, `educacao`) estão ativos pra conta logada — `Layout.tsx` usa isso pra esconder itens de menu desativados. Se o usuário acessar uma rota de um módulo desativado diretamente (ou por link antigo), a API responde `403 { code: 'MODULE_DISABLED' }` e o interceptor do Axios (`api.ts`) já redireciona pra `/modulo-desativado`, uma tela amigável — **nunca deixe essa resposta quebrar a tela sem tratamento**, esse é o padrão a seguir pra qualquer nova rota gateada por módulo.
+- **Educação**: `Education.tsx` (grade de trilhas com progresso) → `TrilhaDetail.tsx` (player embutido — Vimeo/YouTube via `iframe`, ou link direto — e marcação de aula concluída). Conteúdo não é por conta: é criado pela intellsn no CMS do painel admin e visível pra todo tenant com o módulo ativo.
 
 ---
 
@@ -156,7 +159,7 @@ Login próprio (`POST /auth/platform-login`), nunca compartilha sessão/token co
 O frontend de referência usa:
 - **React 18 + Vite + TypeScript**, build com `tsc && vite build` → saída em `../backend/dist` (o backend serve o frontend compilado, não há servidor de frontend separado em produção).
 - **React Query** (`@tanstack/react-query`) para toda chamada de API — cache, refetch, estados de loading/error já vêm de fábrica.
-- **Tailwind CSS** para estilo, classes utilitárias próprias como `.card`, `.btn-primary`, `.input` (ver `index.css`/`tailwind.config.js`).
+- **Tailwind CSS** para estilo, classes utilitárias próprias como `.card`, `.btn-primary`, `.input` (ver `index.css`/`tailwind.config.js`). Paleta institucional (`brand` = navy, `accent` = dourado/bronze) e raios de borda reduzidos — deliberado, pra ler como plataforma jurídica/corporativa e não como app de consumidor. Se for criar componentes novos, use os tokens `brand-*`/`accent-*` em vez de cores soltas, e a serifada (`font-serif`/`.logo-wordmark`) só no logotipo/títulos de destaque, nunca na UI densa.
 - **`src/api.ts` como ponto único de chamadas** — cada função mapeia 1:1 para uma rota do backend, com os tipos TypeScript das respostas. Se for continuar nessa stack, **todo novo endpoint usado precisa ser adicionado aqui antes de ser consumido pelas páginas** — é o padrão do projeto inteiro, mantém o frontend inteiro recriável a partir de um único arquivo.
 - Token JWT salvo em `localStorage` (`foro_token`), injetado automaticamente via interceptor do Axios; interceptor de resposta já trata `401` e `EMAIL_NOT_VERIFIED` globalmente — reaproveitar esse padrão evita duplicar lógica de auth em cada tela.
 
@@ -166,13 +169,15 @@ Se a decisão for trocar de stack (Next.js, outra lib de estado, etc.), o único
 
 ## 7. Checklist antes de considerar o frontend "pronto"
 
-- [ ] Login bloqueado até e-mail verificado, com tela de verificação funcional (reenvio + 6 dígitos).
-- [ ] Esqueci minha senha funcionando de ponta a ponta.
-- [ ] Bloqueio visível e com CTA quando `TRIAL_EXPIRED`.
-- [ ] CRM completo: leads, campos customizáveis dinâmicos, notas, tarefas.
-- [ ] Chat com IA mostrando quando uma ação real foi executada (não só texto).
-- [ ] Carteira de créditos: saldo, preços, recarga via PIX, extrato — **sem botão de reembolso**.
-- [ ] Telas de consulta paga (CPF/CNPJ/processual + resumo IA) tratando `402` e `502` conforme a seção 3.
-- [ ] Tela de assinatura/planos e histórico de pagamentos com acesso à NFS-e.
-- [ ] Painel administrativo separado, com login próprio, incluindo a tela de ajuste manual de créditos.
-- [ ] Toda mensagem de erro mostrada ao usuário vem do campo `error` da API, sem reescrever o texto.
+- [x] Login bloqueado até e-mail verificado, com tela de verificação funcional (reenvio + 6 dígitos).
+- [x] Esqueci minha senha funcionando de ponta a ponta.
+- [ ] Bloqueio visível e com CTA quando `TRIAL_EXPIRED` (ainda falta — depende da tela de assinatura abaixo).
+- [x] CRM completo: leads, campos customizáveis dinâmicos, notas, tarefas.
+- [x] Chat com IA mostrando quando uma ação real foi executada (não só texto).
+- [x] Carteira de créditos: saldo, preços, recarga via PIX, extrato — **sem botão de reembolso**.
+- [ ] Telas de consulta paga (CPF/CNPJ/processual + resumo IA) tratando `402` e `502` conforme a seção 3. **Ainda não construído** — maior lacuna restante.
+- [ ] Tela de assinatura/planos e histórico de pagamentos com acesso à NFS-e. **Ainda não construído.**
+- [x] Painel administrativo separado, com login próprio, incluindo a tela de ajuste manual de créditos.
+- [x] Toggle de módulos (CRM/pesquisa/educação) por conta, só pelo admin da plataforma, com tela de "módulo desativado" pro tenant.
+- [x] Módulo Educação: trilhas/aulas em vídeo + CMS no painel admin.
+- [x] Toda mensagem de erro mostrada ao usuário vem do campo `error` da API, sem reescrever o texto.

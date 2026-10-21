@@ -432,6 +432,97 @@ CREATE TABLE IF NOT EXISTS service_usage_log (
   CONSTRAINT fk_usage_log_account FOREIGN KEY (account_id) REFERENCES accounts(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+-- ────────────────────────────────────────────────────────────────────────────
+-- 8. MÓDULOS — habilita/desabilita funcionalidades por conta (admin da plataforma)
+-- ────────────────────────────────────────────────────────────────────────────
+--
+-- Cada funcionalidade do produto (CRM, consultas pagas, educação...) é um
+-- "módulo". Por padrão todo módulo está ativo para toda conta — só existe uma
+-- linha em account_modules quando um admin da plataforma desativou (ou
+-- reativou) explicitamente um módulo para aquela conta específica (ver
+-- modules.service.js::isEnabled, que trata "sem linha" como enabled=1).
+-- Decisão do dono da plataforma: só a equipe da intellsn liga/desliga um
+-- módulo — nunca o próprio tenant. Isso também abre caminho para vender
+-- "pacotes" diferentes (ex: só educação, ou CRM sem pesquisa) sem duplicar código.
+
+CREATE TABLE IF NOT EXISTS modules (
+  module_key    VARCHAR(50)  NOT NULL COMMENT 'crm, pesquisa_cpf_cnpj, pesquisa_processual, educacao...',
+  name          VARCHAR(100) NOT NULL,
+  description   VARCHAR(255) NULL,
+  display_order INT          NOT NULL DEFAULT 0,
+  created_at    DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (module_key)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Override por conta — "sem linha" para um module_key = módulo ativo (padrão).
+-- Uma linha aqui só existe quando um admin da plataforma mudou o padrão.
+CREATE TABLE IF NOT EXISTS account_modules (
+  account_id                VARCHAR(36) NOT NULL,
+  module_key                VARCHAR(50) NOT NULL,
+  enabled                   TINYINT(1)  NOT NULL DEFAULT 1,
+  updated_by_platform_admin VARCHAR(36) NULL COMMENT 'qual admin da plataforma fez a última alteração',
+  updated_at                DATETIME    NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (account_id, module_key),
+  CONSTRAINT fk_account_modules_account FOREIGN KEY (account_id) REFERENCES accounts(id)       ON DELETE CASCADE,
+  CONSTRAINT fk_account_modules_module  FOREIGN KEY (module_key) REFERENCES modules(module_key) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ────────────────────────────────────────────────────────────────────────────
+-- 9. EDUCAÇÃO — trilhas e aulas em vídeo (conteúdo da plataforma, não por tenant)
+-- ────────────────────────────────────────────────────────────────────────────
+--
+-- Conteúdo educativo sobre tecnologia/automação/IA para escritórios de
+-- advocacia. Diferente do CRM, o conteúdo NÃO é isolado por conta — é criado
+-- pela equipe da intellsn (painel administrativo) e fica visível para toda
+-- conta que tiver o módulo "educacao" ativo (ver seção 8).
+--
+-- Vídeo hospedado no Vimeo (privado, restrito por domínio) — aqui guardamos
+-- só o ID do vídeo, nunca o arquivo. `video_provider` existe para não travar
+-- em um único provedor caso isso mude no futuro (youtube/url genérica).
+
+CREATE TABLE IF NOT EXISTS trilhas (
+  id              VARCHAR(36)  NOT NULL DEFAULT (UUID()),
+  title           VARCHAR(150) NOT NULL,
+  description     TEXT         NULL,
+  cover_image_url VARCHAR(500) NULL,
+  display_order   INT          NOT NULL DEFAULT 0,
+  published       TINYINT(1)   NOT NULL DEFAULT 0 COMMENT 'rascunhos (0) não aparecem para os tenants',
+  created_at      DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at      DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS aulas (
+  id               VARCHAR(36)  NOT NULL DEFAULT (UUID()),
+  trilha_id        VARCHAR(36)  NOT NULL,
+  title            VARCHAR(150) NOT NULL,
+  description      TEXT         NULL,
+  video_provider   ENUM('vimeo','youtube','url') NOT NULL DEFAULT 'vimeo',
+  video_id         VARCHAR(255) NOT NULL COMMENT 'ID do vídeo no provedor, ou URL completa se provider=url',
+  duration_seconds INT          NULL,
+  display_order    INT          NOT NULL DEFAULT 0,
+  published        TINYINT(1)   NOT NULL DEFAULT 0,
+  created_at       DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at       DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  KEY idx_aulas_trilha (trilha_id, display_order),
+  CONSTRAINT fk_aulas_trilha FOREIGN KEY (trilha_id) REFERENCES trilhas(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Progresso por usuário (não por conta — quem assiste é a pessoa, não o escritório).
+CREATE TABLE IF NOT EXISTS aula_progresso (
+  id                    VARCHAR(36) NOT NULL DEFAULT (UUID()),
+  user_id               VARCHAR(36) NOT NULL,
+  aula_id               VARCHAR(36) NOT NULL,
+  last_position_seconds INT         NOT NULL DEFAULT 0,
+  completed_at          DATETIME    NULL,
+  updated_at            DATETIME    NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  UNIQUE KEY uk_progresso_user_aula (user_id, aula_id),
+  CONSTRAINT fk_progresso_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+  CONSTRAINT fk_progresso_aula FOREIGN KEY (aula_id) REFERENCES aulas(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 -- ════════════════════════════════════════════════════════════════════════════
 -- SEEDS — dados iniciais
 -- ════════════════════════════════════════════════════════════════════════════
@@ -464,6 +555,15 @@ INSERT INTO service_prices (service_key, name, price_cents, provider_cost_cents,
 ON DUPLICATE KEY UPDATE
   name = VALUES(name), price_cents = VALUES(price_cents), provider_cost_cents = VALUES(provider_cost_cents),
   provider = VALUES(provider), description = VALUES(description);
+
+-- ─── Catálogo de módulos (liga/desliga por conta, só pelo admin da plataforma) ─
+INSERT INTO modules (module_key, name, description, display_order) VALUES
+  ('crm',                  'CRM com IA',          'Gestão de leads, funil, notas, tarefas e chat com IA', 1),
+  ('pesquisa_cpf_cnpj',    'Consulta de CPF/CNPJ','Consulta de dados cadastrais, paga em créditos',       2),
+  ('pesquisa_processual',  'Consulta processual', 'Busca de processos por CPF/CNPJ e resumo por IA',      3),
+  ('educacao',             'Educação',            'Trilhas e aulas em vídeo sobre tecnologia para escritórios', 4)
+ON DUPLICATE KEY UPDATE
+  name = VALUES(name), description = VALUES(description), display_order = VALUES(display_order);
 
 -- Observação: os campos de sistema (area_juridica, preferencia_contato,
 -- descricao_caso, honorarios) NÃO são semeados aqui — são criados

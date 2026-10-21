@@ -90,7 +90,15 @@ Quando o trial expira (`accounts.trial_ends_at`) sem uma assinatura ativa, o `cl
 
 ### Painel administrativo da plataforma
 
-Fora do conceito de tenant existe a equipe da intellsn, que administra todos os escritórios cadastrados. Login via `POST /api/auth/platform-login` (tabela `platform_admins`, seedada no `init.sql`), autenticado por um middleware próprio (`authenticatePlatform`) que não depende de `account_id`. Rotas: `GET /api/admin/accounts`, `GET /api/admin/accounts/:id`, `PATCH /api/admin/accounts/:id/status`, `GET /api/admin/plans`.
+Fora do conceito de tenant existe a equipe da intellsn, que administra todos os escritórios cadastrados. Login via `POST /api/auth/platform-login` (tabela `platform_admins`, seedada no `init.sql`), autenticado por um middleware próprio (`authenticatePlatform`) que não depende de `account_id`. Rotas: `GET /api/admin/accounts`, `GET /api/admin/accounts/:id`, `PATCH /api/admin/accounts/:id/status`, `GET /api/admin/plans`, além de créditos, módulos e o CMS de Educação (ver [api-reference.md](./api-reference.md)). Tem frontend próprio em `frontend/src/pages/admin/`, com contexto de autenticação separado (`AdminAuthContext.tsx`) — nunca compartilha sessão com o app do tenant.
+
+### Módulos (feature toggle por conta)
+
+Cada funcionalidade (`crm`, `pesquisa_cpf_cnpj`, `pesquisa_processual`, `educacao`) pode ser desativada por conta, exclusivamente por um admin da plataforma — nunca pelo próprio tenant. Middleware `requireModule('crm')` (`middlewares/modules.middleware.js`) protege as rotas e responde `403 { code: 'MODULE_DISABLED' }` quando desativado; "sem configuração" em `account_modules` significa ativo por padrão. Ver [banco-de-dados.md](./banco-de-dados.md#8-módulos--ligadesliga-funcionalidade-por-conta).
+
+### Educação
+
+Módulo de trilhas/aulas em vídeo sobre tecnologia para escritórios de advocacia. Conteúdo é da **plataforma**, não por conta — criado pela equipe intellsn no CMS do painel administrativo, visível para todo tenant com o módulo `educacao` ativo. Vídeo hospedado externamente (Vimeo privado recomendado); o banco só guarda o `video_id`. Progresso (`aula_progresso`) é por usuário individual. Ver [banco-de-dados.md](./banco-de-dados.md#9-educação--trilhas-e-aulas-em-vídeo).
 
 ---
 

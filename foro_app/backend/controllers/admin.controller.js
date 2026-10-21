@@ -1,4 +1,5 @@
 const adminService = require('../services/admin.service');
+const modulesService = require('../services/modules.service');
 
 async function listAccounts(req, res) {
   const accounts = await adminService.listAccounts();
@@ -42,4 +43,31 @@ async function creditsOverview(req, res) {
   res.json({ overview });
 }
 
-module.exports = { listAccounts, getAccount, updateAccountStatus, listPlans, adjustCredits, creditsOverview };
+/** GET /admin/modules — catálogo completo (pra montar a lista de toggles na tela). */
+async function listModulesCatalog(req, res) {
+  const modules = await modulesService.listCatalog();
+  res.json({ modules });
+}
+
+/** GET /admin/accounts/:id/modules — estado dos módulos de UMA conta. */
+async function getAccountModules(req, res) {
+  const modules = await adminService.getAccountModules(req.params.id);
+  res.json({ modules });
+}
+
+/** PATCH /admin/accounts/:id/modules/:moduleKey — liga/desliga um módulo pra essa conta. */
+async function setAccountModule(req, res) {
+  const { enabled } = req.body;
+  const modules = await adminService.setAccountModule(
+    req.params.id,
+    req.params.moduleKey,
+    Boolean(enabled),
+    req.platformAdmin.platform_admin_id
+  );
+  res.json({ modules });
+}
+
+module.exports = {
+  listAccounts, getAccount, updateAccountStatus, listPlans, adjustCredits, creditsOverview,
+  listModulesCatalog, getAccountModules, setAccountModule,
+};
