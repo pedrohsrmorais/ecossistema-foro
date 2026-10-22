@@ -11,7 +11,7 @@
  * não pontuam de novo (evita "farm" de pontos repetindo o mesmo quiz).
  */
 const { v4: uuidv4 } = require('uuid');
-const { query } = require('../configs/db.config');
+const { query, transaction } = require('../configs/db.config');
 const { AppError } = require('../middlewares/error.middleware');
 const communityService = require('./community.service');
 
@@ -75,21 +75,35 @@ async function submitAttempt(quizId, userId, accountId, answers) {
   const scorePct = Math.round((correctCount / questions.length) * 100);
   const passed = scorePct >= quiz.passing_score_pct;
 
-  let pointsAwarded = 0;
-  if (passed) {
-    const [alreadyPassed] = await query(
-      'SELECT id FROM quiz_attempts WHERE quiz_id = ? AND user_id = ? AND passed = 1 LIMIT 1',
-      [quizId, userId]
-    );
-    if (!alreadyPassed.length) pointsAwarded = quiz.points_awarded;
-  }
-
   const attemptId = uuidv4();
-  await query(
-    `INSERT INTO quiz_attempts (id, quiz_id, user_id, account_id, score_pct, passed, points_awarded)
-     VALUES (?, ?, ?, ?, ?, ?, ?)`,
-    [attemptId, quizId, userId, accountId, scorePct, passed ? 1 : 0, pointsAwarded]
-  );
+
+  // Concede pontos só na primeira vez que o usuário passa. O INSERT em
+  // `quiz_passes` (PK composta quiz_id+user_id) é o que garante isso de forma
+  // atômica: com duas tentativas concorrentes (duplo clique, duas abas,
+  // retry de rede), só uma consegue inserir — a outra recebe ER_DUP_ENTRY e
+  // fica com pointsAwarded = 0. Um simples "SELECT já passou? então não
+  // pontua" não é atômico e permitia conceder pontos em dobro.
+  let pointsAwarded = 0;
+  await transaction(async (conn) => {
+    if (passed) {
+      try {
+        await conn.execute(
+          'INSERT INTO quiz_passes (quiz_id, user_id, account_id, first_attempt_id) VALUES (?, ?, ?, ?)',
+          [quizId, userId, accountId, attemptId]
+        );
+        pointsAwarded = quiz.points_awarded;
+      } catch (err) {
+        if (err.code !== 'ER_DUP_ENTRY') throw err;
+        pointsAwarded = 0; // já tinha passado antes (ou uma tentativa concorrente venceu a corrida)
+      }
+    }
+
+    await conn.execute(
+      `INSERT INTO quiz_attempts (id, quiz_id, user_id, account_id, score_pct, passed, points_awarded)
+       VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      [attemptId, quizId, userId, accountId, scorePct, passed ? 1 : 0, pointsAwarded]
+    );
+  });
 
   // Post automático de conquista só na primeira vez que pontua de verdade —
   // tentativa repetida (mesmo passando de novo) não gera post novo.
@@ -128,7 +142,11 @@ async function createQuiz(aulaId, { title, passing_score_pct, points_awarded }) 
   const id = uuidv4();
   await query(
     `INSERT INTO quizzes (id, aula_id, title, passing_score_pct, points_awarded) VALUES (?, ?, ?, ?, ?)`,
-    [id, aulaId, title, passing_score_pct || 70, points_awarded || 10]
+    [
+      id, aulaId, title,
+      passing_score_pct == null || passing_score_pct === '' ? 70 : passing_score_pct,
+      points_awarded == null || points_awarded === '' ? 10 : points_awarded,
+    ]
   );
   return adminGetQuizForAula(aulaId);
 }

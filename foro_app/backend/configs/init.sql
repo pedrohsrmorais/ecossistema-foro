@@ -576,6 +576,24 @@ CREATE TABLE IF NOT EXISTS quiz_attempts (
   CONSTRAINT fk_quiz_attempts_account FOREIGN KEY (account_id) REFERENCES accounts(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+-- "Trava" de primeira aprovação: PK composta (quiz_id, user_id) garante, a
+-- nível de banco, que só uma tentativa concorrente consegue inserir aqui —
+-- a outra recebe ER_DUP_ENTRY e não pontua. Sem isso, um duplo clique ou duas
+-- abas abertas conseguiam conceder os pontos duas vezes (quiz_attempts sozinha
+-- não tem nenhuma trava de unicidade, já que várias tentativas são esperadas).
+CREATE TABLE IF NOT EXISTS quiz_passes (
+  quiz_id           VARCHAR(36)  NOT NULL,
+  user_id           VARCHAR(36)  NOT NULL,
+  account_id        VARCHAR(36)  NOT NULL,
+  first_attempt_id  VARCHAR(36)  NOT NULL COMMENT 'quiz_attempts.id da tentativa que concedeu os pontos',
+  created_at        DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (quiz_id, user_id),
+  KEY idx_quiz_passes_account (account_id),
+  CONSTRAINT fk_quiz_passes_quiz    FOREIGN KEY (quiz_id)    REFERENCES quizzes(id)  ON DELETE CASCADE,
+  CONSTRAINT fk_quiz_passes_user    FOREIGN KEY (user_id)    REFERENCES users(id)    ON DELETE CASCADE,
+  CONSTRAINT fk_quiz_passes_account FOREIGN KEY (account_id) REFERENCES accounts(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 -- ────────────────────────────────────────────────────────────────────────────
 -- 11. DESAFIOS SEMANAIS — conteúdo da plataforma, conclusão auto-declarada (módulo "desafios_semanais")
 -- ────────────────────────────────────────────────────────────────────────────

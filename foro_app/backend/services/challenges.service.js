@@ -35,7 +35,11 @@ async function listActive(userId) {
 
 /** Marca um desafio como concluído pelo usuário (auto-declarado, idempotente). */
 async function complete(challengeId, userId, accountId) {
-  const [challenges] = await query('SELECT * FROM weekly_challenges WHERE id = ? AND published = 1 LIMIT 1', [challengeId]);
+  const [challenges] = await query(
+    `SELECT *, (CURDATE() BETWEEN starts_at AND ends_at) AS is_current
+     FROM weekly_challenges WHERE id = ? AND published = 1 LIMIT 1`,
+    [challengeId]
+  );
   if (!challenges.length) throw new AppError('Desafio não encontrado.', 404);
 
   const [existing] = await query(
@@ -43,6 +47,13 @@ async function complete(challengeId, userId, accountId) {
     [challengeId, userId]
   );
   if (existing.length) return { ...existing[0], already_completed: true };
+
+  // Só dá pra concluir dentro da janela de vigência — sem isso, um usuário
+  // conseguia pontuar num desafio de semanas atrás ou num que ainda nem tinha
+  // começado, já que só o `published = 1` era checado.
+  if (!challenges[0].is_current) {
+    throw new AppError('Esse desafio só pode ser concluído durante a semana de vigência dele.', 400);
+  }
 
   const id = uuidv4();
   await query(
@@ -86,7 +97,11 @@ async function create({ title, description, attachment_url, points_awarded, star
   await query(
     `INSERT INTO weekly_challenges (id, title, description, attachment_url, points_awarded, starts_at, ends_at, published)
      VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-    [id, title, description, attachment_url || null, points_awarded || 10, starts_at, ends_at, published ? 1 : 0]
+    [
+      id, title, description, attachment_url || null,
+      points_awarded == null || points_awarded === '' ? 10 : points_awarded,
+      starts_at, ends_at, published ? 1 : 0,
+    ]
   );
   return adminGet(id);
 }

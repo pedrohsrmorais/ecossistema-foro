@@ -11,20 +11,24 @@ export default function AdminChallenges() {
 
   const [creating, setCreating] = useState(false)
   const [form, setForm] = useState(emptyForm)
+  const [error, setError] = useState<string | null>(null)
 
   const createMutation = useMutation({
     mutationFn: () => adminApi.createChallenge({ ...form, attachment_url: form.attachment_url || undefined }),
-    onSuccess: () => { setForm(emptyForm); setCreating(false); qc.invalidateQueries({ queryKey: ['admin-challenges'] }) },
+    onSuccess: () => { setError(null); setForm(emptyForm); setCreating(false); qc.invalidateQueries({ queryKey: ['admin-challenges'] }) },
+    onError: (err: any) => setError(err?.response?.data?.error || 'Erro ao criar o desafio.'),
   })
 
   const togglePublishedMutation = useMutation({
     mutationFn: ({ id, published }: { id: string; published: boolean }) => adminApi.updateChallenge(id, { published }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['admin-challenges'] }),
+    onSuccess: () => { setError(null); qc.invalidateQueries({ queryKey: ['admin-challenges'] }) },
+    onError: (err: any) => setError(err?.response?.data?.error || 'Erro ao atualizar o desafio.'),
   })
 
   const deleteMutation = useMutation({
     mutationFn: (id: string) => adminApi.deleteChallenge(id),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['admin-challenges'] }),
+    onSuccess: () => { setError(null); qc.invalidateQueries({ queryKey: ['admin-challenges'] }) },
+    onError: (err: any) => setError(err?.response?.data?.error || 'Erro ao excluir o desafio.'),
   })
 
   return (
@@ -38,6 +42,8 @@ export default function AdminChallenges() {
       <p className="text-sm text-slate-500 mb-6">
         Visível para todo tenant com o módulo "Desafios semanais" ativo. Conclusão é auto-declarada pelo usuário.
       </p>
+
+      {error && <p className="text-sm text-red-600 mb-4">{error}</p>}
 
       {creating && (
         <form

@@ -282,11 +282,19 @@ Histórico de tentativas — cada submissão gera uma linha, mesmo repetida.
 | `passed` / `score_pct`| Resultado da tentativa                                             |
 | `points_awarded`      | `0` se não passou, ou se já tinha passado antes (evita "farm")    |
 
+### `quiz_passes`
+"Trava" de primeira aprovação — não é histórico, é um registro só por `(quiz_id, user_id)`. O `INSERT` nessa tabela (PK composta) é o que decide atomicamente, a nível de banco, se essa tentativa é a que concede os pontos: com duas submissões concorrentes (duplo clique, duas abas, retry de rede), só uma consegue inserir — a outra recebe `ER_DUP_ENTRY` e fica com `points_awarded = 0`. Ver `quizzes.service.js::submitAttempt`.
+
+| Coluna               | Descrição                                                    |
+|-----------------------|-------------------------------------------------------------------|
+| `quiz_id` + `user_id` | `PRIMARY KEY` composta — garante a unicidade                      |
+| `first_attempt_id`    | FK → `quiz_attempts.id` da tentativa que concedeu os pontos       |
+
 ---
 
 ## 11. Desafios semanais — conclusão auto-declarada
 
-Desafios publicados pela equipe intellsn, com janela de vigência (`starts_at`/`ends_at`). **Conclusão é auto-declarada**: o usuário clica "concluí" e pronto, sem verificação nem evidência anexada — decisão deliberada pra manter o MVP simples.
+Desafios publicados pela equipe intellsn, com janela de vigência (`starts_at`/`ends_at`). **Conclusão é auto-declarada**: o usuário clica "concluí" e pronto, sem verificação nem evidência anexada — decisão deliberada pra manter o MVP simples. Só pode concluir **dentro** da janela de vigência (`challenges.service.js::complete` valida `CURDATE() BETWEEN starts_at AND ends_at`).
 
 ### `weekly_challenges`
 | Coluna               | Descrição                                                    |
@@ -352,6 +360,7 @@ Duas coisas **deliberadamente separadas**:
 | `quizzes`                | não     | `aulas`                | Prova de conceito de uma aula (conteúdo da plataforma) |
 | `quiz_questions`         | não     | `quizzes`              | Perguntas de múltipla escolha                   |
 | `quiz_attempts`          | sim     | `quizzes`, `users`     | Histórico de tentativas + pontos                |
+| `quiz_passes`            | sim     | `quizzes`, `users`     | Trava de 1ª aprovação (evita pontuar em dobro)  |
 | `weekly_challenges`      | não     | —                      | Desafios semanais (conteúdo da plataforma)      |
 | `weekly_challenge_completions` | sim | `weekly_challenges`, `users` | Conclusão auto-declarada + pontos         |
 | `community_posts`        | sim     | `accounts`, `users`    | Feed de conquistas, isolado por conta           |

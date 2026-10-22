@@ -21,14 +21,18 @@ export default function Comunidade() {
   const { data: posts = [], isLoading } = useQuery({ queryKey: ['community-feed'], queryFn: communityApi.listFeed })
   const { data: ranking = [] } = useQuery({ queryKey: ['community-leaderboard'], queryFn: communityApi.leaderboard })
 
+  const [error, setError] = useState<string | null>(null)
+
   const postMutation = useMutation({
     mutationFn: (text: string) => communityApi.createPost(text),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['community-feed'] }); setContent('') },
+    onSuccess: () => { setError(null); qc.invalidateQueries({ queryKey: ['community-feed'] }); setContent('') },
+    onError: (err: any) => setError(err?.response?.data?.error || 'Erro ao publicar. Tente de novo.'),
   })
 
   const deleteMutation = useMutation({
     mutationFn: (id: string) => communityApi.deletePost(id),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['community-feed'] }),
+    onSuccess: () => { setError(null); qc.invalidateQueries({ queryKey: ['community-feed'] }) },
+    onError: (err: any) => setError(err?.response?.data?.error || 'Erro ao apagar a publicação.'),
   })
 
   return (
@@ -63,6 +67,7 @@ export default function Comunidade() {
             </button>
           </form>
 
+          {error && <p className="text-sm text-red-600 mb-3">{error}</p>}
           {isLoading && <p className="text-sm text-slate-400">Carregando...</p>}
 
           {!isLoading && posts.length === 0 && (

@@ -1,14 +1,17 @@
+import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { adminApi } from '../../api'
 import { Users2, Sparkles, Trash2 } from 'lucide-react'
 
 export default function AdminCommunity() {
   const qc = useQueryClient()
+  const [error, setError] = useState<string | null>(null)
   const { data: posts = [], isLoading } = useQuery({ queryKey: ['admin-community-posts'], queryFn: adminApi.listCommunityPosts })
 
   const deleteMutation = useMutation({
     mutationFn: (id: string) => adminApi.deleteCommunityPost(id),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['admin-community-posts'] }),
+    onSuccess: () => { setError(null); qc.invalidateQueries({ queryKey: ['admin-community-posts'] }) },
+    onError: (err: any) => setError(err?.response?.data?.error || 'Erro ao remover o post.'),
   })
 
   return (
@@ -17,6 +20,8 @@ export default function AdminCommunity() {
       <p className="text-sm text-slate-500 mb-6">
         Posts recentes de todas as contas. O feed de cada escritório só mostra pra ele mesmo — isso aqui é a visão cross-tenant só da equipe intellsn.
       </p>
+
+      {error && <p className="text-sm text-red-600 mb-4">{error}</p>}
 
       {isLoading ? (
         <p className="text-sm text-slate-400">Carregando...</p>

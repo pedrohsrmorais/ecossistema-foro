@@ -1,13 +1,15 @@
 import { useState } from 'react'
 import { useParams, Link } from 'react-router-dom'
-import { useQuery, useMutation } from '@tanstack/react-query'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { ArrowLeft, FlaskConical, CheckCircle2, XCircle, Sparkles } from 'lucide-react'
 import { quizzesApi, QuizAttemptResult } from '../../api'
 
 export default function QuizTake() {
   const { aulaId } = useParams<{ aulaId: string }>()
+  const qc = useQueryClient()
   const [answers, setAnswers] = useState<Record<string, string>>({})
   const [result, setResult] = useState<QuizAttemptResult | null>(null)
+  const [error, setError] = useState<string | null>(null)
 
   const { data: quiz, isLoading } = useQuery({
     queryKey: ['quiz-for-aula', aulaId],
@@ -17,7 +19,15 @@ export default function QuizTake() {
 
   const submitMutation = useMutation({
     mutationFn: () => quizzesApi.submitAttempt(quiz!.id, Object.entries(answers).map(([question_id, option_id]) => ({ question_id, option_id }))),
-    onSuccess: setResult,
+    onSuccess: data => {
+      setError(null)
+      setResult(data)
+      // Sem isso, a lista de Provas de conceito (staleTime de 5min) continuava
+      // mostrando a prova como "não feita" depois do usuário passar nela.
+      qc.invalidateQueries({ queryKey: ['quizzes-available'] })
+      qc.invalidateQueries({ queryKey: ['quiz-for-aula', aulaId] })
+    },
+    onError: (err: any) => setError(err?.response?.data?.error || 'Erro ao enviar as respostas. Tente de novo.'),
   })
 
   if (isLoading) return <div className="p-6 text-sm text-slate-400">Carregando...</div>
@@ -84,6 +94,7 @@ export default function QuizTake() {
         </div>
       ) : (
         <form onSubmit={e => { e.preventDefault(); submitMutation.mutate() }} className="space-y-4">
+          {error && <p className="text-sm text-red-600">{error}</p>}
           {quiz.questions.map((q, i) => (
             <div key={q.id} className="card p-4">
               <p className="text-sm font-medium text-slate-900 mb-3">{i + 1}. {q.prompt}</p>

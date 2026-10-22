@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { Trophy, CheckCircle2, Paperclip, Sparkles } from 'lucide-react'
 import { challengesApi } from '../../api'
@@ -8,11 +9,13 @@ function formatDate(d: string) {
 
 export default function DesafiosSemanais() {
   const qc = useQueryClient()
+  const [error, setError] = useState<string | null>(null)
   const { data: challenges = [], isLoading } = useQuery({ queryKey: ['challenges'], queryFn: challengesApi.listActive })
 
   const completeMutation = useMutation({
     mutationFn: (id: string) => challengesApi.complete(id),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['challenges'] }),
+    onSuccess: () => { setError(null); qc.invalidateQueries({ queryKey: ['challenges'] }) },
+    onError: (err: any) => setError(err?.response?.data?.error || 'Erro ao marcar o desafio como concluído.'),
   })
 
   const pontosGanhos = challenges.filter(c => c.completed).reduce((sum, c) => sum + c.points_awarded, 0)
@@ -38,6 +41,7 @@ export default function DesafiosSemanais() {
       </div>
 
       {isLoading && <p className="text-sm text-slate-400">Carregando...</p>}
+      {error && <p className="text-sm text-red-600 mb-4">{error}</p>}
 
       {!isLoading && challenges.length === 0 && (
         <div className="card p-8 text-center">
@@ -70,13 +74,16 @@ export default function DesafiosSemanais() {
               </div>
               <button
                 onClick={() => completeMutation.mutate(c.id)}
-                disabled={c.completed || completeMutation.isPending}
+                disabled={c.completed || !c.is_current || completeMutation.isPending}
+                title={!c.completed && !c.is_current ? 'Só é possível concluir durante a semana de vigência deste desafio.' : undefined}
                 className="btn-secondary shrink-0"
               >
                 {c.completed ? (
                   <><CheckCircle2 className="w-4 h-4 text-green-600" /> Concluído</>
-                ) : (
+                ) : c.is_current ? (
                   'Marcar como concluído'
+                ) : (
+                  'Fora do período'
                 )}
               </button>
             </div>

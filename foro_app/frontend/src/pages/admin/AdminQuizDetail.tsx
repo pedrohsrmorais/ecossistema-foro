@@ -18,6 +18,8 @@ export default function AdminQuizDetail() {
   const [createForm, setCreateForm] = useState({ title: '', passing_score_pct: 70, points_awarded: 10 })
   const [settingsForm, setSettingsForm] = useState({ title: '', passing_score_pct: 70, points_awarded: 10 })
   const [loadedSettings, setLoadedSettings] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const onError = (fallback: string) => (err: any) => setError(err?.response?.data?.error || fallback)
   if (quiz && !loadedSettings) {
     setSettingsForm({ title: quiz.title, passing_score_pct: quiz.passing_score_pct, points_awarded: quiz.points_awarded })
     setLoadedSettings(true)
@@ -28,17 +30,20 @@ export default function AdminQuizDetail() {
 
   const createQuizMutation = useMutation({
     mutationFn: () => adminApi.createQuiz(aulaId!, createForm),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['admin-quiz', aulaId] }),
+    onSuccess: () => { setError(null); qc.invalidateQueries({ queryKey: ['admin-quiz', aulaId] }) },
+    onError: onError('Erro ao criar a prova de conceito.'),
   })
 
   const updateQuizMutation = useMutation({
     mutationFn: () => adminApi.updateQuiz(quiz!.id, settingsForm),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['admin-quiz', aulaId] }),
+    onSuccess: () => { setError(null); qc.invalidateQueries({ queryKey: ['admin-quiz', aulaId] }) },
+    onError: onError('Erro ao salvar as alterações.'),
   })
 
   const deleteQuizMutation = useMutation({
     mutationFn: () => adminApi.deleteQuiz(quiz!.id),
-    onSuccess: () => { setLoadedSettings(false); qc.invalidateQueries({ queryKey: ['admin-quiz', aulaId] }) },
+    onSuccess: () => { setError(null); setLoadedSettings(false); qc.invalidateQueries({ queryKey: ['admin-quiz', aulaId] }) },
+    onError: onError('Erro ao excluir a prova de conceito.'),
   })
 
   const addQuestionMutation = useMutation({
@@ -52,14 +57,17 @@ export default function AdminQuizDetail() {
       return adminApi.addQuizQuestion(quiz!.id, { prompt: questionForm.prompt, options, correct_option_id: questionForm.correct })
     },
     onSuccess: () => {
+      setError(null)
       setQuestionForm(emptyQuestionForm); setShowQuestionForm(false)
       qc.invalidateQueries({ queryKey: ['admin-quiz', aulaId] })
     },
+    onError: onError('Erro ao adicionar a pergunta — confira se a alternativa marcada como correta tem um texto preenchido.'),
   })
 
   const deleteQuestionMutation = useMutation({
     mutationFn: (questionId: string) => adminApi.deleteQuizQuestion(questionId),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['admin-quiz', aulaId] }),
+    onSuccess: () => { setError(null); qc.invalidateQueries({ queryKey: ['admin-quiz', aulaId] }) },
+    onError: onError('Erro ao excluir a pergunta.'),
   })
 
   if (isLoading) return <div className="p-6 text-sm text-slate-400">Carregando...</div>
@@ -73,6 +81,8 @@ export default function AdminQuizDetail() {
       <h1 className="text-xl font-semibold text-slate-900 flex items-center gap-2 mb-6">
         <FlaskConical className="w-5 h-5 text-accent-500" /> Prova de conceito
       </h1>
+
+      {error && <p className="text-sm text-red-600 mb-4">{error}</p>}
 
       {!quiz ? (
         <div className="card p-5">
