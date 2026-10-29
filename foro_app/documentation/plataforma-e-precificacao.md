@@ -119,10 +119,10 @@ O preço é mensal, mas os recursos de uso (créditos de IA e consultas) **renov
 
 | Plano | Mensal | Créditos IA / semana | Consultas / semana | Usuários | Leads | Margem a 100% de uso | Margem a 50% de uso |
 |-------|--------|----------------------|--------------------|----------|-------|----------------------|---------------------|
-| Teste grátis (14 dias) | R$ 0 | 50 | 2 | 1 | 100 | custo ≈ R$ 5 por trial | – |
-| Starter  | R$ 97  | 150 | 5  | 1  | 500      | 53,6% | 69,5% |
-| Pro      | R$ 197 | 300 | 10 | 5  | ilimitado | 56,9% | 72,6% |
-| Business | R$ 397 | 700 | 20 | 15 | ilimitado | 55,7% | 72,7% |
+| Teste grátis (14 dias) | R$ 0 | 50 | 5 | 1 | 100 | custo ≈ R$ 9,06 por trial | – |
+| Starter  | R$ 129,90 | 150 | 10 | 1  | 500      | 52,3% | 69,5% |
+| Pro      | R$ 199,90 | 300 | 15 | 5  | ilimitado | 50,4% (no limite do piso) | 69,3% |
+| Business | R$ 399,90 | 700 | 20 | 15 | ilimitado | 56,0% | 72,8% |
 
 Premissas da margem: 52/12 semanas por mês; custo por crédito R$ 0,02586 (Sonnet 4.6 com prompt caching, câmbio 5,34); consulta média R$ 0,647 (mix CNPJ/CPF/processual, Direct Data); imposto 6% (estimativa), cartão Asaas 2,99% + R$ 0,49 (estimativa), R$ 5/conta/mês de outros custos. **Regra de projeto: margem a 100% de uso nunca abaixo de 50%.** Planilha: `precificacao_foro_semanal.xlsx`.
 

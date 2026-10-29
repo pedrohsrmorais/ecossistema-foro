@@ -133,7 +133,9 @@ foro_app/
 │   ├── api-reference.md        # Referência de todas as rotas
 │   ├── plataforma-e-precificacao.md # Requisitos, diferenciais, APIs avaliadas e precificação (planos + créditos)
 │   └── diretrizes-frontend.md  # O que precisa existir no frontend, regras de negócio e UX obrigatórias
-└── docker-compose.yml
+├── Dockerfile                  # Imagem única: build do frontend + API
+├── docker-compose.yml          # MySQL + app (docker compose up -d --build)
+└── .env.example                # Variáveis lidas pelo compose
 ```
 
 ---
@@ -159,20 +161,19 @@ npm install
 npm run dev            # Vite na porta 5173 (proxy /api → 3040)
 ```
 
-### Produção (Docker)
+### Tudo em Docker (um comando)
 
 ```bash
-# 1. Build do frontend (gera o dist/ que o backend serve)
-cd foro_app/frontend
-npm run build          # Saída: ../backend/dist/
+cd foro_app
+cp .env.example .env            # opcional — preencha ANTHROPIC_API_KEY para o chat de IA
+docker compose up -d --build    # MySQL 8 + API + frontend (build multi-etapas no Dockerfile)
 
-# 2. Subir tudo com Docker Compose
-cd ..
-cp backend/.env.example backend/.env   # preencha
-docker compose up -d --build
-
-# A aplicação estará disponível em: http://sua-vps:3040
+# Aplicação: http://localhost:3040   ·   Health: http://localhost:3040/health
+# O schema (backend/configs/init.sql) é aplicado sozinho na 1ª subida do banco.
+# Recriar do zero (apaga os dados):  docker compose down -v
 ```
+
+O `Dockerfile` (na raiz de `foro_app/`) compila o frontend e embute o resultado na imagem da API — não é preciso rodar `npm run build` antes. O MySQL sobe com fuso de Brasília (`--default-time-zone=-03:00`), igual ao do pool da API.
 
 ---
 

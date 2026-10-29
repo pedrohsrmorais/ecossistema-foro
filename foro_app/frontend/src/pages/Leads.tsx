@@ -1,20 +1,12 @@
-import { useState, useMemo, useRef, useEffect, KeyboardEvent } from 'react'
+import { useState, useMemo } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { Link } from 'react-router-dom'
 import { Plus, Search, ChevronDown, ChevronRight, ExternalLink, Trash2, LayoutList, Columns3, Sparkles } from 'lucide-react'
 import clsx from 'clsx'
 import { leadsApi, type Lead, type PaginatedResult } from '../api'
 import { useChat } from '../context/ChatContext'
-
-// Etapas do funil — mesmos códigos validados no backend (leads.service.js::VALID_STAGES)
-const STAGES = [
-  { key: 'novo',       label: 'Novo',       bar: 'bg-sky-500',    pill: 'bg-sky-100 text-sky-700' },
-  { key: 'em_contato', label: 'Em contato', bar: 'bg-amber-500',  pill: 'bg-amber-100 text-amber-700' },
-  { key: 'proposta',   label: 'Proposta',   bar: 'bg-purple-500', pill: 'bg-purple-100 text-purple-700' },
-  { key: 'convertido', label: 'Convertido', bar: 'bg-green-500',  pill: 'bg-green-100 text-green-700' },
-  { key: 'encerrado',  label: 'Encerrado',  bar: 'bg-slate-400',  pill: 'bg-slate-100 text-slate-500' },
-] as const
-const stageOf = (k: string) => STAGES.find(s => s.key === k) ?? STAGES[0]
+import { STAGES, stageOf } from '../lib/stages'
+import { EditableCell, StagePill } from '../components/crm'
 
 const COLS = 'grid-cols-[28px_minmax(180px,2fr)_minmax(120px,1fr)_minmax(160px,1.4fr)_130px_minmax(100px,1fr)_100px_56px]'
 
@@ -42,49 +34,6 @@ function useBoardMutations() {
   return { update, move, create, remove }
 }
 
-/** Célula editável: clique para editar, Enter/blur salva, Esc cancela (como no monday). */
-function EditableCell({ value, onSave, placeholder, bold }: { value: string | null; onSave: (v: string) => void; placeholder?: string; bold?: boolean }) {
-  const [editing, setEditing] = useState(false)
-  const [draft, setDraft] = useState(value ?? '')
-  const ref = useRef<HTMLInputElement>(null)
-  useEffect(() => { setDraft(value ?? '') }, [value])
-  useEffect(() => { if (editing) ref.current?.select() }, [editing])
-
-  function commit() {
-    setEditing(false)
-    if (draft.trim() !== (value ?? '')) onSave(draft.trim())
-  }
-  function onKey(e: KeyboardEvent) {
-    if (e.key === 'Enter') commit()
-    if (e.key === 'Escape') { setDraft(value ?? ''); setEditing(false) }
-  }
-
-  if (editing) {
-    return <input ref={ref} className="w-full px-1.5 py-1 text-sm border border-brand-500 rounded bg-white outline-none" value={draft}
-      onChange={e => setDraft(e.target.value)} onBlur={commit} onKeyDown={onKey} />
-  }
-  return (
-    <button onClick={() => setEditing(true)} title="Clique para editar"
-      className={clsx('w-full text-left px-1.5 py-1 rounded truncate hover:bg-slate-100 border border-transparent hover:border-slate-200 text-sm',
-        value ? (bold ? 'font-medium text-slate-900' : 'text-slate-700') : 'text-slate-300')}>
-      {value || placeholder || '—'}
-    </button>
-  )
-}
-
-function StagePill({ stage, onChange }: { stage: string; onChange: (s: string) => void }) {
-  const s = stageOf(stage)
-  return (
-    <div className="relative w-full">
-      <span className={clsx('block text-center text-xs font-medium px-2 py-1 rounded-sm truncate', s.pill)}>{s.label}</span>
-      <select aria-label="Etapa" value={stage} onChange={e => onChange(e.target.value)}
-        className="absolute inset-0 opacity-0 cursor-pointer w-full">
-        {STAGES.map(o => <option key={o.key} value={o.key}>{o.label}</option>)}
-      </select>
-    </div>
-  )
-}
-
 function AddRow({ stage, onCreate }: { stage: string; onCreate: (name: string) => void }) {
   const [name, setName] = useState('')
   function submit() { if (name.trim()) { onCreate(name.trim()); setName('') } }
@@ -92,7 +41,7 @@ function AddRow({ stage, onCreate }: { stage: string; onCreate: (name: string) =
     <div className="flex items-center gap-2 px-3 py-1.5 border-t bg-slate-50/50">
       <Plus className="w-3.5 h-3.5 text-slate-400" />
       <input value={name} onChange={e => setName(e.target.value)} onKeyDown={e => e.key === 'Enter' && submit()}
-        placeholder={`+ Adicionar lead em "${stageOf(stage).label}" (Enter)`}
+        placeholder="Adicionar lead (Enter)" title={`Novo lead em "${stageOf(stage).label}"`}
         className="flex-1 text-sm bg-transparent outline-none placeholder:text-slate-400 py-1" />
     </div>
   )

@@ -95,12 +95,13 @@ Body: {
 ```
 POST /api/payments/subscription
 Body: {
-  plan: "starter"  // ou "pro"
+  plan: "starter"  // ou "pro" / "business"
 }
 
 Planos:
-  starter: R$ 97/mês
-  pro:     R$ 197/mês
+  starter:  R$ 129,90/mês
+  pro:      R$ 199,90/mês
+  business: R$ 399,90/mês
 ```
 
 ### Webhook Asaas

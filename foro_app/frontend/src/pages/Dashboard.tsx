@@ -1,6 +1,9 @@
 import { useQuery } from '@tanstack/react-query'
 import { leadsApi, tasksApi } from '../api'
 import { Users, CheckSquare, TrendingUp } from 'lucide-react'
+import { Link } from 'react-router-dom'
+import { STAGES } from '../lib/stages'
+import CreditMeter from '../components/CreditMeter'
 
 export default function Dashboard() {
   const { data: funnel = [] } = useQuery({
@@ -51,27 +54,33 @@ export default function Dashboard() {
         </div>
       </div>
 
+      <div className="grid lg:grid-cols-[1fr_300px] gap-4">
       {/* Funil */}
       <div className="card p-5">
         <h2 className="font-medium text-slate-900 mb-4">Funil de leads</h2>
-        {funnel.length === 0 ? (
-          <p className="text-sm text-slate-400">Nenhum lead cadastrado ainda.</p>
+        {total === 0 ? (
+          <p className="text-sm text-slate-400">Nenhum lead cadastrado ainda. Peça à IA ou adicione em <Link to="/leads" className="text-brand-600 underline">Leads</Link>.</p>
         ) : (
           <div className="space-y-3">
-            {funnel.map((stage: any) => (
-              <div key={stage.stage} className="flex items-center gap-3">
-                <span className="text-sm text-slate-600 w-32 capitalize">{stage.stage.replace('_', ' ')}</span>
-                <div className="flex-1 bg-slate-100 rounded-full h-2 overflow-hidden">
-                  <div
-                    className="h-2 bg-brand-500 rounded-full transition-all"
-                    style={{ width: total > 0 ? `${(stage.total / total) * 100}%` : '0%' }}
-                  />
+            {STAGES.map(st => {
+              const n = funnel.find((f: any) => f.stage === st.key)?.total || 0
+              return (
+                <div key={st.key} className="flex items-center gap-3">
+                  <span className="text-sm text-slate-600 w-28">{st.label}</span>
+                  <div className="flex-1 bg-slate-100 rounded-full h-2.5 overflow-hidden">
+                    <div className={`h-2.5 rounded-full transition-all ${st.bar}`} style={{ width: `${(n / total) * 100}%` }} />
+                  </div>
+                  <span className="text-sm font-medium text-slate-900 w-8 text-right">{n}</span>
                 </div>
-                <span className="text-sm font-medium text-slate-900 w-8 text-right">{stage.total}</span>
-              </div>
-            ))}
+              )
+            })}
           </div>
         )}
+      </div>
+      <div className="space-y-4">
+        <CreditMeter variant="light" />
+        <Link to="/planos" className="btn-secondary w-full justify-center text-sm">Ver plano e créditos</Link>
+      </div>
       </div>
     </div>
   )

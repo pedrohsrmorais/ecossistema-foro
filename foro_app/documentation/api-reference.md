@@ -440,7 +440,7 @@ GET /settings/plan
 Response 200: {
   current: "starter",
   name: "Starter",
-  price: 97,
+  price: 129.9,
   max_users: 1,
   max_leads: 500,
   features: ["CRM com IA", "Até 500 leads", "1 usuário"],

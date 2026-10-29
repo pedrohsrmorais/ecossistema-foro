@@ -1,38 +1,50 @@
-version: '3.8'
+# Foro — sobe TUDO (MySQL + API + frontend) com um comando:
+#
+#   cp .env.example .env        # (opcional) preencha ANTHROPIC_API_KEY etc.
+#   docker compose up -d --build
+#
+# Aplicação:  http://localhost:3040      Health: http://localhost:3040/health
+# O schema (backend/configs/init.sql) é aplicado automaticamente na PRIMEIRA
+# subida do MySQL (volume vazio). Para recriar do zero:  docker compose down -v
 
 services:
   db:
     image: mysql:8.0
     container_name: foro_db
     restart: unless-stopped
+    # Fuso de Brasília no servidor: casa com `timezone: '-03:00'` do pool (db.config.js),
+    # senão CURRENT_TIMESTAMP (UTC) e datas enviadas pela API ficariam 3h defasados.
+    command: ["--default-time-zone=-03:00", "--character-set-server=utf8mb4", "--collation-server=utf8mb4_unicode_ci"]
     environment:
       MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD:-root_secret}
       MYSQL_DATABASE: ${DB_NAME:-foro_db}
       MYSQL_USER: ${DB_USER:-foro_user}
       MYSQL_PASSWORD: ${DB_PASSWORD:-foro_secret}
     ports:
-      - "3306:3306"
+      - "${DB_PORT_HOST:-3306}:3306"
     volumes:
       - foro_db_data:/var/lib/mysql
-      - ./backend/configs/init.sql:/docker-entrypoint-initdb.d/init.sql
+      - ./backend/configs/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
     healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
-      timeout: 20s
-      retries: 10
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -u root -p$$MYSQL_ROOT_PASSWORD --silent"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+      start_period: 30s
 
-  api:
+  app:
     build:
-      context: ./backend
+      context: .
       dockerfile: Dockerfile
-    container_name: foro_api
+    container_name: foro_app
     restart: unless-stopped
     ports:
-      - "3040:3040"
+      - "${APP_PORT:-3040}:3040"
     environment:
       NODE_ENV: ${NODE_ENV:-production}
       PORT: 3040
       CORS_ORIGIN: ${CORS_ORIGIN:-*}
-      FRONTEND_URL: ${FRONTEND_URL:-http://localhost:5173}
+      FRONTEND_URL: ${FRONTEND_URL:-http://localhost:3040}
       DB_HOST: db
       DB_PORT: 3306
       DB_NAME: ${DB_NAME:-foro_db}
@@ -40,26 +52,25 @@ services:
       DB_PASSWORD: ${DB_PASSWORD:-foro_secret}
       JWT_SECRET: ${JWT_SECRET:-change_this_jwt_secret_in_production}
       JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-7d}
-      RESEND_API_KEY: ${RESEND_API_KEY}
+      RESEND_API_KEY: ${RESEND_API_KEY:-}
       EMAIL_FROM: ${EMAIL_FROM:-Foro <onboarding@resend.dev>}
-      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
-      ASAAS_API_KEY: ${ASAAS_API_KEY}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      ANTHROPIC_MODEL: ${ANTHROPIC_MODEL:-claude-sonnet-4-6}
+      FEATURE_LOOKUPS_ENABLED: ${FEATURE_LOOKUPS_ENABLED:-false}
+      ASAAS_API_KEY: ${ASAAS_API_KEY:-}
       ASAAS_BASE_URL: ${ASAAS_BASE_URL:-https://www.asaas.com/api/v3}
-      NFEIO_API_KEY: ${NFEIO_API_KEY}
-      NFEIO_COMPANY_ID: ${NFEIO_COMPANY_ID}
+      NFEIO_API_KEY: ${NFEIO_API_KEY:-}
+      NFEIO_COMPANY_ID: ${NFEIO_COMPANY_ID:-}
       NFEIO_BASE_URL: ${NFEIO_BASE_URL:-https://api.nfe.io/v1}
-      CNPJ_PROVIDER_BASE_URL: ${CNPJ_PROVIDER_BASE_URL}
-      CNPJ_PROVIDER_API_KEY: ${CNPJ_PROVIDER_API_KEY}
-      CPF_PROVIDER_BASE_URL: ${CPF_PROVIDER_BASE_URL}
-      CPF_PROVIDER_API_KEY: ${CPF_PROVIDER_API_KEY}
-      PROCESS_PROVIDER_BASE_URL: ${PROCESS_PROVIDER_BASE_URL}
-      PROCESS_PROVIDER_API_KEY: ${PROCESS_PROVIDER_API_KEY}
+      CNPJ_PROVIDER_BASE_URL: ${CNPJ_PROVIDER_BASE_URL:-}
+      CNPJ_PROVIDER_API_KEY: ${CNPJ_PROVIDER_API_KEY:-}
+      CPF_PROVIDER_BASE_URL: ${CPF_PROVIDER_BASE_URL:-}
+      CPF_PROVIDER_API_KEY: ${CPF_PROVIDER_API_KEY:-}
+      PROCESS_PROVIDER_BASE_URL: ${PROCESS_PROVIDER_BASE_URL:-}
+      PROCESS_PROVIDER_API_KEY: ${PROCESS_PROVIDER_API_KEY:-}
     depends_on:
       db:
         condition: service_healthy
-    volumes:
-      - ./backend:/app
-      - /app/node_modules
 
 volumes:
   foro_db_data:

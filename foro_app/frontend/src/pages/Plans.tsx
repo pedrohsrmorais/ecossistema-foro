@@ -6,7 +6,7 @@ import clsx from 'clsx'
 import { plansApi, settingsApi, paymentsApi, type PlanInfo } from '../api'
 import CreditMeter from '../components/CreditMeter'
 
-const brl = (n: number) => n.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 })
+const brl = (n: number) => n.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', minimumFractionDigits: 2 })
 
 const EMPTY_CARD = { holderName: '', number: '', expiryMonth: '', expiryYear: '', ccv: '', email: '', cpfCnpj: '', postalCode: '', addressNumber: '', phone: '' }
 
@@ -58,6 +58,7 @@ export default function Plans() {
         <div className="card p-4 text-sm">
           <p className="text-slate-500">Plano atual</p>
           <p className="text-lg font-semibold text-slate-900">{current?.name || '—'}</p>
+          {current?.account_status === 'active' && <p className="text-green-600 text-sm">Assinatura ativa</p>}
           {isTrial && current?.trial_ends_at && (
             <p className="text-slate-500">Teste até {new Date(current.trial_ends_at).toLocaleDateString('pt-BR')}</p>
           )}
@@ -74,7 +75,8 @@ export default function Plans() {
         {plans.map(p => {
           const isCurrent = current?.current === p.id && current?.account_status === 'active'
           return (
-            <div key={p.id} className={clsx('card p-5 flex flex-col', p.id === 'pro' && 'border-accent-400 ring-1 ring-accent-300')}>
+            <div key={p.id} className={clsx('card p-5 flex flex-col relative', p.id === 'pro' && 'border-accent-400 ring-1 ring-accent-300')}>
+              {p.id === 'pro' && <span className="absolute -top-2.5 left-5 badge bg-accent-500 text-white">Mais escolhido</span>}
               <h3 className="font-semibold text-slate-900">{p.name}</h3>
               <p className="mt-1"><span className="text-2xl font-semibold text-slate-900">{brl(p.price)}</span><span className="text-sm text-slate-500">/mês</span></p>
               <ul className="mt-4 space-y-2 text-sm text-slate-600 flex-1">

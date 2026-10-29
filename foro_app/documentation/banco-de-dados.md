@@ -75,7 +75,7 @@ Catálogo de planos — fonte única de verdade para preço e recursos (antes es
 | `features`      | JSON          | Array de strings (bullets exibidos)     |
 | `active`        | TINYINT(1)    | Planos desativados saem do catálogo público |
 
-**Seed**: `trial` (interno, R$ 0), `starter` (R$ 97), `pro` (R$ 197) e `business` (R$ 397) — quotas semanais em [plataforma-e-precificacao.md](./plataforma-e-precificacao.md#51-assinatura-mensal--recursos-que-renovam-por-semana).
+**Seed**: `trial` (interno, R$ 0), `starter` (R$ 129,90), `pro` (R$ 199,90) e `business` (R$ 399,90) — quotas semanais em [plataforma-e-precificacao.md](./plataforma-e-precificacao.md#51-assinatura-mensal--recursos-que-renovam-por-semana).
 
 ---
 
