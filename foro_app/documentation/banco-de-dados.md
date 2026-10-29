@@ -375,3 +375,11 @@ Duas coisas **deliberadamente separadas**:
 
 - **Envio real de SMS**: a verificação por `channel: 'phone'` ainda só **loga no console** o código — nenhum provedor de SMS (Twilio/Zenvia) foi integrado. O e-mail já envia de verdade via Resend (`services/email.service.js`) desde que `RESEND_API_KEY` esteja configurada.
 - **Suspensão automática por inadimplência**: o webhook do Asaas atualiza `payments.status`, mas não há regra automática que suspenda `accounts.status` em caso de assinatura vencida — hoje isso seria manual via `PATCH /api/admin/accounts/:id/status`.
+
+
+## Processos e agenda
+
+- `cases`: número CNJ único por conta, título, tribunal, `court_url`, área, `status` (ativo/suspenso/arquivado/encerrado), fase, polo, parte contrária, valor da causa, responsável, vínculo opcional com lead, `deleted_at`.
+- `case_updates`: andamentos (`update_date`, `text`, `source` = manual | ai_chat | datajud | djen).
+- `events`: `type` (reuniao/audiencia/pericia/outro), `starts_at`, `ends_at`, `location`, `meeting_url`, `status` (agendado/realizado/cancelado), vínculo opcional com lead e processo.
+- `tasks`: ganhou `case_id` e `is_deadline`.

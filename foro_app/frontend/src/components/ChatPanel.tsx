@@ -7,9 +7,11 @@ import CreditMeter from './CreditMeter'
 
 const SUGGESTIONS = [
   'Cadastra um lead: Maria Souza, trabalhista, 51 99999-1234',
+  'Agenda reunião com a Maria amanhã às 15h',
+  'Cadastra o processo 0001234-08.2023.8.26.0100 da Maria',
   'Quais leads estão na etapa proposta?',
   'Mostra o resumo do funil',
-  'Quais tarefas estão pendentes?',
+  'Quais prazos vencem esta semana?',
 ]
 
 export default function ChatPanel({ compact = false }: { compact?: boolean }) {
@@ -90,7 +92,9 @@ export default function ChatPanel({ compact = false }: { compact?: boolean }) {
                     : a.write ? 'bg-green-50 border-green-200 text-green-700' : 'bg-slate-50 text-slate-600')}>
                   {a.write ? <CheckCircle2 className="w-3 h-3 shrink-0" /> : <Search className="w-3 h-3 shrink-0" />}
                   <span className="truncate">{a.summary}</span>
-                  {a.lead_id && a.ok && <Link to={`/leads/${a.lead_id}`} className="underline shrink-0">abrir</Link>}
+                  {a.ok && (a.case_id
+                    ? <Link to={`/processos/${a.case_id}`} className="underline shrink-0">abrir</Link>
+                    : a.lead_id && <Link to={`/leads/${a.lead_id}`} className="underline shrink-0">abrir</Link>)}
                 </div>
               ))}
               {msg.creditsUsed !== undefined && (

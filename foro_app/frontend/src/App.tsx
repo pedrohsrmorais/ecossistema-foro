@@ -13,6 +13,9 @@ import Dashboard from './pages/Dashboard'
 import Chat from './pages/Chat'
 import Leads from './pages/Leads'
 import LeadDetail from './pages/LeadDetail'
+import Cases from './pages/Cases'
+import CaseDetail from './pages/CaseDetail'
+import Agenda from './pages/Agenda'
 import Tasks from './pages/Tasks'
 import Plans from './pages/Plans'
 import Settings from './pages/Settings'
@@ -59,6 +62,9 @@ export default function App() {
                 <Route path="/chat"      element={<Chat />} />
                 <Route path="/leads"     element={<Leads />} />
                 <Route path="/leads/:id" element={<LeadDetail />} />
+                <Route path="/processos"     element={<Cases />} />
+                <Route path="/processos/:id" element={<CaseDetail />} />
+                <Route path="/agenda"        element={<Agenda />} />
                 <Route path="/tasks"     element={<Tasks />} />
                 <Route path="/settings"  element={<Settings />} />
                 <Route path="/planos"    element={<Plans />} />

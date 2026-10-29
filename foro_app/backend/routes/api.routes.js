@@ -19,6 +19,8 @@ const authController        = require('../controllers/auth.controller');
 const usersController       = require('../controllers/users.controller');
 const leadsController       = require('../controllers/leads.controller');
 const fieldsController      = require('../controllers/fields.controller');
+const casesController       = require('../controllers/cases.controller');
+const eventsController      = require('../controllers/events.controller');
 const aiController          = require('../controllers/ai.controller');
 const paymentsController    = require('../controllers/payments.controller');
 const webhooksController    = require('../controllers/webhooks.controller');
@@ -153,6 +155,23 @@ router.patch ('/leads/:leadId/tasks/:taskId/complete', requireModule('crm'), lea
 
 // ─── Tarefas (visão global, módulo "crm") ──────────────────────────────────────
 router.get('/tasks',                   requireModule('crm'), leadsController.listAllTasks);
+router.post('/tasks',                  requireModule('crm'), leadsController.createGlobalTask);   // tarefa/prazo com ou sem lead
+
+// ─── Processos (módulo "crm") — número CNJ, link do tribunal, andamentos ──────
+router.get   ('/cases',                requireModule('crm'), casesController.list);
+router.post  ('/cases',                requireModule('crm'), casesController.create);
+router.get   ('/cases/analyze',        requireModule('crm'), casesController.analyze);
+router.get   ('/cases/:id',            requireModule('crm'), casesController.getById);
+router.put   ('/cases/:id',            requireModule('crm'), casesController.update);
+router.delete('/cases/:id',            requireModule('crm'), casesController.remove);
+router.post  ('/cases/:id/updates',    requireModule('crm'), casesController.addUpdate);
+router.delete('/cases/:id/updates/:updateId', requireModule('crm'), casesController.deleteUpdate);
+
+// ─── Agenda (módulo "crm") — reuniões/audiências com link ──────────────────────
+router.get   ('/events',               requireModule('crm'), eventsController.list);
+router.post  ('/events',               requireModule('crm'), eventsController.create);
+router.put   ('/events/:id',           requireModule('crm'), eventsController.update);
+router.delete('/events/:id',           requireModule('crm'), eventsController.remove);
 
 // ─── IA — Chat interno (módulo "crm") ──────────────────────────────────────────
 router.post  ('/ai/message',           requireModule('crm'), aiController.sendMessage);

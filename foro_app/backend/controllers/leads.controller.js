@@ -69,6 +69,12 @@ async function createTask(req, res) {
   res.status(201).json(task);
 }
 
+async function createGlobalTask(req, res) {
+  const { lead_id, ...rest } = req.body;
+  const task = await leadsService.createTask(lead_id || null, req.account.id, req.user.id, rest);
+  res.status(201).json(task);
+}
+
 async function completeTask(req, res) {
   const task = await leadsService.completeTask(req.params.taskId, req.account.id, req.user.id);
   res.json(task);
@@ -87,5 +93,5 @@ async function listAllTasks(req, res) {
 module.exports = {
   list, create, getById, update, moveStage, archive, softDelete, getFunnelSummary,
   listNotes, addNote, deleteNote,
-  listTasks, createTask, completeTask, listAllTasks,
+  listTasks, createTask, createGlobalTask, completeTask, listAllTasks,
 };

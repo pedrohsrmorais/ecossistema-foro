@@ -1,9 +1,11 @@
 import { useState } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { ArrowLeft, Plus, CheckCircle2, Circle, Trash2, Sparkles } from 'lucide-react'
+import { ArrowLeft, Plus, CheckCircle2, Circle, Trash2, Sparkles, Briefcase, CalendarPlus, Video, ExternalLink } from 'lucide-react'
 import clsx from 'clsx'
-import { leadsApi, type Task } from '../api'
+import { leadsApi, casesApi, eventsApi, type Task } from '../api'
+import EventForm from '../components/EventForm'
+import { EVENT_TYPES, fmtDate, fmtTime } from '../lib/cases'
 import { EditableCell, StagePill } from '../components/crm'
 import { useChat } from '../context/ChatContext'
 import { stageOf } from '../lib/stages'
@@ -22,6 +24,7 @@ export default function LeadDetail() {
   const navigate = useNavigate()
   const qc = useQueryClient()
   const { setOpen } = useChat()
+  const [showEvent, setShowEvent] = useState(false)
   const [noteText, setNoteText] = useState('')
   const [taskText, setTaskText] = useState('')
   const [taskDate, setTaskDate] = useState('')
@@ -29,6 +32,9 @@ export default function LeadDetail() {
   const { data: lead, isLoading } = useQuery({ queryKey: ['lead', id], queryFn: () => leadsApi.getById(id!), enabled: !!id })
   const { data: notes = [] } = useQuery({ queryKey: ['lead-notes', id], queryFn: () => leadsApi.listNotes(id!), enabled: !!id })
   const { data: tasks = [] } = useQuery({ queryKey: ['lead-tasks', id], queryFn: () => leadsApi.listTasks(id!), enabled: !!id })
+
+  const { data: cases } = useQuery({ queryKey: ['cases', 'lead', id], queryFn: () => casesApi.list({ lead_id: id }), enabled: !!id })
+  const { data: events = [] } = useQuery({ queryKey: ['events', 'lead', id], queryFn: () => eventsApi.list({ lead_id: id, from: new Date(Date.now() - 864e5).toISOString() }), enabled: !!id })
 
   const refreshLead = () => {
     qc.invalidateQueries({ queryKey: ['lead', id] })
@@ -110,6 +116,46 @@ export default function LeadDetail() {
         </div>
       </div>
 
+      <div className="grid md:grid-cols-2 gap-5 mt-5">
+        <div className="card p-5">
+          <div className="flex items-center justify-between mb-3">
+            <h2 className="font-medium text-slate-900 flex items-center gap-1.5"><Briefcase className="w-4 h-4 text-slate-400" /> Processos ({cases?.total ?? 0})</h2>
+            <Link to="/processos" className="text-xs text-brand-600 hover:underline">Ver todos</Link>
+          </div>
+          {!cases?.data.length ? <p className="text-sm text-slate-400">Nenhum processo. Cadastre em Processos ou peça à IA.</p> : (
+            <ul className="divide-y">
+              {cases.data.map(c => (
+                <li key={c.id} className="flex items-center gap-2 py-2">
+                  <Link to={`/processos/${c.id}`} className="flex-1 min-w-0 hover:underline">
+                    <p className="text-sm font-mono text-slate-900 truncate">{c.case_number || c.title}</p>
+                    <p className="text-xs text-slate-500">{[c.tribunal, c.area, c.phase].filter(Boolean).join(' · ') || c.status}</p>
+                  </Link>
+                  {c.court_url && <a href={c.court_url} target="_blank" rel="noreferrer" title="Abrir no tribunal" className="text-brand-600"><ExternalLink className="w-4 h-4" /></a>}
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+        <div className="card p-5">
+          <div className="flex items-center justify-between mb-3">
+            <h2 className="font-medium text-slate-900 flex items-center gap-1.5"><CalendarPlus className="w-4 h-4 text-slate-400" /> Agenda</h2>
+            <button className="btn-secondary !py-1 text-xs" onClick={() => setShowEvent(true)}><Plus className="w-3.5 h-3.5" /> Agendar</button>
+          </div>
+          {events.length === 0 ? <p className="text-sm text-slate-400">Nenhum compromisso com este contato.</p> : (
+            <ul className="divide-y">
+              {events.map(e => (
+                <li key={e.id} className="flex items-center gap-2 py-2 text-sm">
+                  <span className={clsx('badge !py-0', EVENT_TYPES[e.type].pill)}>{EVENT_TYPES[e.type].label}</span>
+                  <span className="flex-1 truncate text-slate-800">{e.title}</span>
+                  <span className="text-xs text-slate-500">{fmtDate(e.starts_at)} {fmtTime(e.starts_at)}</span>
+                  {e.meeting_url && <a href={e.meeting_url} target="_blank" rel="noreferrer" className="text-brand-600" title="Entrar"><Video className="w-4 h-4" /></a>}
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      </div>
+
       <div className="card p-5 mt-5">
         <h2 className="font-medium text-slate-900 mb-3">Notas ({notes.length})</h2>
         <div className="flex gap-2 mb-4">
@@ -136,6 +182,7 @@ export default function LeadDetail() {
           </ul>
         )}
       </div>
+      {showEvent && <EventForm onClose={() => setShowEvent(false)} leadId={id} />}
       <p className="mt-4 text-xs text-slate-400"><Link to="/leads" className="underline">Voltar ao quadro</Link></p>
     </div>
   )

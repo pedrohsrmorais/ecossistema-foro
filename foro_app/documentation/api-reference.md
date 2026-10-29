@@ -370,6 +370,38 @@ Response 200: {
 
 ---
 
+## Processos (CRM jurídico)
+
+Todas as rotas exigem autenticação e o módulo `crm`.
+
+| Método | Rota | Descrição |
+|---|---|---|
+| GET | `/cases` | Lista processos (filtros: `status`, `q`, `page`, `limit`) |
+| POST | `/cases` | Cria processo (`case_number` CNJ, `title`, `tribunal`, `court_url`, `area`, `status`, `phase`, `client_role`, `opposing_party`, `cause_value`, `lead_id`, `responsible_user_id`). Número duplicado na conta → 409 |
+| GET | `/cases/analyze?number=` | Valida número CNJ (dígito verificador), identifica o tribunal e sugere link (TJSP/e-SAJ) |
+| GET | `/cases/:id` | Detalhe com andamentos, tarefas/prazos e eventos, `number_valid`, `tribunal_name`, `suggested_url` |
+| PUT | `/cases/:id` | Atualiza processo (`court_url` deve ser http/https) |
+| DELETE | `/cases/:id` | Exclusão lógica |
+| POST | `/cases/:id/updates` | Adiciona andamento (`update_date`, `text`; origem `manual` ou `ai_chat`) |
+| DELETE | `/cases/:id/updates/:updateId` | Remove andamento |
+
+## Agenda
+
+| Método | Rota | Descrição |
+|---|---|---|
+| GET | `/events` | Lista eventos (`from`, `to`, `type`, `status`) |
+| POST | `/events` | Cria evento: `type` (reuniao/audiencia/pericia/outro), `title`, `starts_at`, `ends_at`, `location`, `meeting_url`, `lead_id`, `case_id` |
+| PUT | `/events/:id` | Atualiza evento |
+| DELETE | `/events/:id` | Remove evento |
+
+## Tarefas e prazos globais
+
+`POST /tasks` cria tarefa sem exigir lead: aceita `case_id` e `is_deadline` (prazo processual). Tarefas listadas em `GET /tasks` incluem o processo vinculado.
+
+## Ferramentas da IA (17)
+
+Além das 10 originais de leads/notas/tarefas, o chat opera: `create_case`, `search_cases`, `get_case`, `update_case`, `add_case_update`, `create_event`, `list_events`. As `actions` retornadas pelo chat incluem `case_id` quando aplicável. Mais ferramentas elevam o consumo-base de créditos por mensagem (~1,1 crédito).
+
 ## Pagamentos
 
 ### Listar pagamentos

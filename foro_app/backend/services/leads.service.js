@@ -138,7 +138,7 @@ async function update(leadId, accountId, userId, data, channel = 'ui') {
   const lead = await getById(leadId, accountId);
   const { name, phone, email, assigned_user_id, custom_fields } = data;
 
-  return transaction(async (conn) => {
+  await transaction(async (conn) => {
     const fields = [];
     const values = [];
     if (name             !== undefined) { fields.push('name = ?');             values.push(name); }
@@ -153,9 +153,10 @@ async function update(leadId, accountId, userId, data, channel = 'ui') {
 
     await _setFieldValues(conn, leadId, accountId, custom_fields);
     await _auditLog(conn, { accountId, userId, entityType: 'lead', entityId: leadId, action: 'updated', channel, oldValues: lead, newValues: data });
-
-    return getById(leadId, accountId);
   });
+
+  // Lê DEPOIS do commit (dentro da transação o pool enxergava o valor antigo)
+  return getById(leadId, accountId);
 }
 
 const VALID_STAGES = ['novo', 'em_contato', 'proposta', 'convertido', 'encerrado'];
@@ -239,12 +240,23 @@ async function listTasksByLead(leadId, accountId) {
   return rows;
 }
 
-async function createTask(leadId, accountId, userId, { description, due_date }) {
+async function createTask(leadId, accountId, userId, { description, due_date, case_id, is_deadline }) {
+  if (!description || !String(description).trim()) throw new AppError('Descreva a tarefa.', 400);
   if (leadId) await _assertLead(leadId, accountId);
+  if (case_id) {
+    const [c] = await query('SELECT id, lead_id FROM cases WHERE id = ? AND account_id = ? AND deleted_at IS NULL LIMIT 1', [case_id, accountId]);
+    if (!c.length) throw new AppError('Processo não encontrado.', 404);
+    if (!leadId) leadId = c[0].lead_id || null;
+  }
+  let due = null;
+  if (due_date) {
+    due = new Date(due_date);
+    if (Number.isNaN(due.getTime())) throw new AppError('Data inválida.', 400);
+  }
   const id = uuidv4();
   await query(
-    'INSERT INTO tasks (id, account_id, lead_id, user_id, description, due_date) VALUES (?, ?, ?, ?, ?, ?)',
-    [id, accountId, leadId || null, userId, description, due_date ? new Date(due_date) : null]
+    'INSERT INTO tasks (id, account_id, lead_id, case_id, user_id, description, due_date, is_deadline) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+    [id, accountId, leadId || null, case_id || null, userId, String(description).trim(), due, is_deadline ? 1 : 0]
   );
   const [rows] = await query('SELECT * FROM tasks WHERE id = ? LIMIT 1', [id]);
   return rows[0];
@@ -264,9 +276,10 @@ async function listAllTasks(accountId, userId, { pendingOnly = false, page = 1, 
   const offset = (page - 1) * limit;
 
   const [rows] = await query(
-    `SELECT t.*, u.name AS user_name, l.name AS lead_name FROM tasks t
+    `SELECT t.*, u.name AS user_name, l.name AS lead_name, c.case_number AS case_number FROM tasks t
      JOIN users u ON u.id = t.user_id
      LEFT JOIN leads l ON l.id = t.lead_id
+     LEFT JOIN cases c ON c.id = t.case_id
      WHERE ${conditions.join(' AND ')}
      ORDER BY t.due_date ASC, t.created_at DESC
      LIMIT ${Number(limit) | 0} OFFSET ${Number(offset) | 0}`,

@@ -58,6 +58,9 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         qc.invalidateQueries({ queryKey: ['lead'] })
         qc.invalidateQueries({ queryKey: ['funnel'] })
         qc.invalidateQueries({ queryKey: ['tasks'] })
+        qc.invalidateQueries({ queryKey: ['cases'] })
+        qc.invalidateQueries({ queryKey: ['case'] })
+        qc.invalidateQueries({ queryKey: ['events'] })
       }
     } catch (err: any) {
       const msg = err?.response?.data?.error || 'Erro ao processar sua mensagem.'

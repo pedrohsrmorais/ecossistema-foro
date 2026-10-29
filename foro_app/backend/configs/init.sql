@@ -223,17 +223,100 @@ CREATE TABLE IF NOT EXISTS tasks (
   id           VARCHAR(36)  NOT NULL DEFAULT (UUID()),
   account_id   VARCHAR(36)  NOT NULL,
   lead_id      VARCHAR(36)  NULL,
+  case_id      VARCHAR(36)  NULL COMMENT 'processo vinculado (opcional) — ver tabela cases',
   user_id      VARCHAR(36)  NOT NULL,
   description  TEXT         NOT NULL,
   due_date     DATETIME     NULL,
+  is_deadline  TINYINT(1)   NOT NULL DEFAULT 0 COMMENT '1 = prazo processual (destacado na UI e na agenda)',
   completed_at DATETIME     NULL,
   created_at   DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (id),
   KEY idx_tasks_account (account_id),
   KEY idx_tasks_user    (user_id),
   KEY idx_tasks_lead    (lead_id),
+  KEY idx_tasks_case    (case_id),
   CONSTRAINT fk_tasks_lead FOREIGN KEY (lead_id) REFERENCES leads(id) ON DELETE SET NULL,
   CONSTRAINT fk_tasks_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ────────────────────────────────────────────────────────────────────────────
+-- 3b. CRM JURÍDICO — processos, andamentos e agenda (módulo "crm")
+-- ────────────────────────────────────────────────────────────────────────────
+
+-- Processos judiciais/administrativos de cada escritório. Vinculados (opcionalmente)
+-- a um contato/cliente (leads). `court_url` é o link direto do processo no tribunal
+-- (preenchido à mão ou sugerido — ver utils/cnj.js); `case_number` segue o padrão CNJ
+-- NNNNNNN-DD.AAAA.J.TR.OOOO. `tribunal` é derivado do número (ex: TJSP, TRT2, TRF4).
+CREATE TABLE IF NOT EXISTS cases (
+  id                  VARCHAR(36)   NOT NULL DEFAULT (UUID()),
+  account_id          VARCHAR(36)   NOT NULL,
+  lead_id             VARCHAR(36)   NULL,
+  case_number         VARCHAR(40)   NULL COMMENT 'número CNJ formatado; NULL para casos ainda sem número',
+  title               VARCHAR(255)  NULL COMMENT 'apelido interno, ex: Ação trabalhista — Maria',
+  tribunal            VARCHAR(20)   NULL,
+  court_url           VARCHAR(500)  NULL COMMENT 'link do processo no tribunal',
+  area                VARCHAR(100)  NULL,
+  status              ENUM('ativo','suspenso','arquivado','encerrado') NOT NULL DEFAULT 'ativo',
+  phase               VARCHAR(100)  NULL COMMENT 'fase atual (livre): conhecimento, recurso, execução...',
+  client_role         VARCHAR(50)   NULL COMMENT 'polo do cliente: autor, réu, terceiro...',
+  opposing_party      VARCHAR(255)  NULL,
+  cause_value         DECIMAL(14,2) NULL,
+  responsible_user_id VARCHAR(36)   NULL,
+  deleted_at          DATETIME      NULL,
+  created_at          DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at          DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  UNIQUE KEY uk_cases_number (account_id, case_number),
+  KEY idx_cases_account_status (account_id, status),
+  KEY idx_cases_lead (lead_id),
+  CONSTRAINT fk_cases_account FOREIGN KEY (account_id) REFERENCES accounts(id) ON DELETE CASCADE,
+  CONSTRAINT fk_cases_lead    FOREIGN KEY (lead_id)    REFERENCES leads(id)    ON DELETE SET NULL,
+  CONSTRAINT fk_cases_user    FOREIGN KEY (responsible_user_id) REFERENCES users(id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Andamentos (linha do tempo) do processo. Hoje manuais ou criados pela IA;
+-- `source` já prevê 'datajud'/'djen' para o monitoramento automático futuro.
+CREATE TABLE IF NOT EXISTS case_updates (
+  id          VARCHAR(36)  NOT NULL DEFAULT (UUID()),
+  account_id  VARCHAR(36)  NOT NULL,
+  case_id     VARCHAR(36)  NOT NULL,
+  user_id     VARCHAR(36)  NULL,
+  update_date DATE         NOT NULL,
+  text        TEXT         NOT NULL,
+  source      VARCHAR(30)  NOT NULL DEFAULT 'manual' COMMENT 'manual | ai_chat | datajud | djen',
+  created_at  DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  KEY idx_case_updates_case (case_id, update_date),
+  KEY idx_case_updates_account (account_id),
+  CONSTRAINT fk_case_updates_case FOREIGN KEY (case_id) REFERENCES cases(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Agenda: reuniões, audiências, perícias. `meeting_url` = link do Meet/Zoom/Teams.
+-- (Sincronia com Google/Outlook Calendar e lembretes ao cliente ficam para a próxima fase.)
+CREATE TABLE IF NOT EXISTS events (
+  id           VARCHAR(36)  NOT NULL DEFAULT (UUID()),
+  account_id   VARCHAR(36)  NOT NULL,
+  user_id      VARCHAR(36)  NOT NULL COMMENT 'quem criou / responsável',
+  lead_id      VARCHAR(36)  NULL,
+  case_id      VARCHAR(36)  NULL,
+  type         ENUM('reuniao','audiencia','pericia','outro') NOT NULL DEFAULT 'reuniao',
+  title        VARCHAR(255) NOT NULL,
+  starts_at    DATETIME     NOT NULL,
+  ends_at      DATETIME     NULL,
+  location     VARCHAR(255) NULL,
+  meeting_url  VARCHAR(500) NULL,
+  notes        TEXT         NULL,
+  status       ENUM('agendado','realizado','cancelado') NOT NULL DEFAULT 'agendado',
+  created_at   DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at   DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  KEY idx_events_account_start (account_id, starts_at),
+  KEY idx_events_lead (lead_id),
+  KEY idx_events_case (case_id),
+  CONSTRAINT fk_events_account FOREIGN KEY (account_id) REFERENCES accounts(id) ON DELETE CASCADE,
+  CONSTRAINT fk_events_user    FOREIGN KEY (user_id)    REFERENCES users(id)    ON DELETE CASCADE,
+  CONSTRAINT fk_events_lead    FOREIGN KEY (lead_id)    REFERENCES leads(id)    ON DELETE SET NULL,
+  CONSTRAINT fk_events_case    FOREIGN KEY (case_id)    REFERENCES cases(id)    ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ────────────────────────────────────────────────────────────────────────────

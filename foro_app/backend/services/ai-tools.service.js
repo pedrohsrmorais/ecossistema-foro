@@ -4,11 +4,13 @@
  * Define as ferramentas (tool use / function calling) que a IA pode invocar.
  * Cada tool é executada com o contexto do usuário autenticado + account_id.
  *
- * RF-12: create_lead, update_lead, move_lead_stage, add_note, create_task,
+ * RF-12 (+ processos e agenda): create_lead, update_lead, move_lead_stage, add_note, create_task,
  *        complete_task, search_leads, get_lead, get_funnel_summary, list_tasks
  */
 
 const leadsService = require('./leads.service');
+const casesService = require('./cases.service');
+const eventsService = require('./events.service');
 
 // ─── Definição das tools (formato Anthropic) ─────────────────────────────────
 
@@ -69,15 +71,17 @@ const TOOL_DEFINITIONS = [
   },
   {
     name: 'create_task',
-    description: 'Cria uma tarefa de acompanhamento vinculada a um lead.',
+    description: 'Cria tarefa ou prazo (lead e/ou processo opcionais).',
     input_schema: {
       type: 'object',
       properties: {
         lead_id:     { type: 'string' },
+        case_id:     { type: 'string', description: 'ID do processo (opcional).' },
         description: { type: 'string' },
-        due_date:    { type: 'string', description: 'Data/hora no formato ISO 8601.' },
+        due_date:    { type: 'string', description: 'Data/hora ISO 8601.' },
+        is_deadline: { type: 'boolean', description: 'true se for prazo processual.' },
       },
-      required: ['lead_id', 'description'],
+      required: ['description'],
     },
   },
   {
@@ -127,6 +131,72 @@ const TOOL_DEFINITIONS = [
       },
     },
   },
+  {
+    name: 'create_case',
+    description: 'Cadastra um processo. O número CNJ é validado e o tribunal identificado.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        case_number: { type: 'string', description: 'Número CNJ NNNNNNN-DD.AAAA.J.TR.OOOO.' },
+        title: { type: 'string' }, lead_id: { type: 'string', description: 'ID do cliente/contato.' },
+        area: { type: 'string' }, court_url: { type: 'string', description: 'Link do processo no tribunal.' },
+        opposing_party: { type: 'string' }, client_role: { type: 'string', description: 'autor, réu...' },
+      },
+    },
+  },
+  {
+    name: 'search_cases',
+    description: 'Lista processos (filtros opcionais).',
+    input_schema: {
+      type: 'object',
+      properties: { search: { type: 'string' }, status: { type: 'string', description: 'ativo, suspenso, arquivado, encerrado' }, lead_id: { type: 'string' } },
+    },
+  },
+  {
+    name: 'get_case',
+    description: 'Detalhes de um processo: andamentos, prazos e compromissos.',
+    input_schema: { type: 'object', properties: { case_id: { type: 'string' } }, required: ['case_id'] },
+  },
+  {
+    name: 'update_case',
+    description: 'Atualiza processo (status, fase, link, título, área, parte contrária).',
+    input_schema: {
+      type: 'object',
+      properties: {
+        case_id: { type: 'string' }, status: { type: 'string' }, phase: { type: 'string' }, court_url: { type: 'string' },
+        title: { type: 'string' }, area: { type: 'string' }, opposing_party: { type: 'string' },
+      },
+      required: ['case_id'],
+    },
+  },
+  {
+    name: 'add_case_update',
+    description: 'Registra um andamento na linha do tempo do processo.',
+    input_schema: {
+      type: 'object',
+      properties: { case_id: { type: 'string' }, text: { type: 'string' }, update_date: { type: 'string', description: 'AAAA-MM-DD (padrão: hoje).' } },
+      required: ['case_id', 'text'],
+    },
+  },
+  {
+    name: 'create_event',
+    description: 'Agenda reunião, audiência ou perícia, com link de reunião opcional.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        title: { type: 'string' }, starts_at: { type: 'string', description: 'ISO 8601 com fuso -03:00.' }, ends_at: { type: 'string' },
+        type: { type: 'string', description: 'reuniao, audiencia, pericia, outro' },
+        meeting_url: { type: 'string' }, location: { type: 'string' }, notes: { type: 'string' },
+        lead_id: { type: 'string' }, case_id: { type: 'string' },
+      },
+      required: ['title', 'starts_at'],
+    },
+  },
+  {
+    name: 'list_events',
+    description: 'Lista compromissos da agenda num período (padrão: próximos 14 dias).',
+    input_schema: { type: 'object', properties: { from: { type: 'string' }, to: { type: 'string' } } },
+  },
 ];
 
 // ─── Execução das tools ───────────────────────────────────────────────────────
@@ -154,6 +224,8 @@ async function executeTool(toolName, toolInput, context) {
       return leadsService.createTask(toolInput.lead_id, accountId, userId, {
         description: toolInput.description,
         due_date: toolInput.due_date,
+        case_id: toolInput.case_id,
+        is_deadline: toolInput.is_deadline,
       });
 
     case 'complete_task':
@@ -178,6 +250,26 @@ async function executeTool(toolName, toolInput, context) {
         pendingOnly: toolInput.pending_only !== false,
         limit: toolInput.limit || 20,
       });
+
+    case 'create_case':
+      return casesService.create(accountId, userId, toolInput);
+    case 'search_cases':
+      return casesService.list(accountId, { search: toolInput.search, status: toolInput.status, lead_id: toolInput.lead_id, limit: 20 });
+    case 'get_case':
+      return casesService.getById(toolInput.case_id, accountId);
+    case 'update_case': {
+      const { case_id, ...rest } = toolInput;
+      return casesService.update(case_id, accountId, rest);
+    }
+    case 'add_case_update':
+      return casesService.addUpdate(toolInput.case_id, accountId, userId, toolInput, 'ai_chat');
+    case 'create_event':
+      return eventsService.create(accountId, userId, toolInput);
+    case 'list_events': {
+      const from = toolInput.from || new Date().toISOString();
+      const to = toolInput.to || new Date(Date.now() + 14 * 864e5).toISOString();
+      return eventsService.list(accountId, { from, to });
+    }
 
     default:
       throw new Error(`Tool desconhecida: ${toolName}`);

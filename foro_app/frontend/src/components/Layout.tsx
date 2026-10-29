@@ -2,7 +2,7 @@ import { Outlet, NavLink, useNavigate, useLocation } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import {
   MessageSquare, Users, LayoutDashboard, CheckSquare, Settings, LogOut, Scale,
-  GraduationCap, Sparkles, CreditCard, Clock, Building2, UserSearch, Gavel, FlaskConical, Trophy, Users2,
+  GraduationCap, Sparkles, CreditCard, Clock, Briefcase, CalendarDays, Building2, UserSearch, Gavel, FlaskConical, Trophy, Users2,
 } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
 import { modulesApi, settingsApi } from '../api'
@@ -25,6 +25,8 @@ type NavItem = { to: string; label: string; icon: typeof Scale; module: string |
 const NAV_TOP: NavItem[] = [
   { to: '/chat',      label: 'IA',      icon: MessageSquare,   module: 'crm' },
   { to: '/leads',     label: 'Leads',   icon: Users,           module: 'crm' },
+  { to: '/processos', label: 'Processos', icon: Briefcase,    module: 'crm' },
+  { to: '/agenda',    label: 'Agenda',    icon: CalendarDays, module: 'crm' },
   { to: '/dashboard', label: 'Painel',  icon: LayoutDashboard, module: 'crm' },
   { to: '/tasks',     label: 'Tarefas', icon: CheckSquare,     module: 'crm' },
 ]

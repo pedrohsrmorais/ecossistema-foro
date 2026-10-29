@@ -206,3 +206,10 @@ Se a decisão for trocar de stack (Next.js, outra lib de estado, etc.), o único
 - [x] **Desafios semanais**: CMS no admin, conclusão auto-declarada, pontuação.
 - [x] **Comunidade**: feed isolado por conta + ranking de pontos entre escritórios (cross-tenant, por decisão explícita) + moderação no admin.
 - [x] Toda mensagem de erro mostrada ao usuário vem do campo `error` da API, sem reescrever o texto.
+
+
+## Telas jurídicas
+
+- **Processos** (`/processos`, `/processos/:id`): lista com status, validação do número CNJ, tribunal identificado, link do processo (manual ou sugerido para TJSP), andamentos, prazos e eventos.
+- **Agenda** (`/agenda`): calendário mensal e lista; reuniões com link de videoconferência, audiências e perícias.
+- **Planos** (`/planos`): planos, cotas semanais e assinatura (PIX/cartão).

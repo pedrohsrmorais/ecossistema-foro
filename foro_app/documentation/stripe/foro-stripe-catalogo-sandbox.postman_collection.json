@@ -1,0 +1,616 @@
+{
+  "info": {
+    "_postman_id": "f622bcc5-4711-47ae-bc06-ca0b4c57f2cd",
+    "name": "Foro - Catalogo v1 - SOMENTE SANDBOX",
+    "description": "Cadastro dos planos do Foro no Stripe (sandbox): 1 produto + 3 preços mensais em BRL (Starter R$ 129,90 / Pro R$ 199,90 / Business R$ 399,90).\n\nOrdem: Criar produto (uma vez) → 00 Consultar → 01 Listar → 02/03/04 Criar preços → 05 Verificar.\nO teste grátis de 14 dias é controlado pelo app (sem cartão); o Stripe só cobra a partir da assinatura.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "event": [
+    {
+      "listen": "prerequest",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          "// Trava de segurança: este catálogo é SOMENTE SANDBOX. Chaves de produção (sk_live_/rk_live_) abortam a requisição.",
+          "const key = pm.environment.get('stripe_secret_key') || '';",
+          "if (!key) { throw new Error('Preencha stripe_secret_key (sk_test_...) no environment, apenas localmente.'); }",
+          "if (/_live_/.test(key)) { throw new Error('BLOQUEADO: chave LIVE detectada. Este catálogo é só para sandbox (sk_test_...).'); }"
+        ]
+      }
+    }
+  ],
+  "item": [
+    {
+      "name": "Criar produto Foro (executar UMA vez; depois ignore)",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Produto criado', function () { pm.response.to.have.status(200); });",
+              "const j = pm.response.json();",
+              "pm.environment.set('stripe_product_id', j.id);",
+              "console.log('stripe_product_id =', j.id);"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{stripe_secret_key}}",
+            "type": "text"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/x-www-form-urlencoded",
+            "type": "text"
+          },
+          {
+            "key": "Stripe-Version",
+            "value": "{{stripe_api_version}}",
+            "type": "text",
+            "description": "Fixa a versão da API para o catálogo ser reproduzível"
+          },
+          {
+            "key": "Idempotency-Key",
+            "value": "foro-product-v1",
+            "type": "text"
+          }
+        ],
+        "body": {
+          "mode": "urlencoded",
+          "urlencoded": [
+            {
+              "key": "name",
+              "value": "Foro — CRM jurídico com IA",
+              "type": "text"
+            },
+            {
+              "key": "description",
+              "value": "Assinatura mensal do Foro: CRM para escritórios de advocacia com assistente de IA, processos, prazos e agenda. Recursos de uso renovam semanalmente.",
+              "type": "text"
+            },
+            {
+              "key": "metadata[catalog_version]",
+              "value": "1",
+              "type": "text"
+            },
+            {
+              "key": "metadata[app]",
+              "value": "foro",
+              "type": "text"
+            }
+          ]
+        },
+        "url": {
+          "raw": "{{stripe_base_url}}/v1/products",
+          "host": [
+            "{{stripe_base_url}}"
+          ],
+          "path": [
+            "v1",
+            "products"
+          ]
+        },
+        "description": "Cria o produto único 'Foro' e grava o id em {{stripe_product_id}}. Os três planos são PREÇOS deste produto."
+      }
+    },
+    {
+      "name": "00 - Consultar produto (executar primeiro)",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Produto existe', function () { pm.response.to.have.status(200); });",
+              "const j = pm.response.json(); console.log(j.id, j.name, 'active=' + j.active);"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{stripe_secret_key}}",
+            "type": "text"
+          },
+          {
+            "key": "Stripe-Version",
+            "value": "{{stripe_api_version}}",
+            "type": "text",
+            "description": "Fixa a versão da API para o catálogo ser reproduzível"
+          }
+        ],
+        "url": {
+          "raw": "{{stripe_base_url}}/v1/products/{{stripe_product_id}}",
+          "host": [
+            "{{stripe_base_url}}"
+          ],
+          "path": [
+            "v1",
+            "products",
+            "{{stripe_product_id}}"
+          ]
+        },
+        "description": "Se retornar 404, rode antes a requisição 'Criar produto Foro' (uma única vez)."
+      }
+    },
+    {
+      "name": "01 - Listar precos do produto (inspecionar antes de criar)",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "const j = pm.response.json();",
+              "console.table((j.data||[]).map(p => ({ id: p.id, nickname: p.nickname, lookup_key: p.lookup_key, unit_amount: p.unit_amount, active: p.active })));",
+              "pm.test('Listagem OK', function () { pm.response.to.have.status(200); });"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{stripe_secret_key}}",
+            "type": "text"
+          },
+          {
+            "key": "Stripe-Version",
+            "value": "{{stripe_api_version}}",
+            "type": "text",
+            "description": "Fixa a versão da API para o catálogo ser reproduzível"
+          }
+        ],
+        "url": {
+          "raw": "{{stripe_base_url}}/v1/prices?product={{stripe_product_id}}&limit=100",
+          "host": [
+            "{{stripe_base_url}}"
+          ],
+          "path": [
+            "v1",
+            "prices"
+          ],
+          "query": [
+            {
+              "key": "product",
+              "value": "{{stripe_product_id}}"
+            },
+            {
+              "key": "limit",
+              "value": "100"
+            }
+          ]
+        },
+        "description": "Confira se já existe preço com os lookup_keys foro_*_monthly_brl_v1 antes de criar."
+      }
+    },
+    {
+      "name": "02 - Criar Starter - R$ 129.90 mensal (mutacao sandbox)",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Preço criado (HTTP 200)', function () { pm.response.to.have.status(200); });",
+              "const j = pm.response.json();",
+              "pm.test('Valor 129.90 BRL/mês', function () { pm.expect(j.unit_amount).to.eql(12990); pm.expect(j.currency).to.eql('brl'); pm.expect(j.recurring.interval).to.eql('month'); });",
+              "pm.environment.set('stripe_price_starter_id', j.id);",
+              "console.log('stripe_price_starter_id =', j.id);"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{stripe_secret_key}}",
+            "type": "text"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/x-www-form-urlencoded",
+            "type": "text"
+          },
+          {
+            "key": "Stripe-Version",
+            "value": "{{stripe_api_version}}",
+            "type": "text",
+            "description": "Fixa a versão da API para o catálogo ser reproduzível"
+          },
+          {
+            "key": "Idempotency-Key",
+            "value": "foro-price-starter-v1",
+            "type": "text"
+          }
+        ],
+        "body": {
+          "mode": "urlencoded",
+          "urlencoded": [
+            {
+              "key": "product",
+              "value": "{{stripe_product_id}}",
+              "type": "text"
+            },
+            {
+              "key": "currency",
+              "value": "brl",
+              "type": "text"
+            },
+            {
+              "key": "unit_amount",
+              "value": "12990",
+              "type": "text"
+            },
+            {
+              "key": "recurring[interval]",
+              "value": "month",
+              "type": "text"
+            },
+            {
+              "key": "nickname",
+              "value": "Foro Starter mensal BRL v1",
+              "type": "text"
+            },
+            {
+              "key": "lookup_key",
+              "value": "foro_starter_monthly_brl_v1",
+              "type": "text"
+            },
+            {
+              "key": "metadata[plan_code]",
+              "value": "starter",
+              "type": "text"
+            },
+            {
+              "key": "metadata[catalog_version]",
+              "value": "1",
+              "type": "text"
+            },
+            {
+              "key": "metadata[ai_credits_week]",
+              "value": "150",
+              "type": "text"
+            },
+            {
+              "key": "metadata[lookups_week]",
+              "value": "10",
+              "type": "text"
+            },
+            {
+              "key": "metadata[max_users]",
+              "value": "1",
+              "type": "text"
+            },
+            {
+              "key": "metadata[max_leads]",
+              "value": "500",
+              "type": "text"
+            }
+          ]
+        },
+        "url": {
+          "raw": "{{stripe_base_url}}/v1/prices",
+          "host": [
+            "{{stripe_base_url}}"
+          ],
+          "path": [
+            "v1",
+            "prices"
+          ]
+        },
+        "description": "Cria o preço do plano Starter: R$ 129.90/mês. Cota semanal no app: 150 créditos de IA e 10 consultas; 1 usuário(s); leads: 500. Preços do Stripe são IMUTÁVEIS — para mudar o valor, crie uma versão nova (v2) e arquive a antiga. O lookup_key é único: reenviar esta requisição retorna erro (e não duplica)."
+      }
+    },
+    {
+      "name": "03 - Criar Pro - R$ 199.90 mensal (mutacao sandbox)",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Preço criado (HTTP 200)', function () { pm.response.to.have.status(200); });",
+              "const j = pm.response.json();",
+              "pm.test('Valor 199.90 BRL/mês', function () { pm.expect(j.unit_amount).to.eql(19990); pm.expect(j.currency).to.eql('brl'); pm.expect(j.recurring.interval).to.eql('month'); });",
+              "pm.environment.set('stripe_price_pro_id', j.id);",
+              "console.log('stripe_price_pro_id =', j.id);"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{stripe_secret_key}}",
+            "type": "text"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/x-www-form-urlencoded",
+            "type": "text"
+          },
+          {
+            "key": "Stripe-Version",
+            "value": "{{stripe_api_version}}",
+            "type": "text",
+            "description": "Fixa a versão da API para o catálogo ser reproduzível"
+          },
+          {
+            "key": "Idempotency-Key",
+            "value": "foro-price-pro-v1",
+            "type": "text"
+          }
+        ],
+        "body": {
+          "mode": "urlencoded",
+          "urlencoded": [
+            {
+              "key": "product",
+              "value": "{{stripe_product_id}}",
+              "type": "text"
+            },
+            {
+              "key": "currency",
+              "value": "brl",
+              "type": "text"
+            },
+            {
+              "key": "unit_amount",
+              "value": "19990",
+              "type": "text"
+            },
+            {
+              "key": "recurring[interval]",
+              "value": "month",
+              "type": "text"
+            },
+            {
+              "key": "nickname",
+              "value": "Foro Pro mensal BRL v1",
+              "type": "text"
+            },
+            {
+              "key": "lookup_key",
+              "value": "foro_pro_monthly_brl_v1",
+              "type": "text"
+            },
+            {
+              "key": "metadata[plan_code]",
+              "value": "pro",
+              "type": "text"
+            },
+            {
+              "key": "metadata[catalog_version]",
+              "value": "1",
+              "type": "text"
+            },
+            {
+              "key": "metadata[ai_credits_week]",
+              "value": "300",
+              "type": "text"
+            },
+            {
+              "key": "metadata[lookups_week]",
+              "value": "15",
+              "type": "text"
+            },
+            {
+              "key": "metadata[max_users]",
+              "value": "5",
+              "type": "text"
+            },
+            {
+              "key": "metadata[max_leads]",
+              "value": "unlimited",
+              "type": "text"
+            }
+          ]
+        },
+        "url": {
+          "raw": "{{stripe_base_url}}/v1/prices",
+          "host": [
+            "{{stripe_base_url}}"
+          ],
+          "path": [
+            "v1",
+            "prices"
+          ]
+        },
+        "description": "Cria o preço do plano Pro: R$ 199.90/mês. Cota semanal no app: 300 créditos de IA e 15 consultas; 5 usuário(s); leads: unlimited. Preços do Stripe são IMUTÁVEIS — para mudar o valor, crie uma versão nova (v2) e arquive a antiga. O lookup_key é único: reenviar esta requisição retorna erro (e não duplica)."
+      }
+    },
+    {
+      "name": "04 - Criar Business - R$ 399.90 mensal (mutacao sandbox)",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Preço criado (HTTP 200)', function () { pm.response.to.have.status(200); });",
+              "const j = pm.response.json();",
+              "pm.test('Valor 399.90 BRL/mês', function () { pm.expect(j.unit_amount).to.eql(39990); pm.expect(j.currency).to.eql('brl'); pm.expect(j.recurring.interval).to.eql('month'); });",
+              "pm.environment.set('stripe_price_business_id', j.id);",
+              "console.log('stripe_price_business_id =', j.id);"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{stripe_secret_key}}",
+            "type": "text"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/x-www-form-urlencoded",
+            "type": "text"
+          },
+          {
+            "key": "Stripe-Version",
+            "value": "{{stripe_api_version}}",
+            "type": "text",
+            "description": "Fixa a versão da API para o catálogo ser reproduzível"
+          },
+          {
+            "key": "Idempotency-Key",
+            "value": "foro-price-business-v1",
+            "type": "text"
+          }
+        ],
+        "body": {
+          "mode": "urlencoded",
+          "urlencoded": [
+            {
+              "key": "product",
+              "value": "{{stripe_product_id}}",
+              "type": "text"
+            },
+            {
+              "key": "currency",
+              "value": "brl",
+              "type": "text"
+            },
+            {
+              "key": "unit_amount",
+              "value": "39990",
+              "type": "text"
+            },
+            {
+              "key": "recurring[interval]",
+              "value": "month",
+              "type": "text"
+            },
+            {
+              "key": "nickname",
+              "value": "Foro Business mensal BRL v1",
+              "type": "text"
+            },
+            {
+              "key": "lookup_key",
+              "value": "foro_business_monthly_brl_v1",
+              "type": "text"
+            },
+            {
+              "key": "metadata[plan_code]",
+              "value": "business",
+              "type": "text"
+            },
+            {
+              "key": "metadata[catalog_version]",
+              "value": "1",
+              "type": "text"
+            },
+            {
+              "key": "metadata[ai_credits_week]",
+              "value": "700",
+              "type": "text"
+            },
+            {
+              "key": "metadata[lookups_week]",
+              "value": "20",
+              "type": "text"
+            },
+            {
+              "key": "metadata[max_users]",
+              "value": "15",
+              "type": "text"
+            },
+            {
+              "key": "metadata[max_leads]",
+              "value": "unlimited",
+              "type": "text"
+            }
+          ]
+        },
+        "url": {
+          "raw": "{{stripe_base_url}}/v1/prices",
+          "host": [
+            "{{stripe_base_url}}"
+          ],
+          "path": [
+            "v1",
+            "prices"
+          ]
+        },
+        "description": "Cria o preço do plano Business: R$ 399.90/mês. Cota semanal no app: 700 créditos de IA e 20 consultas; 15 usuário(s); leads: unlimited. Preços do Stripe são IMUTÁVEIS — para mudar o valor, crie uma versão nova (v2) e arquive a antiga. O lookup_key é único: reenviar esta requisição retorna erro (e não duplica)."
+      }
+    },
+    {
+      "name": "05 - Verificar catalogo criado (por lookup_key)",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "const j = pm.response.json();",
+              "pm.test('3 preços Foro encontrados', function () { pm.expect(j.data.length).to.eql(3); });",
+              "console.table(j.data.map(p => ({ id: p.id, lookup_key: p.lookup_key, unit_amount: p.unit_amount, plan: p.metadata.plan_code })));"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{stripe_secret_key}}",
+            "type": "text"
+          },
+          {
+            "key": "Stripe-Version",
+            "value": "{{stripe_api_version}}",
+            "type": "text",
+            "description": "Fixa a versão da API para o catálogo ser reproduzível"
+          }
+        ],
+        "url": {
+          "raw": "{{stripe_base_url}}/v1/prices?lookup_keys[]=foro_starter_monthly_brl_v1&lookup_keys[]=foro_pro_monthly_brl_v1&lookup_keys[]=foro_business_monthly_brl_v1",
+          "host": [
+            "{{stripe_base_url}}"
+          ],
+          "path": [
+            "v1",
+            "prices"
+          ],
+          "query": [
+            {
+              "key": "lookup_keys[]",
+              "value": "foro_starter_monthly_brl_v1"
+            },
+            {
+              "key": "lookup_keys[]",
+              "value": "foro_pro_monthly_brl_v1"
+            },
+            {
+              "key": "lookup_keys[]",
+              "value": "foro_business_monthly_brl_v1"
+            }
+          ]
+        },
+        "description": "Confirma Starter 12990, Pro 19990 e Business 39990 (centavos)."
+      }
+    }
+  ]
+}

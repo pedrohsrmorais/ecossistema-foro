@@ -105,6 +105,9 @@ export interface Note {
 
 export interface Task {
   id: string
+  case_id?: string | null
+  case_number?: string | null
+  is_deadline?: number
   lead_id: string | null
   lead_name: string | null
   user_id: string
@@ -136,6 +139,7 @@ export interface AiMessage {
 }
 
 export interface AiAction {
+  case_id?: string | null
   tool: string
   write: boolean
   ok: boolean
@@ -390,12 +394,87 @@ export const leadsApi = {
     http.get<Task[]>(`/leads/${leadId}/tasks`).then(r => r.data),
 
   /** POST /leads/:id/tasks */
-  createTask: (leadId: string, data: { description: string; due_date?: string }) =>
+  createTask: (leadId: string, data: { description: string; due_date?: string; case_id?: string; is_deadline?: boolean }) =>
     http.post<Task>(`/leads/${leadId}/tasks`, data).then(r => r.data),
 
   /** PATCH /leads/:leadId/tasks/:taskId/complete */
   completeTask: (leadId: string, taskId: string) =>
     http.patch<Task>(`/leads/${leadId}/tasks/${taskId}/complete`).then(r => r.data),
+}
+
+// ─── PROCESSOS e AGENDA ──────────────────────────────────────────────────────
+
+export type CaseStatus = 'ativo' | 'suspenso' | 'arquivado' | 'encerrado'
+
+export interface Case {
+  id: string
+  lead_id: string | null
+  lead_name: string | null
+  case_number: string | null
+  title: string | null
+  tribunal: string | null
+  court_url: string | null
+  area: string | null
+  status: CaseStatus
+  phase: string | null
+  client_role: string | null
+  opposing_party: string | null
+  cause_value: string | null
+  responsible_name: string | null
+  next_deadline: string | null
+  created_at: string
+}
+
+export interface CaseUpdate { id: string; update_date: string; text: string; source: string; created_at: string }
+
+export interface CrmEvent {
+  id: string
+  type: 'reuniao' | 'audiencia' | 'pericia' | 'outro'
+  title: string
+  starts_at: string
+  ends_at: string | null
+  location: string | null
+  meeting_url: string | null
+  notes: string | null
+  status: 'agendado' | 'realizado' | 'cancelado'
+  lead_id: string | null
+  lead_name: string | null
+  case_id: string | null
+  case_number: string | null
+  case_title: string | null
+}
+
+export interface CaseDetail extends Case {
+  tribunal_name: string | null
+  suggested_url: string | null
+  number_valid?: boolean | null
+  updates: CaseUpdate[]
+  tasks: Task[]
+  events: CrmEvent[]
+}
+
+export interface CaseNumberAnalysis { case_number: string; tribunal: string | null; tribunal_name?: string | null; valid: boolean; suggested_url: string | null }
+
+export const casesApi = {
+  list: (params?: { status?: string; search?: string; lead_id?: string }) =>
+    http.get<{ data: Case[]; total: number }>('/cases', { params }).then(r => r.data),
+  getById: (id: string) => http.get<CaseDetail>(`/cases/${id}`).then(r => r.data),
+  create: (data: Partial<Case> & { cause_value?: string | number }) =>
+    http.post<CaseDetail>('/cases', data).then(r => r.data),
+  update: (id: string, data: Record<string, unknown>) => http.put<CaseDetail>(`/cases/${id}`, data).then(r => r.data),
+  remove: (id: string) => http.delete(`/cases/${id}`).then(r => r.data),
+  analyze: (number: string) => http.get<CaseNumberAnalysis>('/cases/analyze', { params: { number } }).then(r => r.data),
+  addUpdate: (id: string, data: { text: string; update_date?: string }) =>
+    http.post<CaseUpdate>(`/cases/${id}/updates`, data).then(r => r.data),
+  deleteUpdate: (id: string, updateId: string) => http.delete(`/cases/${id}/updates/${updateId}`).then(r => r.data),
+}
+
+export const eventsApi = {
+  list: (params?: { from?: string; to?: string; lead_id?: string; case_id?: string }) =>
+    http.get<CrmEvent[]>('/events', { params }).then(r => r.data),
+  create: (data: Partial<CrmEvent>) => http.post<CrmEvent>('/events', data).then(r => r.data),
+  update: (id: string, data: Partial<CrmEvent>) => http.put<CrmEvent>(`/events/${id}`, data).then(r => r.data),
+  remove: (id: string) => http.delete(`/events/${id}`).then(r => r.data),
 }
 
 // ─── TASKS (visão global) ─────────────────────────────────────────────────────
@@ -404,6 +483,10 @@ export const tasksApi = {
   /** GET /tasks */
   listAll: (params?: { pending_only?: boolean; page?: number; limit?: number }) =>
     http.get<Task[]>('/tasks', { params }).then(r => r.data),
+
+  /** POST /tasks — tarefa ou prazo, com ou sem lead/processo */
+  create: (data: { description: string; due_date?: string; lead_id?: string | null; case_id?: string; is_deadline?: boolean }) =>
+    http.post<Task>('/tasks', data).then(r => r.data),
 }
 
 // ─── AI — Chat interno ────────────────────────────────────────────────────────

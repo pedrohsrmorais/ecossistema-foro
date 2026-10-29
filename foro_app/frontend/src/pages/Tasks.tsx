@@ -75,10 +75,13 @@ export default function Tasks() {
                               : <Circle className="w-5 h-5 text-slate-300 hover:text-green-500 transition-colors" />}
                           </button>
                           <div className="flex-1 min-w-0">
-                            <p className={clsx('text-sm truncate', t.completed_at ? 'line-through text-slate-400' : 'text-slate-800')}>{t.description}</p>
-                            {t.lead_name && t.lead_id && (
-                              <Link to={`/leads/${t.lead_id}`} className="text-xs text-brand-600 hover:underline">{t.lead_name}</Link>
-                            )}
+                            <p className={clsx('text-sm truncate', t.completed_at ? 'line-through text-slate-400' : 'text-slate-800')}>
+                              {t.is_deadline ? <span className="badge bg-amber-100 text-amber-700 !py-0 mr-2">Prazo</span> : null}{t.description}
+                            </p>
+                            <p className="text-xs flex gap-3">
+                              {t.lead_name && t.lead_id && <Link to={`/leads/${t.lead_id}`} className="text-brand-600 hover:underline">{t.lead_name}</Link>}
+                              {t.case_id && <Link to={`/processos/${t.case_id}`} className="text-brand-600 hover:underline font-mono">{t.case_number || 'Processo'}</Link>}
+                            </p>
                           </div>
                           {t.due_date && (
                             <span className={clsx('flex items-center gap-1 text-xs shrink-0', g.key === 'late' ? 'text-red-600' : 'text-slate-400')}>

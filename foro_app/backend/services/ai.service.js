@@ -102,11 +102,18 @@ function _summarizeAction(name, input, result) {
     case 'get_lead':         return `Consultou lead: ${result?.name || ''}`.trim();
     case 'get_funnel_summary': return 'Consultou o funil';
     case 'list_tasks':       return `Consultou tarefas: ${Array.isArray(result) ? result.length : 0}`;
+    case 'create_case':      return `Processo cadastrado: ${result?.case_number || result?.title || ''}`.trim();
+    case 'update_case':      return 'Processo atualizado';
+    case 'add_case_update':  return 'Andamento registrado';
+    case 'get_case':         return `Consultou processo: ${result?.case_number || result?.title || ''}`.trim();
+    case 'search_cases':     return `Busca de processos: ${result?.data?.length ?? 0}`;
+    case 'create_event':     return `Agendado: ${result?.title || input.title}`;
+    case 'list_events':      return `Consultou agenda: ${Array.isArray(result) ? result.length : 0} compromisso(s)`;
     default: return name;
   }
 }
 
-const WRITE_TOOLS = new Set(['create_lead','update_lead','move_lead_stage','add_note','create_task','complete_task']);
+const WRITE_TOOLS = new Set(['create_lead','update_lead','move_lead_stage','add_note','create_task','complete_task','create_case','update_case','add_case_update','create_event']);
 
 // ─── Chat principal ────────────────────────────────────────────────────────────
 
@@ -118,10 +125,11 @@ async function chat({ accountId, userId, conversationId, userMessage }) {
   const history = await _loadHistory(convId);
   const fieldSchema = await _loadFieldSchema(accountId);
 
+  const today = new Date().toLocaleDateString('pt-BR', { weekday: 'long', day: '2-digit', month: '2-digit', year: 'numeric', timeZone: 'America/Sao_Paulo' });
   const systemPrompt = `Você é o assistente interno do CRM Foro, um sistema de gestão de leads para escritórios de advocacia.
 
-Seu papel é ajudar o usuário a gerenciar leads, notas e tarefas do CRM usando linguagem natural.
-Você tem acesso a ferramentas para criar, atualizar, buscar e organizar leads.
+Seu papel é ajudar o usuário a gerenciar contatos (leads), processos, andamentos, prazos, tarefas, notas e a agenda do escritório usando linguagem natural.
+Você tem ferramentas para criar, atualizar e buscar tudo isso. Hoje é ${today} (fuso America/Sao_Paulo, -03:00); resolva datas relativas ("amanhã", "sexta") a partir dela.
 
 CAMPOS CUSTOMIZADOS DESTA CONTA:
 ${fieldSchema}
@@ -134,6 +142,7 @@ REGRAS IMPORTANTES:
 - Se faltar um campo obrigatório, pergunte só o que está faltando.
 - Nunca invente campos que não existem na configuração.
 - Nunca acesse dados de outras contas.
+- Números de processo seguem o padrão CNJ; se a ferramenta indicar número inválido, avise o usuário.
 - Não faça análises jurídicas, pareceres ou recomendações profissionais.
 - Se o usuário pedir algo fora do escopo (ex: redigir petição), recuse de forma clara e útil.
 - Responda sempre em português do Brasil.`;
@@ -214,7 +223,8 @@ REGRAS IMPORTANTES:
           write: WRITE_TOOLS.has(toolUse.name),
           ok: !result?.error,
           summary: _summarizeAction(toolUse.name, toolUse.input, result),
-          lead_id: toolUse.input?.lead_id || result?.id || null,
+          lead_id: toolUse.input?.lead_id || (toolUse.name === 'create_lead' ? result?.id : null) || null,
+          case_id: toolUse.input?.case_id || (toolUse.name === 'create_case' ? result?.id : null) || null,
         });
 
         toolResults.push({
