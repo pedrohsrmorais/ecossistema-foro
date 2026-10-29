@@ -113,14 +113,34 @@ Não é uma API de dados — é a própria Anthropic (Claude), reaproveitando a 
 
 A Foro combina **dois modelos** de cobrança, que não se misturam:
 
-### 5.1 Assinatura mensal (acesso à plataforma)
+### 5.1 Assinatura mensal + recursos que renovam por SEMANA
 
-| Plano     | Preço mensal | Limites                        |
-|-----------|--------------|----------------------------------|
-| Starter   | R$ 97        | ver `plans.max_users`/`max_leads` no catálogo |
-| Pro       | R$ 197       | ver `plans.max_users`/`max_leads` no catálogo |
+O preço é mensal, mas os recursos de uso (créditos de IA e consultas) **renovam toda semana**, em janelas de 7 dias ancoradas no início do trial/assinatura (`accounts.plan_started_at`). O que sobra **não acumula**. Quantidades definidas na tabela `plans` (editáveis sem deploy):
 
-Cobre o acesso ao CRM, IA de chat interno, campos customizáveis e emissão de NFS-e da própria assinatura. **Não inclui** as consultas pagas de CPF/CNPJ/processual — isso é cobrado separadamente em créditos.
+| Plano | Mensal | Créditos IA / semana | Consultas / semana | Usuários | Leads | Margem a 100% de uso | Margem a 50% de uso |
+|-------|--------|----------------------|--------------------|----------|-------|----------------------|---------------------|
+| Teste grátis (14 dias) | R$ 0 | 50 | 2 | 1 | 100 | custo ≈ R$ 5 por trial | – |
+| Starter  | R$ 97  | 150 | 5  | 1  | 500      | 53,6% | 69,5% |
+| Pro      | R$ 197 | 300 | 10 | 5  | ilimitado | 56,9% | 72,6% |
+| Business | R$ 397 | 700 | 20 | 15 | ilimitado | 55,7% | 72,7% |
+
+Premissas da margem: 52/12 semanas por mês; custo por crédito R$ 0,02586 (Sonnet 4.6 com prompt caching, câmbio 5,34); consulta média R$ 0,647 (mix CNPJ/CPF/processual, Direct Data); imposto 6% (estimativa), cartão Asaas 2,99% + R$ 0,49 (estimativa), R$ 5/conta/mês de outros custos. **Regra de projeto: margem a 100% de uso nunca abaixo de 50%.** Planilha: `precificacao_foro_semanal.xlsx`.
+
+**Free trial:** 14 dias com o plano `trial` (o menor de todos). Depois, a conta fica bloqueada (`403 TRIAL_EXPIRED`) e só consegue ver planos, assinar e sair — assinar é obrigatório para continuar.
+
+**Consultas (CPF/CNPJ/processual):** a cota semanal já existe no catálogo, mas as consultas ficam **indisponíveis nesta fase** (backend: `FEATURE_LOOKUPS_ENABLED=false` → `403 FEATURE_LOCKED`; frontend: `LOCKED_FEATURES`). Provedor previsto: Direct Data.
+
+#### Regra entre tokens de IA e créditos de IA
+
+```
+créditos = (tokens de entrada totais + 5 × tokens de saída) ÷ 2.500
+tokens de entrada totais = input_tokens + cache_creation_input_tokens + cache_read_input_tokens
+```
+- O 5 é a razão de preço saída/entrada do Claude Sonnet 4.6 ($15 ÷ $3 por 1M tokens). 1 crédito = 2.500 tokens de entrada ou 500 de saída.
+- O cache de prompt **não** reduz os créditos cobrados do cliente; a economia vira margem.
+- Um turno de chat soma todas as chamadas ao modelo do turno (loop de ferramentas). Uma resposta curta custa ~1,6 crédito; com uma ação no CRM ~3,3; com três ações ~8,9.
+- Antes de cada turno o backend confere o saldo da semana (`402 AI_CREDITS_EXHAUSTED` se zerado); depois do turno grava em `ai_usage` os tokens, os créditos e o custo real em USD. O último turno pode ultrapassar levemente o saldo.
+- Implementação única: `backend/services/ai-credits.service.js`.
 
 ### 5.2 Créditos pré-pagos (consultas de terceiros)
 

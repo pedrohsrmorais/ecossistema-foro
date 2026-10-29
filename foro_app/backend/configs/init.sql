@@ -49,6 +49,9 @@ CREATE TABLE IF NOT EXISTS plans (
   billing_cycle ENUM('monthly') NOT NULL DEFAULT 'monthly',
   max_users     INT           NULL COMMENT 'NULL = ilimitado',
   max_leads     INT           NULL COMMENT 'NULL = ilimitado',
+  ai_credits_week INT         NOT NULL DEFAULT 0 COMMENT 'créditos de IA que renovam toda semana (janela de 7 dias ancorada em accounts.plan_started_at)',
+  lookups_week    INT         NOT NULL DEFAULT 0 COMMENT 'consultas pagas (CPF/CNPJ/processual) por semana — recurso bloqueado nesta fase (FEATURE_LOOKUPS_ENABLED)',
+  purchasable   TINYINT(1)    NOT NULL DEFAULT 1 COMMENT '0 = plano interno (ex: trial), não aparece para compra',
   features      JSON          NULL COMMENT 'array de strings exibidas na UI',
   active        TINYINT(1)    NOT NULL DEFAULT 1,
   display_order INT           NOT NULL DEFAULT 0,
@@ -67,7 +70,8 @@ CREATE TABLE IF NOT EXISTS accounts (
   name           VARCHAR(255) NOT NULL,
   slug           VARCHAR(100) NOT NULL,
   status         ENUM('trialing','active','suspended','cancelled') NOT NULL DEFAULT 'trialing',
-  plan_id        VARCHAR(50)  NOT NULL DEFAULT 'starter',
+  plan_id        VARCHAR(50)  NOT NULL DEFAULT 'trial',
+  plan_started_at DATETIME    NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT 'âncora das janelas semanais de créditos: início do trial ou da assinatura do plano atual',
   trial_ends_at  DATETIME     NULL COMMENT 'fim do período de teste gratuito',
   asaas_id       VARCHAR(100) NULL COMMENT 'Customer ID no Asaas',
   created_at     DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -273,7 +277,10 @@ CREATE TABLE IF NOT EXISTS ai_usage (
   model           VARCHAR(100)   NOT NULL,
   input_tokens    INT            NOT NULL DEFAULT 0,
   output_tokens   INT            NOT NULL DEFAULT 0,
-  cost_usd        DECIMAL(10,6)  NOT NULL DEFAULT 0,
+  cache_creation_tokens INT      NOT NULL DEFAULT 0 COMMENT 'cache_creation_input_tokens — contam como entrada para créditos',
+  cache_read_tokens     INT      NOT NULL DEFAULT 0 COMMENT 'cache_read_input_tokens — contam como entrada para créditos',
+  credits         DECIMAL(10,3)  NOT NULL DEFAULT 0 COMMENT 'créditos de IA debitados: (entrada total + 5 x saída) / 2500 — ver ai-credits.service.js',
+  cost_usd        DECIMAL(10,6)  NOT NULL DEFAULT 0 COMMENT 'custo real em USD (com tarifas de cache) — só para margem, nunca cobrado do tenant',
   created_at      DATETIME       NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (id),
   KEY idx_usage_account (account_id),
@@ -664,12 +671,16 @@ CREATE TABLE IF NOT EXISTS community_posts (
 -- ════════════════════════════════════════════════════════════════════════════
 
 -- ─── Planos disponíveis (fonte única de verdade para preço/recursos) ─────────
-INSERT INTO plans (id, name, price, max_users, max_leads, features, display_order) VALUES
-  ('starter', 'Starter', 97.00, 1, 500,  JSON_ARRAY('CRM com IA', 'Até 500 leads', '1 usuário'), 1),
-  ('pro',     'Pro',     197.00, 5, NULL, JSON_ARRAY('CRM com IA', 'Leads ilimitados', '5 usuários', 'WhatsApp'), 2)
+INSERT INTO plans (id, name, price, max_users, max_leads, ai_credits_week, lookups_week, purchasable, features, display_order) VALUES
+  ('trial',    'Teste grátis', 0.00,   1,  100,  50,   2, 0, JSON_ARRAY('14 dias grátis', '50 créditos de IA por semana', 'Até 100 leads'), 0),
+  ('starter',  'Starter',      97.00,  1,  500,  150,  5, 1, JSON_ARRAY('CRM com IA', '150 créditos de IA por semana', 'Até 500 leads', '1 usuário'), 1),
+  ('pro',      'Pro',          197.00, 5,  NULL, 300,  10, 1, JSON_ARRAY('CRM com IA', '300 créditos de IA por semana', 'Leads ilimitados', '5 usuários'), 2),
+  ('business', 'Business',     397.00, 15, NULL, 700,  20, 1, JSON_ARRAY('CRM com IA', '700 créditos de IA por semana', 'Leads ilimitados', '15 usuários'), 3)
 ON DUPLICATE KEY UPDATE
   name = VALUES(name), price = VALUES(price), max_users = VALUES(max_users),
-  max_leads = VALUES(max_leads), features = VALUES(features);
+  max_leads = VALUES(max_leads), ai_credits_week = VALUES(ai_credits_week),
+  lookups_week = VALUES(lookups_week), purchasable = VALUES(purchasable),
+  features = VALUES(features), display_order = VALUES(display_order);
 
 -- ─── Administrador da plataforma (equipe intellsn — gestão de todos os tenants) ─
 -- Login: POST /api/auth/platform-login  { "email": "admin@intellsn.com.br", "password": "..." }

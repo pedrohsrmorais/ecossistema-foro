@@ -16,4 +16,8 @@ async function getPlan(req, res) {
   res.json(plan);
 }
 
-module.exports = { get, update, getPlan };
+async function listPlans(req, res) {
+  res.json(await settingsService.listPlans());
+}
+
+module.exports = { get, update, getPlan, listPlans };

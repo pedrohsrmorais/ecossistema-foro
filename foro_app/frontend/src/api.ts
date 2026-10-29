@@ -33,6 +33,11 @@ http.interceptors.response.use(
       localStorage.removeItem('foro_user')
       window.location.href = '/login'
     }
+    // Teste grátis acabou: só resta escolher um plano (ver client.middleware.js)
+    if (err.response?.status === 403 && err.response?.data?.code === 'TRIAL_EXPIRED'
+        && !window.location.pathname.startsWith('/planos')) {
+      window.location.href = '/planos?expirado=1'
+    }
     if (err.response?.status === 403 && err.response?.data?.code === 'EMAIL_NOT_VERIFIED') {
       window.location.href = '/verify-email'
     }
@@ -130,10 +135,46 @@ export interface AiMessage {
   created_at?: string
 }
 
+export interface AiAction {
+  tool: string
+  write: boolean
+  ok: boolean
+  summary: string
+  lead_id: string | null
+}
+
+/** Saldo semanal de créditos de IA. Regra: créditos = (tokens de entrada totais + 5 × saída) ÷ 2.500 */
+export interface CreditsStatus {
+  plan_id: string
+  plan_name: string
+  weekly_limit: number
+  used: number
+  remaining: number
+  window_start: string
+  renews_at: string
+  lookups_week: number
+  account_status: string
+  trial_ends_at: string | null
+  rule: { tokens_per_credit: number; output_weight: number }
+}
+
 export interface AiChatResponse {
   conversation_id: string
   message: string
-  usage: { input_tokens: number; output_tokens: number }
+  actions: AiAction[]
+  usage: { input_tokens: number; output_tokens: number; credits_used: number }
+  credits: CreditsStatus
+}
+
+export interface PlanInfo {
+  id: string
+  name: string
+  price: number
+  max_users: number | null
+  max_leads: number | null
+  ai_credits_week: number
+  lookups_week: number
+  features: string[]
 }
 
 export interface Payment {
@@ -384,6 +425,10 @@ export const aiApi = {
   clearConversation: (id: string) =>
     http.delete(`/ai/conversations/${id}`).then(r => r.data),
 
+  /** GET /ai/credits — saldo da semana */
+  getCredits: () =>
+    http.get<CreditsStatus>('/ai/credits').then(r => r.data),
+
   /** GET /ai/usage */
   getUsage: (params?: { from?: string; to?: string }) =>
     http.get('/ai/usage', { params }).then(r => r.data),
@@ -415,6 +460,13 @@ export const paymentsApi = {
   /** GET /payments/:id/nfse */
   getNfse: (id: string) =>
     http.get(`/payments/${id}/nfse`).then(r => r.data),
+}
+
+// ─── PLANOS ───────────────────────────────────────────────────────────────────
+
+export const plansApi = {
+  /** GET /plans — planos disponíveis para assinatura */
+  list: () => http.get<PlanInfo[]>('/plans').then(r => r.data),
 }
 
 // ─── SETTINGS ─────────────────────────────────────────────────────────────────

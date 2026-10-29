@@ -1,4 +1,5 @@
 const aiService = require('../services/ai.service');
+const aiCredits = require('../services/ai-credits.service');
 
 /**
  * Recebe a mensagem do usuário, processa com a IA (com tool use),
@@ -45,4 +46,8 @@ async function getUsage(req, res) {
   res.json(usage);
 }
 
-module.exports = { sendMessage, listConversations, getConversation, clearConversation, getUsage };
+async function getCredits(req, res) {
+  res.json(await aiCredits.getStatus(req.account.id));
+}
+
+module.exports = { getCredits, sendMessage, listConversations, getConversation, clearConversation, getUsage };

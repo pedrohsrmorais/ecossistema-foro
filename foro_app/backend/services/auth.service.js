@@ -42,8 +42,8 @@ async function register({ name, email, password, phone, accountName }) {
     const accountId = uuidv4();
     const trialEndsAt = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000);
     await conn.execute(
-      'INSERT INTO accounts (id, name, slug, trial_ends_at) VALUES (?, ?, ?, ?)',
-      [accountId, accountName, `${slug}-${accountId.slice(0, 8)}`, trialEndsAt]
+      'INSERT INTO accounts (id, name, slug, plan_id, plan_started_at, trial_ends_at) VALUES (?, ?, ?, ?, ?, ?)',
+      [accountId, accountName, `${slug}-${accountId.slice(0, 8)}`, 'trial', new Date(), trialEndsAt]
     );
 
     // Cria o usuário admin

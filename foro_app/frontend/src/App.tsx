@@ -14,6 +14,7 @@ import Chat from './pages/Chat'
 import Leads from './pages/Leads'
 import LeadDetail from './pages/LeadDetail'
 import Tasks from './pages/Tasks'
+import Plans from './pages/Plans'
 import Settings from './pages/Settings'
 import Education from './pages/Education'
 import TrilhaDetail from './pages/TrilhaDetail'
@@ -60,6 +61,7 @@ export default function App() {
                 <Route path="/leads/:id" element={<LeadDetail />} />
                 <Route path="/tasks"     element={<Tasks />} />
                 <Route path="/settings"  element={<Settings />} />
+                <Route path="/planos"    element={<Plans />} />
                 <Route path="/education"      element={<Education />} />
                 <Route path="/education/:id"  element={<TrilhaDetail />} />
                 <Route path="/modulo-desativado" element={<ModuloDesativado />} />

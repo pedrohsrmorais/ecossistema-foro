@@ -32,7 +32,9 @@ Há um frontend de referência já funcionando em `frontend/` (React + Vite + Ty
 |--------|------------------|-------------------------------|
 | `401`  | Token ausente/inválido/expirado | Deslogar e redirecionar para `/login`. |
 | `403` com `code: "EMAIL_NOT_VERIFIED"` | E-mail ainda não confirmado | Redirecionar para a tela de verificação — **nunca** deixar passar para o resto do app. |
-| `403` com `code: "TRIAL_EXPIRED"` | Trial de 14 dias acabou sem assinatura | Bloquear o app e mostrar tela/modal de "assine um plano para continuar". |
+| `403` com `code: "TRIAL_EXPIRED"` | Trial de 14 dias acabou sem assinatura | O interceptor do `api.ts` leva para `/planos?expirado=1` (única tela útil, junto com pagamentos). |
+| `402` com `code: "AI_CREDITS_EXHAUSTED"` | Créditos de IA da semana acabaram | O chat mostra a mensagem com a data de renovação (`renews_at`) e o CTA para upgrade. |
+| `403` com `code: "FEATURE_LOCKED"` | Consultas ainda indisponíveis | Já tratado pelo selo "Em breve"; nada a fazer. |
 | `402` | Créditos insuficientes (rotas `/lookup/*`) | Mostrar CTA para comprar créditos — nunca travar a tela sem explicar por quê. |
 | `409` | Conflito (ex: e-mail já cadastrado) | Mostrar a mensagem de `error` direto no formulário. |
 | `502` | Falha técnica num provedor pago (créditos já foram devolvidos automaticamente) | Mostrar a mensagem genérica que já vem em `error` ("Erro na requisição... contate o suporte"). **Nunca** mostrar um botão de "solicitar reembolso" aqui — ver seção 3. |
@@ -93,7 +95,8 @@ Essas regras vieram de decisão explícita do dono da plataforma. Não são suge
 - Tarefas pendentes em destaque (`GET /tasks?pending_only=true`).
 - Indicador de status da conta (trial, dias restantes até `trial_ends_at`, ou plano ativo).
 
-### 4.3 CRM — Leads (obrigatório)
+### 4.3 CRM — Leads (✅ implementado no estilo monday em `pages/Leads.tsx`)
+- **Quadro** com um grupo recolhível por etapa (cor própria), células editáveis inline (clique → Enter/blur salva, Esc cancela), pílula de etapa que troca por seletor, linha "+ Adicionar lead" por grupo, excluir/abrir no hover; **Kanban** alternável (drag-and-drop move a etapa). Edição é otimista via React Query.
 - Lista com busca, filtro por estágio e por responsável, paginação.
 - Criar/editar lead, incluindo os **campos customizáveis** da conta (`GET /fields` define quais existem e o tipo de cada um — a tela de lead precisa renderizar esses campos dinamicamente, não só os campos fixos).
 - Mover estágio (ex: drag-and-drop tipo kanban, ou um seletor — a API já suporta `PATCH /leads/:id/stage`).
@@ -102,6 +105,7 @@ Essas regras vieram de decisão explícita do dono da plataforma. Não são suge
 
 ### 4.4 Chat com IA (obrigatório — é a interface principal do produto)
 - Interface de conversa (`POST /ai/message`), histórico de conversas, possibilidade de apagar uma conversa.
+- ✅ Implementado: `ChatContext` (conversa persiste entre telas) + `ChatPanel` (tela cheia em `/chat` e painel lateral `AiDock` em todas as telas). Cada ação executada aparece como chip (`actions` da resposta), o CRM aberto é atualizado sozinho e o `CreditMeter` mostra o saldo semanal com a regra tokens → créditos.
 - **Importante**: essa IA executa ações reais (criar lead, mover estágio, criar tarefa, etc.) via tool use — o chat não é "só um FAQ". O frontend deve deixar isso claro na UX (ex: confirmar visualmente quando a IA executou uma ação, não só respondeu texto).
 
 ### 4.5 Tarefas (obrigatório)
@@ -125,8 +129,8 @@ Essas regras vieram de decisão explícita do dono da plataforma. Não são suge
 - Tratamento de erro via `err.response.data.error` (mensagem pronta da API), seguindo o padrão do resto do projeto — ainda não há tratamento visual **diferenciado** para `402`/`502` (hoje cai no mesmo bloco de erro genérico); isso é o que falta antes de destravar essas telas, ver seção 7.
 - Enquanto nenhum provedor externo estiver contratado, essas rotas respondem com dado **mock** (tem um campo `_mock: true`/`aviso` no retorno) — ainda não há aviso visual de "dados de exemplo" nas telas novas.
 
-### 4.9 Pagamentos / Assinatura (⚠️ ainda sem tela — precisa ser construído)
-- Tela de planos (`GET /settings/plan` para o atual; os planos disponíveis hoje vêm da tabela `plans` via painel admin — avaliar expor um `GET /plans` público ou puxar do admin).
+### 4.9 Pagamentos / Assinatura (✅ tela de planos em `pages/Plans.tsx`, rota `/planos`; histórico de pagamentos e NFS-e ainda pendentes)
+- Tela de planos (`GET /settings/plan` para o atual; `GET /plans` para os disponíveis).
 - Assinar/trocar de plano (`POST /payments/subscription`), com PIX ou cartão.
 - Histórico de pagamentos (`GET /payments`) e acesso à NFS-e de cada pagamento (`GET /payments/:id/nfse`).
 - Essa tela é o que resolve o bloqueio de `TRIAL_EXPIRED` citado na seção 2 — o modal de trial expirado deve linkar direto para aqui.

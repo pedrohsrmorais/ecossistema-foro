@@ -1,4 +1,5 @@
 const { query, transaction } = require('../configs/db.config');
+const { v4: uuidv4 } = require('uuid');
 const { AppError } = require('../middlewares/error.middleware');
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -79,8 +80,8 @@ async function list(accountId, { stage, search, assigned, page = 1, limit = 50 }
      LEFT JOIN users u ON u.id = l.assigned_user_id
      WHERE ${where}
      ORDER BY l.created_at DESC
-     LIMIT ? OFFSET ?`,
-    [...params, limit, offset]
+     LIMIT ${Number(limit) | 0} OFFSET ${Number(offset) | 0}`,
+    params
   );
 
   const [[{ total }]] = await query(`SELECT COUNT(*) AS total FROM leads l WHERE ${where}`, params);
@@ -88,23 +89,36 @@ async function list(accountId, { stage, search, assigned, page = 1, limit = 50 }
   return { data: rows, total, page, limit };
 }
 
+async function _assertLeadLimit(accountId) {
+  const [[plan]] = await query(
+    'SELECT p.max_leads, p.name FROM accounts a JOIN plans p ON p.id = a.plan_id WHERE a.id = ? LIMIT 1', [accountId]
+  );
+  if (!plan || plan.max_leads == null) return;
+  const [[{ total }]] = await query(
+    'SELECT COUNT(*) AS total FROM leads WHERE account_id = ? AND deleted_at IS NULL', [accountId]
+  );
+  if (total >= plan.max_leads) {
+    const err = new AppError(`Limite de ${plan.max_leads} leads do plano ${plan.name} atingido. Faça upgrade para cadastrar mais.`, 403);
+    err.code = 'PLAN_LIMIT_LEADS';
+    throw err;
+  }
+}
+
 async function create(accountId, userId, data, channel = 'ui') {
   const { name, phone, email, stage = 'novo', source, assigned_user_id, custom_fields } = data;
+  await _assertLeadLimit(accountId);
+  const leadId = uuidv4();
 
   return transaction(async (conn) => {
-    const [res] = await conn.execute(
+    await conn.execute(
       `INSERT INTO leads (id, account_id, name, phone, email, stage, source, assigned_user_id)
-       VALUES (UUID(), ?, ?, ?, ?, ?, ?, ?)`,
-      [accountId, name || null, phone || null, email || null, stage, source || channel, assigned_user_id || userId]
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      [leadId, accountId, name || null, phone || null, email || null, stage, source || channel, assigned_user_id || userId]
     );
-    const [[lead]] = await conn.execute('SELECT * FROM leads WHERE id = LAST_INSERT_ID() LIMIT 1');
-    // Busca o ID real (UUID)
-    const [[{ id: leadId }]] = await conn.execute('SELECT id FROM leads WHERE account_id = ? ORDER BY created_at DESC LIMIT 1', [accountId]);
-
     await _setFieldValues(conn, leadId, accountId, custom_fields);
     await _auditLog(conn, { accountId, userId, entityType: 'lead', entityId: leadId, action: 'created', channel, newValues: data });
-
-    return { ...lead, id: leadId };
+    const [[lead]] = await conn.execute('SELECT * FROM leads WHERE id = ? LIMIT 1', [leadId]);
+    return lead;
   });
 }
 
@@ -144,24 +158,24 @@ async function update(leadId, accountId, userId, data, channel = 'ui') {
   });
 }
 
+const VALID_STAGES = ['novo', 'em_contato', 'proposta', 'convertido', 'encerrado'];
+
 async function moveStage(leadId, accountId, userId, stage, channel = 'ui') {
-  const [[old]] = await query('SELECT stage FROM leads WHERE id = ? AND account_id = ? LIMIT 1', [leadId, accountId]);
+  if (!VALID_STAGES.includes(stage)) throw new AppError(`Etapa inválida. Use: ${VALID_STAGES.join(', ')}.`, 400);
+  const [[old]] = await query('SELECT stage FROM leads WHERE id = ? AND account_id = ? AND deleted_at IS NULL LIMIT 1', [leadId, accountId]);
   if (!old) throw new AppError('Lead não encontrado.', 404);
 
-  await query('UPDATE leads SET stage = ?, last_contact_at = NOW() WHERE id = ? AND account_id = ?', [stage, leadId, accountId]);
-
-  const [rows] = await query('SELECT * FROM leads WHERE id = ? LIMIT 1', [leadId]);
-  const { pool } = require('../configs/db.config');
-  const conn = await pool.getConnection();
-  await _auditLog(conn, { accountId, userId, entityType: 'lead', entityId: leadId, action: 'stage_moved', channel, oldValues: { stage: old.stage }, newValues: { stage } });
-  conn.release();
-
-  return rows[0];
+  return transaction(async (conn) => {
+    await conn.execute('UPDATE leads SET stage = ?, last_contact_at = NOW() WHERE id = ? AND account_id = ?', [stage, leadId, accountId]);
+    await _auditLog(conn, { accountId, userId, entityType: 'lead', entityId: leadId, action: 'stage_moved', channel, oldValues: { stage: old.stage }, newValues: { stage } });
+    const [[lead]] = await conn.execute('SELECT * FROM leads WHERE id = ? AND account_id = ? LIMIT 1', [leadId, accountId]);
+    return lead;
+  });
 }
 
 async function archive(leadId, accountId, userId, channel = 'ui') {
   await query('UPDATE leads SET archived_at = NOW() WHERE id = ? AND account_id = ?', [leadId, accountId]);
-  const [rows] = await query('SELECT * FROM leads WHERE id = ? LIMIT 1', [leadId]);
+  const [rows] = await query('SELECT * FROM leads WHERE id = ? AND account_id = ? LIMIT 1', [leadId, accountId]);
   return rows[0];
 }
 
@@ -192,12 +206,19 @@ async function listNotes(leadId, accountId) {
   return rows;
 }
 
+async function _assertLead(leadId, accountId) {
+  const [rows] = await query('SELECT id FROM leads WHERE id = ? AND account_id = ? AND deleted_at IS NULL LIMIT 1', [leadId, accountId]);
+  if (!rows.length) throw new AppError('Lead não encontrado.', 404);
+}
+
 async function addNote(leadId, accountId, userId, text, channel = 'ui') {
+  await _assertLead(leadId, accountId);
+  const id = uuidv4();
   await query(
-    'INSERT INTO lead_notes (id, account_id, lead_id, user_id, text, channel) VALUES (UUID(), ?, ?, ?, ?, ?)',
-    [accountId, leadId, userId, text, channel]
+    'INSERT INTO lead_notes (id, account_id, lead_id, user_id, text, channel) VALUES (?, ?, ?, ?, ?, ?)',
+    [id, accountId, leadId, userId, text, channel]
   );
-  const [rows] = await query('SELECT * FROM lead_notes WHERE account_id = ? AND lead_id = ? ORDER BY created_at DESC LIMIT 1', [accountId, leadId]);
+  const [rows] = await query('SELECT * FROM lead_notes WHERE id = ? LIMIT 1', [id]);
   return rows[0];
 }
 
@@ -219,17 +240,20 @@ async function listTasksByLead(leadId, accountId) {
 }
 
 async function createTask(leadId, accountId, userId, { description, due_date }) {
+  if (leadId) await _assertLead(leadId, accountId);
+  const id = uuidv4();
   await query(
-    'INSERT INTO tasks (id, account_id, lead_id, user_id, description, due_date) VALUES (UUID(), ?, ?, ?, ?, ?)',
-    [accountId, leadId, userId, description, due_date || null]
+    'INSERT INTO tasks (id, account_id, lead_id, user_id, description, due_date) VALUES (?, ?, ?, ?, ?, ?)',
+    [id, accountId, leadId || null, userId, description, due_date ? new Date(due_date) : null]
   );
-  const [rows] = await query('SELECT * FROM tasks WHERE account_id = ? ORDER BY created_at DESC LIMIT 1', [accountId]);
+  const [rows] = await query('SELECT * FROM tasks WHERE id = ? LIMIT 1', [id]);
   return rows[0];
 }
 
 async function completeTask(taskId, accountId, userId) {
-  await query('UPDATE tasks SET completed_at = NOW() WHERE id = ? AND account_id = ?', [taskId, accountId]);
-  const [rows] = await query('SELECT * FROM tasks WHERE id = ? LIMIT 1', [taskId]);
+  const [res] = await query('UPDATE tasks SET completed_at = NOW() WHERE id = ? AND account_id = ?', [taskId, accountId]);
+  if (!res.affectedRows) throw new AppError('Tarefa não encontrada.', 404);
+  const [rows] = await query('SELECT * FROM tasks WHERE id = ? AND account_id = ? LIMIT 1', [taskId, accountId]);
   return rows[0];
 }
 
@@ -245,8 +269,8 @@ async function listAllTasks(accountId, userId, { pendingOnly = false, page = 1, 
      LEFT JOIN leads l ON l.id = t.lead_id
      WHERE ${conditions.join(' AND ')}
      ORDER BY t.due_date ASC, t.created_at DESC
-     LIMIT ? OFFSET ?`,
-    [...params, limit, offset]
+     LIMIT ${Number(limit) | 0} OFFSET ${Number(offset) | 0}`,
+    params
   );
   return rows;
 }

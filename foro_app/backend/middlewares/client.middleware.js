@@ -8,6 +8,10 @@ const { query } = require('../configs/db.config');
  *  - A conta existe e está ativa.
  *  - O account_id do token bate com uma conta real no banco.
  */
+// Rotas liberadas mesmo com o teste expirado: o usuário precisa conseguir ver os
+// planos, assinar e sair — todo o resto fica bloqueado até assinar um plano.
+const TRIAL_EXPIRED_ALLOWED = [/^\/plans/, /^\/payments/, /^\/settings\/plan/, /^\/users\/me/, /^\/auth\//, /^\/ai\/credits/, /^\/modules/];
+
 async function loadClientContext(req, res, next) {
   try {
     const accountId = req.user?.account_id;
@@ -36,11 +40,12 @@ async function loadClientContext(req, res, next) {
 
     // Trial expirado e nenhuma assinatura foi contratada (status continua 'trialing').
     // createSubscription() muda o status para 'active' ao assinar um plano.
-    if (account.status === 'trialing' && account.trial_ends_at && new Date(account.trial_ends_at) < new Date()) {
+    const trialExpired = account.status === 'trialing' && account.trial_ends_at && new Date(account.trial_ends_at) < new Date();
+    if (trialExpired && !TRIAL_EXPIRED_ALLOWED.some(rx => rx.test(req.path))) {
       return res.status(403).json({ error: 'Período de teste expirado. Assine um plano para continuar.', code: 'TRIAL_EXPIRED' });
     }
 
-    req.account = account;
+    req.account = { ...account, trial_expired: Boolean(trialExpired) };
     next();
   } catch (err) {
     next(err);

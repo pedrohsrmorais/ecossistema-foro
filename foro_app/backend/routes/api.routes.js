@@ -36,6 +36,7 @@ const { authenticate, requireVerifiedEmail } = require('../middlewares/auth.midd
 const { loadClientContext }   = require('../middlewares/client.middleware');
 const { authenticatePlatform } = require('../middlewares/platform.middleware');
 const { requireModule }       = require('../middlewares/modules.middleware');
+const { requireLookupsEnabled } = require('../middlewares/features.middleware');
 const { validate }            = require('../middlewares/validation.middleware');
 const { authValidations, leadValidations, fieldValidations } = require('../middlewares/validators');
 
@@ -158,6 +159,7 @@ router.post  ('/ai/message',           requireModule('crm'), aiController.sendMe
 router.get   ('/ai/conversations',     requireModule('crm'), aiController.listConversations);
 router.get   ('/ai/conversations/:id', requireModule('crm'), aiController.getConversation);
 router.delete('/ai/conversations/:id', requireModule('crm'), aiController.clearConversation);
+router.get   ('/ai/credits',           requireModule('crm'), aiController.getCredits);
 router.get   ('/ai/usage',             requireModule('crm'), aiController.getUsage);
 
 // ─── Pagamentos ───────────────────────────────────────────────────────────────
@@ -172,6 +174,7 @@ router.get   ('/payments/:id/nfse',    paymentsController.getNfse);
 router.get   ('/settings',             settingsController.get);
 router.put   ('/settings',             settingsController.update);
 router.get   ('/settings/plan',        settingsController.getPlan);
+router.get   ('/plans',                settingsController.listPlans);
 
 // ─── Créditos — carteira pré-paga p/ serviços pagos de terceiros ──────────────
 router.get   ('/credits/balance',          creditsController.getBalance);
@@ -184,10 +187,10 @@ router.post  ('/credits/purchase/card',    creditsController.purchaseCard);
 // Cada chamada debita créditos automaticamente (ver external-lookup.service.js).
 // Erro de provedor -> reembolso automático + mensagem genérica "chame o suporte";
 // NÃO existe endpoint de reembolso solicitado pelo usuário (ver credits.service.js).
-router.post  ('/lookup/cnpj',              requireModule('pesquisa_cpf_cnpj'),   lookupController.cnpj);
-router.post  ('/lookup/cpf',               requireModule('pesquisa_cpf_cnpj'),   lookupController.cpf);
-router.post  ('/lookup/processo',          requireModule('pesquisa_processual'), lookupController.processo);
-router.post  ('/lookup/processo/summary',  requireModule('pesquisa_processual'), lookupController.processoSummary);
+router.post  ('/lookup/cnpj',              requireLookupsEnabled, requireModule('pesquisa_cpf_cnpj'),   lookupController.cnpj);
+router.post  ('/lookup/cpf',               requireLookupsEnabled, requireModule('pesquisa_cpf_cnpj'),   lookupController.cpf);
+router.post  ('/lookup/processo',          requireLookupsEnabled, requireModule('pesquisa_processual'), lookupController.processo);
+router.post  ('/lookup/processo/summary',  requireLookupsEnabled, requireModule('pesquisa_processual'), lookupController.processoSummary);
 
 // ─── Educação (módulo "educacao") — trilhas e aulas em vídeo ──────────────────
 // Conteúdo é da plataforma (não por conta) — ver education.service.js.

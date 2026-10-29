@@ -315,9 +315,24 @@ Body: {
 Response 200: {
   conversation_id: "uuid",
   message: "Pronto! Criei o lead para Dr. Paulo Salave...",
-  usage: { input_tokens, output_tokens, cost_usd }
+  actions: [{ tool, write, ok, summary, lead_id }],   // o que a IA fez no CRM neste turno
+  usage: { input_tokens, output_tokens, credits_used },
+  credits: { weekly_limit, used, remaining, renews_at, ... }   // saldo atualizado
+}
+402 { code: "AI_CREDITS_EXHAUSTED", renews_at }   // sem créditos até a renovação semanal
+```
+Modelo: `claude-sonnet-4-6` (env `ANTHROPIC_MODEL`), com prompt caching.
+
+### Saldo semanal de créditos
+```
+GET /ai/credits
+Response 200: {
+  plan_id, plan_name, weekly_limit, used, remaining,
+  window_start, renews_at, lookups_week,
+  rule: { tokens_per_credit: 2500, output_weight: 5 }
 }
 ```
+créditos = (tokens de entrada totais + 5 × tokens de saída) ÷ 2.500.
 
 ### Listar conversas
 ```
@@ -433,6 +448,15 @@ Response 200: {
   trial_ends_at: "2024-12-31T00:00:00.000Z"
 }
 ```
+Também retorna `ai_credits_week` e `lookups_week`.
+
+### Planos disponíveis para assinatura
+```
+GET /plans
+Response 200: [{ id, name, price, max_users, max_leads, ai_credits_week, lookups_week, features }]
+```
+Lista só planos `purchasable` (o `trial` não aparece). Liberado mesmo com o teste expirado, assim como `/payments/*`, `/settings/plan`, `/users/me`, `/modules` e `/ai/credits`.
+
 Lido diretamente da tabela `plans` (ver [banco-de-dados.md](./banco-de-dados.md)) — não há mais valores fixos no código.
 
 ---
@@ -791,6 +815,9 @@ Response 200: { received: true }
 | `404`  | Recurso não encontrado                                      |
 | `409`  | Conflito (email já cadastrado, etc.)                        |
 | `402`  | Créditos insuficientes (rotas de `/lookup/*`)               |
+| `403` com `code: "FEATURE_LOCKED"` | Consultas (`/lookup/*`) indisponíveis nesta fase (`FEATURE_LOOKUPS_ENABLED`) |
+| `403` com `code: "PLAN_LIMIT_LEADS"` | Limite de leads do plano atingido |
+| `402` com `code: "AI_CREDITS_EXHAUSTED"` | Créditos de IA da semana esgotados |
 | `403` com `code: "MODULE_DISABLED"` | Módulo desativado para a conta por um admin da plataforma |
 | `500`  | Erro interno do servidor                                    |
 | `502`  | Falha técnica num provedor externo pago (crédito já devolvido automaticamente) |

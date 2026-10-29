@@ -2,10 +2,13 @@ import { Outlet, NavLink, useNavigate, useLocation } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import {
   MessageSquare, Users, LayoutDashboard, CheckSquare, Settings, LogOut, Scale,
-  GraduationCap, Sparkles, Building2, UserSearch, Gavel, FlaskConical, Trophy, Users2,
+  GraduationCap, Sparkles, CreditCard, Clock, Building2, UserSearch, Gavel, FlaskConical, Trophy, Users2,
 } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
-import { modulesApi } from '../api'
+import { modulesApi, settingsApi } from '../api'
+import { ChatProvider } from '../context/ChatContext'
+import AiDock from './AiDock'
+import CreditMeter from './CreditMeter'
 import clsx from 'clsx'
 
 type NavItem = { to: string; label: string; icon: typeof Scale; module: string | null }
@@ -48,6 +51,7 @@ const NAV_SECTIONS: { label: string; items: NavItem[] }[] = [
 ]
 
 const NAV_BOTTOM: NavItem[] = [
+  { to: '/planos',   label: 'Plano e créditos', icon: CreditCard, module: null },
   { to: '/settings', label: 'Configurações', icon: Settings, module: null },
 ]
 
@@ -60,6 +64,10 @@ export default function Layout() {
   // esconde o que o admin da plataforma desativou pra essa conta.
   const { data: modules } = useQuery({ queryKey: ['modules'], queryFn: modulesApi.list, staleTime: 5 * 60 * 1000 })
   const disabledModules = new Set((modules || []).filter(m => !m.enabled).map(m => m.module_key))
+  const { data: plan } = useQuery({ queryKey: ['plan'], queryFn: settingsApi.getPlan, staleTime: 60_000 })
+  const trialDaysLeft = plan?.account_status === 'trialing' && plan?.trial_ends_at
+    ? Math.ceil((new Date(plan.trial_ends_at).getTime() - Date.now()) / 86_400_000)
+    : null
   const visible = (item: NavItem) => !item.module || !disabledModules.has(item.module)
 
   function handleLogout() {
@@ -88,6 +96,7 @@ export default function Layout() {
   }
 
   return (
+    <ChatProvider>
     <div className="flex h-screen overflow-hidden bg-slate-50">
       {/* Sidebar — navy institucional, não branco: lê mais como backoffice
           jurídico "sério" do que como app de consumidor. */}
@@ -120,6 +129,9 @@ export default function Layout() {
           </div>
         </nav>
 
+        {/* Créditos de IA da semana — regra tokens → créditos no tooltip */}
+        <div className="px-3 pb-3"><CreditMeter /></div>
+
         {/* User */}
         <div className="p-3 border-t border-white/10">
           <div className="flex items-center gap-2.5 px-2 py-1.5">
@@ -140,10 +152,23 @@ export default function Layout() {
       {/* Main — key pelo pathname faz cada troca de rota remontar com um
           fade-in sutil, em vez de trocar o conteúdo seco. */}
       <main className="flex-1 overflow-y-auto">
+        {trialDaysLeft !== null && (
+          <div className="flex items-center justify-between gap-3 px-6 py-2 bg-accent-50 border-b border-accent-200 text-sm text-accent-800">
+            <span className="flex items-center gap-2">
+              <Clock className="w-4 h-4" />
+              {trialDaysLeft > 0
+                ? `Teste grátis: ${trialDaysLeft} ${trialDaysLeft === 1 ? 'dia restante' : 'dias restantes'}.`
+                : 'Seu teste grátis termina hoje.'}
+            </span>
+            <NavLink to="/planos" className="font-medium underline">Escolher um plano</NavLink>
+          </div>
+        )}
         <div key={location.pathname} className="animate-fade-in">
           <Outlet />
         </div>
       </main>
+      <AiDock />
     </div>
+    </ChatProvider>
   )
 }

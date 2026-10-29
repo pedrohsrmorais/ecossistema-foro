@@ -15,40 +15,38 @@ const Anthropic = require('@anthropic-ai/sdk');
 const { query } = require('../configs/db.config');
 const { TOOL_DEFINITIONS, executeTool } = require('./ai-tools.service');
 const { AppError } = require('../middlewares/error.middleware');
+const aiCredits = require('./ai-credits.service');
+const { v4: uuidv4 } = require('uuid');
 
 const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
+const TOOLS_CACHED = TOOL_DEFINITIONS.map((t, i) => (i === TOOL_DEFINITIONS.length - 1 ? { ...t, cache_control: { type: 'ephemeral' } } : t));
 const MAX_HISTORY = 20;          // mensagens do histórico enviadas ao modelo
 const MAX_TOOL_CALLS_PER_TURN = 8; // evita loops
-const MODEL = process.env.ANTHROPIC_MODEL || 'claude-3-5-sonnet-20241022';
+const MODEL = process.env.ANTHROPIC_MODEL || 'claude-sonnet-4-6';
+const MAX_OUTPUT_TOKENS = 1500; // teto por chamada: limita o custo de um turno
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 async function _getOrCreateConversation(accountId, userId, conversationId) {
   if (conversationId) {
     const [rows] = await query(
-      'SELECT id FROM ai_conversations WHERE id = ? AND account_id = ? AND user_id = ? LIMIT 1',
+      'SELECT id FROM ai_conversations WHERE id = ? AND account_id = ? AND user_id = ? AND ended_at IS NULL LIMIT 1',
       [conversationId, accountId, userId]
     );
     if (rows.length) return conversationId;
   }
-  await query(
-    'INSERT INTO ai_conversations (id, account_id, user_id) VALUES (UUID(), ?, ?)',
-    [accountId, userId]
-  );
-  const [rows] = await query(
-    'SELECT id FROM ai_conversations WHERE account_id = ? AND user_id = ? ORDER BY started_at DESC LIMIT 1',
-    [accountId, userId]
-  );
-  return rows[0].id;
+  const id = uuidv4();
+  await query('INSERT INTO ai_conversations (id, account_id, user_id) VALUES (?, ?, ?)', [id, accountId, userId]);
+  return id;
 }
 
 async function _loadHistory(conversationId, limit = MAX_HISTORY) {
   const [rows] = await query(
     `SELECT role, content FROM ai_messages
      WHERE conversation_id = ? AND role IN ('user','assistant')
-     ORDER BY created_at DESC LIMIT ?`,
-    [conversationId, limit]
+     ORDER BY created_at DESC LIMIT ${Number(limit) | 0}`,
+    [conversationId]
   );
   return rows.reverse();
 }
@@ -79,20 +77,43 @@ async function _saveMessage(conversationId, accountId, role, content, usage = nu
   );
 }
 
-async function _recordUsage(accountId, userId, conversationId, inputTokens, outputTokens) {
-  const costPerInputToken  = 3e-6;  // $3 / 1M tokens (claude-3.5-sonnet)
-  const costPerOutputToken = 15e-6; // $15 / 1M tokens
-  const cost = (inputTokens * costPerInputToken) + (outputTokens * costPerOutputToken);
+async function _recordUsage(accountId, userId, conversationId, u) {
+  const credits = aiCredits.computeCredits(u);
+  const cost = aiCredits.computeCostUsd(u);
   await query(
-    `INSERT INTO ai_usage (id, account_id, user_id, conversation_id, model, input_tokens, output_tokens, cost_usd)
-     VALUES (UUID(), ?, ?, ?, ?, ?, ?, ?)`,
-    [accountId, userId, conversationId, MODEL, inputTokens, outputTokens, cost]
+    `INSERT INTO ai_usage (id, account_id, user_id, conversation_id, model, input_tokens, output_tokens,
+                           cache_creation_tokens, cache_read_tokens, credits, cost_usd, created_at)
+     VALUES (UUID(), ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    [accountId, userId, conversationId, MODEL, u.input, u.output, u.cacheCreation, u.cacheRead, credits, cost, new Date()]
   );
+  return credits;
 }
+
+function _summarizeAction(name, input, result) {
+  if (result?.error) return `Falhou: ${result.error}`;
+  switch (name) {
+    case 'create_lead':      return `Lead criado: ${result?.name || input.name || 'sem nome'}`;
+    case 'update_lead':      return `Lead atualizado: ${result?.name || ''}`.trim();
+    case 'move_lead_stage':  return `Lead movido para ${input.stage}`;
+    case 'add_note':         return 'Nota adicionada';
+    case 'create_task':      return `Tarefa criada: ${input.description}`;
+    case 'complete_task':    return 'Tarefa concluída';
+    case 'search_leads':     return `Busca: ${result?.data?.length ?? 0} lead(s)`;
+    case 'get_lead':         return `Consultou lead: ${result?.name || ''}`.trim();
+    case 'get_funnel_summary': return 'Consultou o funil';
+    case 'list_tasks':       return `Consultou tarefas: ${Array.isArray(result) ? result.length : 0}`;
+    default: return name;
+  }
+}
+
+const WRITE_TOOLS = new Set(['create_lead','update_lead','move_lead_stage','add_note','create_task','complete_task']);
 
 // ─── Chat principal ────────────────────────────────────────────────────────────
 
 async function chat({ accountId, userId, conversationId, userMessage }) {
+  // Regra de créditos: sem saldo na semana, nem chama o modelo (ver ai-credits.service.js)
+  await aiCredits.assertHasCredits(accountId);
+
   const convId = await _getOrCreateConversation(accountId, userId, conversationId);
   const history = await _loadHistory(convId);
   const fieldSchema = await _loadFieldSchema(accountId);
@@ -104,6 +125,8 @@ Você tem acesso a ferramentas para criar, atualizar, buscar e organizar leads.
 
 CAMPOS CUSTOMIZADOS DESTA CONTA:
 ${fieldSchema}
+
+ETAPAS DO FUNIL (use exatamente estes códigos): novo, em_contato, proposta, convertido, encerrado.
 
 REGRAS IMPORTANTES:
 - Antes de executar qualquer ação de escrita (criar, atualizar, mover, encerrar), descreva o que vai fazer e peça confirmação — exceto quando o comando for claro e explícito (ex: "cria um lead: João Silva, 51 99999-1234").
@@ -124,33 +147,44 @@ REGRAS IMPORTANTES:
 
   // ─── Agentic loop ──────────────────────────────────────────────────────────
   let toolCallCount = 0;
-  let totalInputTokens = 0;
-  let totalOutputTokens = 0;
+  const totals = { input: 0, cacheCreation: 0, cacheRead: 0, output: 0 };
+  const actions = [];
 
   while (true) {
     const response = await client.messages.create({
       model: MODEL,
-      max_tokens: 4096,
-      system: systemPrompt,
-      tools: TOOL_DEFINITIONS,
+      max_tokens: MAX_OUTPUT_TOKENS,
+      // Prompt caching: cache_control no último bloco do system cacheia tools + system.
+      system: [{ type: 'text', text: systemPrompt, cache_control: { type: 'ephemeral' } }],
+      tools: TOOLS_CACHED,
       messages,
     });
 
-    totalInputTokens  += response.usage?.input_tokens  || 0;
-    totalOutputTokens += response.usage?.output_tokens || 0;
+    totals.input         += response.usage?.input_tokens || 0;
+    totals.cacheCreation += response.usage?.cache_creation_input_tokens || 0;
+    totals.cacheRead     += response.usage?.cache_read_input_tokens || 0;
+    totals.output        += response.usage?.output_tokens || 0;
 
-    if (response.stop_reason === 'end_turn') {
+    if (response.stop_reason === 'end_turn' || response.stop_reason === 'max_tokens') {
       // Resposta final da IA
-      const text = response.content.find(b => b.type === 'text')?.text || '';
+      const text = response.content.filter(b => b.type === 'text').map(b => b.text).join('\n').trim()
+        || 'Pronto.';
       await _saveMessage(convId, accountId, 'assistant', text, {
-        input_tokens: totalInputTokens, output_tokens: totalOutputTokens,
+        input_tokens: totals.input + totals.cacheCreation + totals.cacheRead, output_tokens: totals.output,
       });
-      await _recordUsage(accountId, userId, convId, totalInputTokens, totalOutputTokens);
+      const creditsUsed = await _recordUsage(accountId, userId, convId, totals);
+      const credits = await aiCredits.getStatus(accountId);
 
       return {
         conversation_id: convId,
         message: text,
-        usage: { input_tokens: totalInputTokens, output_tokens: totalOutputTokens },
+        actions,
+        usage: {
+          input_tokens: totals.input + totals.cacheCreation + totals.cacheRead,
+          output_tokens: totals.output,
+          credits_used: creditsUsed,
+        },
+        credits,
       };
     }
 
@@ -175,6 +209,13 @@ REGRAS IMPORTANTES:
         } catch (err) {
           result = { error: err.message };
         }
+        actions.push({
+          tool: toolUse.name,
+          write: WRITE_TOOLS.has(toolUse.name),
+          ok: !result?.error,
+          summary: _summarizeAction(toolUse.name, toolUse.input, result),
+          lead_id: toolUse.input?.lead_id || result?.id || null,
+        });
 
         toolResults.push({
           type: 'tool_result',
@@ -199,8 +240,8 @@ async function listConversations(accountId, userId, page = 1, limit = 20) {
   const offset = (page - 1) * limit;
   const [rows] = await query(
     `SELECT id, started_at, ended_at FROM ai_conversations
-     WHERE account_id = ? AND user_id = ? ORDER BY started_at DESC LIMIT ? OFFSET ?`,
-    [accountId, userId, limit, offset]
+     WHERE account_id = ? AND user_id = ? ORDER BY started_at DESC LIMIT ${Number(limit) | 0} OFFSET ${Number(offset) | 0}`,
+    [accountId, userId]
   );
   return rows;
 }
@@ -235,8 +276,8 @@ async function getUsageSummary(accountId, { from, to } = {}) {
   if (to)   { conditions.push('created_at <= ?'); params.push(to); }
 
   const [rows] = await query(
-    `SELECT DATE(created_at) AS date, SUM(input_tokens) AS input_tokens,
-            SUM(output_tokens) AS output_tokens, SUM(cost_usd) AS cost_usd
+    `SELECT DATE(created_at) AS date, SUM(input_tokens + cache_creation_tokens + cache_read_tokens) AS input_tokens,
+            SUM(output_tokens) AS output_tokens, SUM(credits) AS credits
      FROM ai_usage WHERE ${conditions.join(' AND ')}
      GROUP BY DATE(created_at) ORDER BY date DESC`,
     params

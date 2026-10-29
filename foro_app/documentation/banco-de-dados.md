@@ -69,10 +69,13 @@ Catálogo de planos — fonte única de verdade para preço e recursos (antes es
 | `price`         | DECIMAL(10,2) | Preço mensal em R$                      |
 | `max_users`     | INT NULL      | `NULL` = ilimitado                      |
 | `max_leads`     | INT NULL      | `NULL` = ilimitado                      |
+| `ai_credits_week` | INT         | Créditos de IA que renovam por semana   |
+| `lookups_week`  | INT           | Consultas pagas por semana (bloqueadas nesta fase) |
+| `purchasable`   | TINYINT(1)    | `0` = plano interno (`trial`), não aparece para compra |
 | `features`      | JSON          | Array de strings (bullets exibidos)     |
 | `active`        | TINYINT(1)    | Planos desativados saem do catálogo público |
 
-**Seed**: `starter` (R$ 97) e `pro` (R$ 197).
+**Seed**: `trial` (interno, R$ 0), `starter` (R$ 97), `pro` (R$ 197) e `business` (R$ 397) — quotas semanais em [plataforma-e-precificacao.md](./plataforma-e-precificacao.md#51-assinatura-mensal--recursos-que-renovam-por-semana).
 
 ---
 
@@ -85,6 +88,7 @@ Cada escritório de advocacia é uma conta isolada (`account_id` é o filtro em 
 |-----------------|--------------|------------------------------------------------------------|
 | `status`        | ENUM         | `trialing` → `active` → `suspended`/`cancelled`             |
 | `plan_id`       | VARCHAR(50)  | FK → `plans.id`                                             |
+| `plan_started_at` | DATETIME   | Âncora das janelas semanais de créditos (início do trial ou da assinatura atual) |
 | `trial_ends_at` | DATETIME     | Fim do teste gratuito de 14 dias (setado no cadastro)       |
 | `asaas_id`      | VARCHAR(100) | ID do cliente no Asaas (preenchido no 1º pagamento)         |
 
@@ -141,7 +145,7 @@ Sem alterações em relação ao desenho original — ver [arquitetura.md](./arq
 
 ## 4. IA (`ai_conversations`, `ai_messages`, `ai_usage`)
 
-Sem alterações — ver [arquitetura.md](./arquitetura.md#ia-como-interface-do-crm).
+`ai_usage` agora guarda, por turno de chat: `input_tokens`, `output_tokens`, `cache_creation_tokens`, `cache_read_tokens`, `credits` (regra em [plataforma-e-precificacao.md](./plataforma-e-precificacao.md)) e `cost_usd` (custo real, só para medir margem). O saldo da semana é `plans.ai_credits_week − SUM(ai_usage.credits)` desde o início da janela atual (sem cron). Arquitetura geral em [arquitetura.md](./arquitetura.md#ia-como-interface-do-crm).
 
 ---
 

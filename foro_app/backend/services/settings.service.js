@@ -14,7 +14,7 @@ async function update(accountId, { name }) {
 
 async function getPlan(accountId) {
   const [rows] = await query(
-    `SELECT a.plan_id, a.status, a.trial_ends_at, p.name, p.price, p.max_users, p.max_leads, p.features
+    `SELECT a.plan_id, a.status, a.trial_ends_at, p.name, p.price, p.max_users, p.max_leads, p.features, p.ai_credits_week, p.lookups_week
      FROM accounts a JOIN plans p ON p.id = a.plan_id
      WHERE a.id = ? LIMIT 1`,
     [accountId]
@@ -28,6 +28,8 @@ async function getPlan(accountId) {
     price: Number(row.price),
     max_users: row.max_users,
     max_leads: row.max_leads,
+    ai_credits_week: row.ai_credits_week,
+    lookups_week: row.lookups_week,
     features: typeof row.features === 'string' ? JSON.parse(row.features) : row.features,
     account_status: row.status,
     trial_ends_at: row.trial_ends_at,
@@ -87,4 +89,12 @@ async function reorderFields(accountId, order) {
   }
 }
 
-module.exports = { get, update, getPlan, listFields, createField, updateField, deleteField, reorderFields };
+async function listPlans() {
+  const [rows] = await query(
+    `SELECT id, name, price, max_users, max_leads, ai_credits_week, lookups_week, features
+     FROM plans WHERE active = 1 AND purchasable = 1 ORDER BY display_order`
+  );
+  return rows.map(r => ({ ...r, price: Number(r.price), features: typeof r.features === 'string' ? JSON.parse(r.features) : r.features }));
+}
+
+module.exports = { listPlans, get, update, getPlan, listFields, createField, updateField, deleteField, reorderFields };

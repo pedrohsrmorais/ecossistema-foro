@@ -164,7 +164,7 @@ async function createCreditsCard(accountId, { amount, description, card }) {
 async function createSubscription(accountId, { plan, billingType = 'PIX', card }) {
   const customerId = await _getOrCreateAsaasCustomer(accountId);
 
-  const [plans] = await query('SELECT id, name, price FROM plans WHERE id = ? AND active = 1 LIMIT 1', [plan]);
+  const [plans] = await query('SELECT id, name, price FROM plans WHERE id = ? AND active = 1 AND purchasable = 1 LIMIT 1', [plan]);
   if (!plans.length) throw new AppError('Plano inválido.', 400);
   const selectedPlan = plans[0];
 
@@ -185,7 +185,7 @@ async function createSubscription(accountId, { plan, billingType = 'PIX', card }
 
   const { data } = await asaas.post('/subscriptions', payload);
 
-  await query("UPDATE accounts SET plan_id = ?, status = 'active' WHERE id = ?", [plan, accountId]);
+  await query("UPDATE accounts SET plan_id = ?, status = 'active', plan_started_at = ? WHERE id = ?", [plan, new Date(), accountId]);
 
   return { subscription_id: data.id, status: data.status, plan, billingType };
 }
