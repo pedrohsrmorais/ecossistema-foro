@@ -415,48 +415,35 @@ Todas as rotas exigem autenticação e o módulo `crm`.
 
 Além das 10 originais de leads/notas/tarefas, o chat opera: `create_case`, `search_cases`, `get_case`, `update_case`, `add_case_update`, `create_event`, `list_events`. As `actions` retornadas pelo chat incluem `case_id` quando aplicável. Mais ferramentas elevam o consumo-base de créditos por mensagem (~1,1 crédito).
 
-## Pagamentos
+## Pagamentos (Stripe — somente cartão)
 
-### Listar pagamentos
-```
-GET /payments?status=&page=1&limit=20
-Response 200: {
-  payments: [...],
-  pagination: { ... }
-}
-```
+Detalhes do fluxo, eventos e configuração do Dashboard: [pagamentos.md](./pagamentos.md).
 
-### Criar cobrança PIX
+### Assinar (admin)
 ```
-POST /payments/pix
-Body: { amount, description, dueDate? }
-Response 201: { payment, pix: { encodedImage, payload } }
+POST /payments/checkout
+Body: { plan: "starter" | "pro" | "business" }
+Response 200: { url }        # redirecionar o navegador para o Checkout do Stripe
+Erros: 400 plano inválido · 409 ALREADY_SUBSCRIBED (use o portal) · 503 PAYMENTS_UNAVAILABLE | PLAN_PRICE_NOT_CONFIGURED | PLAN_PRICE_MISMATCH
 ```
+O plano só é ativado quando o webhook `invoice.paid` chega — a volta do Checkout (`/planos?checkout=ok`) apenas aguarda isso.
 
-### Criar cobrança no cartão
+### Gerenciar assinatura (admin)
 ```
-POST /payments/card
-Body: { amount, description, card: {...}, holderInfo: {...} }
-Response 201: { payment }
+POST /payments/portal
+Response 200: { url }        # Portal do Cliente: trocar de plano, cartão, faturas, cancelar
 ```
 
-### Criar assinatura
+### Listar faturas pagas
 ```
-POST /payments/subscription
-Body: { plan: "starter" | "pro" }
-Response 201: { subscription }
+GET /payments
+Response 200: [ { id, type, status: "PAID", amount, description, hosted_invoice_url, invoice_pdf, paid_at, created_at } ]
 ```
 
-### Buscar pagamento
+### Buscar fatura / NFS-e
 ```
 GET /payments/:id
-Response 200: { payment }
-```
-
-### Buscar NFS-e do pagamento
-```
 GET /payments/:id/nfse
-Response 200: { payment, nfse }
 ```
 
 ---
@@ -528,20 +515,7 @@ GET /credits/transactions?page=1&limit=30
 Response 200: { transactions: [{ id, type, amount_cents, balance_after_cents, service_key, note, created_at }] }
 ```
 
-### Recarregar via PIX
-```
-POST /credits/purchase/pix
-Body: { amount, description? }
-Response 201: { payment com pix_qr_code e pix_copy_paste }
-```
-O saldo só é creditado quando o webhook do Asaas confirma o pagamento (nunca na criação da cobrança) — ver `payments.service.js::_creditWalletOnce`.
-
-### Recarregar via cartão
-```
-POST /credits/purchase/card
-Body: { amount, description?, card: {...} }
-Response 201: { payment }
-```
+> A recarga avulsa de saldo foi removida: a cobrança é feita só por assinatura (Stripe, cartão). Veja [pagamentos.md](./pagamentos.md).
 
 ---
 
@@ -834,11 +808,12 @@ DELETE /admin/community/posts/:id → 204
 
 ## Webhooks (sem autenticação)
 
-### Webhook Asaas
+### Webhook Stripe
 ```
-POST /webhooks/asaas
-Body: payload do Asaas
-Response 200: { received: true }
+POST /webhooks/stripe
+Header: Stripe-Signature (validada sobre o corpo bruto)
+Eventos: checkout.session.completed, invoice.paid, invoice.payment_failed, customer.subscription.updated, customer.subscription.deleted
+Response 200: { received: true } · 400 assinatura inválida · 500 falha (o Stripe reenvia)
 ```
 
 ### Webhook NFE.io

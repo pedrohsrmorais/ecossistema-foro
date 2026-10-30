@@ -90,7 +90,9 @@ Cada escritório de advocacia é uma conta isolada (`account_id` é o filtro em 
 | `plan_id`       | VARCHAR(50)  | FK → `plans.id`                                             |
 | `plan_started_at` | DATETIME   | Âncora das janelas semanais de créditos (início do trial ou da assinatura atual) |
 | `trial_ends_at` | DATETIME     | Fim do teste gratuito de 14 dias (setado no cadastro)       |
-| `asaas_id`      | VARCHAR(100) | ID do cliente no Asaas (preenchido no 1º pagamento)         |
+| `stripe_customer_id` | VARCHAR(64) | `cus_...` no Stripe (criado ao abrir o 1º Checkout) |
+| `stripe_subscription_id` / `subscription_status` / `current_period_end` / `cancel_at_period_end` | — | Estado da assinatura, mantido pelo webhook do Stripe |
+| `asaas_id`      | VARCHAR(100) | LEGADO (Asaas removido)                                      |
 
 Fluxo de `status`:
 ```
@@ -180,7 +182,7 @@ Ledger imutável — toda movimentação de saldo gera uma linha aqui; nunca há
 
 | Coluna                      | Tipo  | Descrição                                                        |
 |------------------------------|-------|---------------------------------------------------------------------|
-| `type`                       | ENUM  | `purchase` (compra confirmada via Asaas) / `consumption` (uso de serviço) / `refund` (devolução automática por falha técnica) / `adjustment` (ajuste manual do admin) |
+| `type`                       | ENUM  | `purchase` (compra confirmada) / `consumption` (uso de serviço) / `refund` (devolução automática por falha técnica) / `adjustment` (ajuste manual do admin) |
 | `amount_cents`                | BIGINT| Positivo (`purchase`, `refund`, `adjustment` podem ser +/-) ou negativo (`consumption`) |
 | `balance_after_cents`         | BIGINT| Saldo resultante — permite auditar sem recalcular a soma inteira    |
 | `service_key`                 | VARCHAR(50) NULL | Qual serviço gerou o débito (ex: `cpf_lookup`)             |
@@ -350,7 +352,7 @@ Duas coisas **deliberadamente separadas**:
 | `ai_messages`            | sim     | `ai_conversations`     | Mensagens da conversa                           |
 | `ai_usage`               | sim     | —                      | Custo/tokens por turno                          |
 | `audit_events`           | sim     | —                      | Log de auditoria                                |
-| `payments`               | sim     | `accounts`             | Pagamentos via Asaas                            |
+| `payments`               | sim     | `accounts`             | Faturas pagas via Stripe                            |
 | `nfse_records`           | sim     | `payments`             | NFS-e emitidas via NFE.io                       |
 | `credit_wallets`         | sim     | `accounts`             | Saldo de créditos pré-pagos                     |
 | `credit_transactions`    | sim     | `accounts`             | Ledger imutável de créditos                     |

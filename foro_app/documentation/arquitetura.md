@@ -215,7 +215,7 @@ Tabelas principais:
 | `ai_messages`           | Mensagens das conversas                             |
 | `ai_usage`              | Custo e uso de tokens por turno                     |
 | `audit_events`          | Log de auditoria (canal: ui, ai_chat, api, etc.)    |
-| `payments`              | Registros de pagamentos via Asaas                   |
+| `payments`              | Faturas pagas via Stripe                   |
 | `nfse_records`          | Registros de NFS-e emitidas via NFE.io              |
 
 Todas as PKs são UUID gerados pelo MySQL: `DEFAULT (UUID())`.

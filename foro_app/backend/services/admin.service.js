@@ -10,7 +10,7 @@ const { AppError } = require('../middlewares/error.middleware');
 const creditsService = require('./credits.service');
 const modulesService = require('./modules.service');
 
-const ALLOWED_STATUSES = ['trialing', 'active', 'suspended', 'cancelled'];
+const ALLOWED_STATUSES = ['trialing', 'active', 'suspended', 'cancelled', 'expired'];
 
 async function listAccounts() {
   const [rows] = await query(

@@ -8,7 +8,7 @@
  *
  * Modelo de negócio (confirmado com o dono da plataforma): a intellsn é quem
  * contrata e paga as APIs externas com uma conta própria e centralizada. O
- * tenant só compra créditos na própria Foro (via Asaas); o saldo pré-pago é
+ * tenant só compra créditos na própria Foro (via Stripe, a ser implementado quando as consultas forem liberadas); o saldo pré-pago é
  * o único limite de gasto possível — por isso nunca há risco de "estourar o
  * cartão" da intellsn por bug: o máximo debitável é o que já foi pago.
  *
@@ -51,7 +51,7 @@ async function listServicePrices() {
 }
 
 /**
- * Credita a carteira (compra de créditos confirmada via Asaas, ou ajuste manual).
+ * Credita a carteira (compra de créditos confirmada, ou ajuste manual).
  * Sempre registrado no ledger (credit_transactions) — nunca um UPDATE solto de saldo.
  */
 async function addCredits(accountId, amountCents, { referenceType = 'payment', referenceId = null, note = null } = {}) {

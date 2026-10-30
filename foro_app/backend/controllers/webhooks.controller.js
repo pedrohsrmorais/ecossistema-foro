@@ -1,5 +1,5 @@
 const crypto = require('crypto');
-const paymentsService = require('../services/payments.service');
+const stripeService = require('../services/stripe.service');
 const nfseService = require('../services/nfse.service');
 
 function safeEqual(a, b) {
@@ -8,21 +8,16 @@ function safeEqual(a, b) {
 }
 
 /**
- * Webhook do Asaas (legado — será substituído pelo Stripe). Exige o token configurado no painel do Asaas
- * (cabeçalho `asaas-access-token` == ASAAS_WEBHOOK_TOKEN). Sem o token configurado, rejeita tudo:
- * antes, qualquer pessoa podia forjar PAYMENT_CONFIRMED.
- * Só responde 200 depois de processar: se falhar, devolve 500 e o provedor reenvia.
+ * Webhook do Stripe. A assinatura (Stripe-Signature) é validada sobre o corpo BRUTO (req.rawBody, guardado em server.js).
+ * Só responde 200 depois de processar; se falhar devolve 500 e o Stripe reenvia (o evento só é "consumido" quando dá certo).
  */
-async function asaas(req, res) {
-  const expected = process.env.ASAAS_WEBHOOK_TOKEN;
-  if (!expected) return res.status(503).json({ error: 'Webhook não configurado.' });
-  if (!safeEqual(req.headers['asaas-access-token'], expected)) return res.status(401).json({ error: 'Não autorizado.' });
-
+async function stripe(req, res) {
+  const event = stripeService.constructEvent(req.rawBody, req.headers['stripe-signature']); // 400 se assinatura inválida
   try {
-    await paymentsService.handleAsaasWebhook(req.body);
-    res.status(200).json({ received: true });
+    const result = await stripeService.handleEvent(event);
+    res.status(200).json({ received: true, ...result });
   } catch (err) {
-    console.error('[Webhook Asaas] Erro ao processar evento:', err.message);
+    console.error(`[Webhook Stripe] Falha ao processar ${event.type} (${event.id}):`, err.message);
     res.status(500).json({ error: 'Falha ao processar.' });
   }
 }
@@ -42,4 +37,4 @@ async function nfeio(req, res) {
   }
 }
 
-module.exports = { asaas, nfeio };
+module.exports = { stripe, nfeio };

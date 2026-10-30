@@ -24,6 +24,7 @@
     "morgan": "^1.10.0",
     "mysql2": "^3.6.5",
     "resend": "^6.34.1",
+    "stripe": "^23.1.0",
     "uuid": "^9.0.1"
   },
   "devDependencies": {

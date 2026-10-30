@@ -1,116 +1,82 @@
-# Pagamentos e NFS-e
+# Pagamentos — Stripe (assinatura, só cartão) + NFS-e (NFE.io)
+
+> O Asaas foi **removido**. Não há mais Pix nem recarga de carteira: a cobrança é só a assinatura mensal por cartão, via Stripe.
+> O trial de 14 dias é controlado pelo app (sem cartão); o Stripe só entra quando a pessoa assina.
 
 ## Visão geral do fluxo
 
 ```
-Usuário solicita pagamento (PIX / cartão / assinatura)
-       │
-       ▼
-payments.service.js
-  _getOrCreateAsaasCustomer()  ← cria cliente no Asaas se não existir
-       │
-       ▼
-Asaas API  (cria cobrança)
-       │
-       ▼
-Salva em payments (banco local)
-       │
-       ▼
-[Usuário paga]
-       │
-       ▼
-Webhook Asaas  →  POST /api/webhooks/asaas
-       │
-       ▼
-paymentsService.handleAsaasWebhook()
-  Atualiza status do pagamento
-       │
-  Se PAYMENT_CONFIRMED ou RECEIVED:
-       │
-       ▼
-nfseService.emitNfse()   ← emissão automática e assíncrona
-       │
-       ▼
-NFE.io API  →  NFS-e emitida
-       │
-       ▼
-Webhook NFE.io  →  POST /api/webhooks/nfeio
-  Atualiza nfse_records com número, série, PDF, XML
+Tela /planos → "Assinar Pro"
+      │  POST /api/payments/checkout { plan: "pro" }          (só admin da conta)
+      ▼
+stripe.service.createCheckout()   → cria/reutiliza o Customer da conta, resolve o preço do plano,
+      │                              abre uma Checkout Session (mode=subscription, só cartão, pt-BR)
+      ▼
+Navegador vai para a página do Stripe (o cartão NUNCA passa pelo nosso servidor)
+      │  paga → volta para  /planos?checkout=ok
+      ▼
+Stripe ──webhook assinado──► POST /api/webhooks/stripe
+      │   invoice.paid  →  ativa o plano, grava a fatura em `payments`, dispara a NFS-e
+      ▼
+/planos detecta (polling de até 40 s) e mostra "Assinatura ativada"
 ```
 
----
+**Quem ativa o plano é sempre o webhook (`invoice.paid`)** — nunca a volta do navegador. `checkout.session.completed` só guarda os ids.
 
-## Asaas
+## Como o plano acha o preço no Stripe
 
-### Ambiente
-- Sandbox: `https://sandbox.asaas.com/api/v3`
-- Produção: `https://www.asaas.com/api/v3`
-- Configurar `ASAAS_API_URL` no `.env` para alternar entre os ambientes.
+Cada plano em `plans` tem `stripe_lookup_key` (padrão: `foro_starter_monthly_brl_v1`, `foro_pro_monthly_brl_v1`, `foro_business_monthly_brl_v1`, os mesmos da collection do Postman em `documentation/stripe/`). O backend busca o preço ativo por esse `lookup_key`. Opcionalmente `plans.stripe_price_id` (um `price_...`) tem prioridade.
 
-### Modalidades de pagamento
+**Trava de segurança:** antes de abrir o Checkout, confere que o preço no Stripe é **BRL, mensal e com o mesmo valor** do catálogo (`plans.price`). Se divergir, responde `503 PLAN_PRICE_MISMATCH` e não cobra. Preços do Stripe são imutáveis: para mudar um valor, crie `..._v2`, atualize `plans.stripe_lookup_key` e arquive o antigo.
 
-#### PIX
-```
-POST /api/payments/pix
-Body: {
-  amount: 150.00,
-  description: "Consulta inicial",
-  dueDate: "2024-12-31"  // opcional, default hoje
-}
+## Configuração no Stripe (Dashboard)
 
-Response: {
-  payment: { id, status, amount, ... },
-  pix: {
-    encodedImage: "...",  // QR code base64
-    payload: "00020126..."  // copia e cola
-  }
-}
-```
+1. **Webhook** (Developers → Webhooks → Add destination → "Your account" → payload "Snapshot"):
+   - URL: `https://SEU_DOMINIO/api/webhooks/stripe`
+   - Eventos — **exatamente estes 5**:
+     `checkout.session.completed` · `invoice.paid` · `invoice.payment_failed` · `customer.subscription.updated` · `customer.subscription.deleted`
+   - Copie o *Signing secret* (`whsec_...`) para `STRIPE_WEBHOOK_SECRET`.
+2. **Portal do cliente** (Settings → Billing → Customer portal): ative e configure — permitir atualizar cartão, ver faturas, cancelar assinatura e **trocar de plano** (adicione os 3 preços do produto Foro).
+3. **Chaves**: `STRIPE_SECRET_KEY` (`sk_test_...` no sandbox, `sk_live_...` em produção). Use uma *restricted key* em produção, com permissão de escrita só em Customers, Checkout Sessions, Customer portal e leitura de Prices.
+4. Teste local: `stripe listen --forward-to localhost:3040/api/webhooks/stripe` (o CLI mostra o `whsec_` temporário).
 
-#### Cartão de crédito
-```
-POST /api/payments/card
-Body: {
-  amount: 150.00,
-  description: "Consulta inicial",
-  card: {
-    holderName: "NOME NO CARTÃO",
-    number: "4111111111111111",
-    expiryMonth: "12",
-    expiryYear: "2025",
-    ccv: "123"
-  },
-  holderInfo: {
-    name: "Nome Completo",
-    email: "email@exemplo.com",
-    cpfCnpj: "12345678901",
-    postalCode: "90000000",
-    addressNumber: "100",
-    phone: "51999999999"
-  }
-}
-```
+Variáveis: `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET` (ambas obrigatórias para cobrar; sem elas `/payments/checkout` responde `503 PAYMENTS_UNAVAILABLE`).
 
-#### Assinatura mensal
-```
-POST /api/payments/subscription
-Body: {
-  plan: "starter"  // ou "pro" / "business"
-}
+## O que cada evento faz
 
-Planos:
-  starter:  R$ 129,90/mês
-  pro:      R$ 199,90/mês
-  business: R$ 399,90/mês
-```
+| Evento | Efeito |
+|---|---|
+| `checkout.session.completed` | Guarda `stripe_customer_id` / `stripe_subscription_id` na conta. **Não** ativa o plano. |
+| `invoice.paid` | Ativa o plano (`plan_id`, `status='active'`), grava `current_period_end`, insere a fatura em `payments` (valor, link do recibo e PDF) e dispara a NFS-e. |
+| `invoice.payment_failed` | `subscription_status='past_due'`. O acesso continua enquanto o Stripe retenta a cobrança; a tela de Planos avisa para atualizar o cartão. |
+| `customer.subscription.updated` | Trocas pelo Portal (upgrade/downgrade) e cancelamento agendado (`cancel_at_period_end`). `canceled`/`unpaid` expiram a conta. |
+| `customer.subscription.deleted` | Conta vira `expired` (CRM e IA bloqueados, exceto planos/faturas). Ignora assinaturas antigas que não são a vigente. |
 
-### Webhook Asaas
+Garantias: assinatura validada sobre o corpo bruto (`req.rawBody`); cada `evt_` é processado uma única vez (`stripe_events`); se o processamento falhar a API responde 500 e o Stripe reenvia; `payments.stripe_invoice_id` é único (uma linha por fatura).
 
-Configure no painel do Asaas:
-- URL: `https://sua-vps.com/api/webhooks/asaas`
-- Eventos a monitorar: `PAYMENT_CONFIRMED`, `PAYMENT_RECEIVED`, `PAYMENT_OVERDUE`, `PAYMENT_DELETED`
+**Janela semanal de créditos:** `plan_started_at` só reinicia na 1ª assinatura ou na reassinatura (conta que não estava `active`). Trocar de plano no meio do ciclo mantém a janela — senão dava para ganhar créditos alternando entre planos.
 
-O endpoint responde `200` imediatamente e processa de forma assíncrona.
+## Estados da conta (`accounts.status`)
+
+| Status | Significado | Acesso |
+|---|---|---|
+| `trialing` | Teste grátis (14 dias) | CRM liberado até `trial_ends_at`, depois `403 TRIAL_EXPIRED` |
+| `active` | Assinatura paga (inclui `past_due` durante as retentativas) | Liberado |
+| `expired` | Assinatura terminou / não paga | `403 SUBSCRIPTION_EXPIRED`; só vê planos, faturas e portal |
+| `suspended` / `cancelled` | Decisão manual da plataforma (admin) | Bloqueado |
+
+## Endpoints
+
+| Método | Rota | |
+|---|---|---|
+| POST | `/api/payments/checkout` `{ plan }` | admin → `{ url }` (Checkout do Stripe). `409 ALREADY_SUBSCRIBED` se já assina (use o portal) |
+| POST | `/api/payments/portal` | admin → `{ url }` do Portal do Cliente |
+| GET | `/api/payments` | faturas pagas (`hosted_invoice_url`, `invoice_pdf`) |
+| GET | `/api/payments/:id` · `/:id/nfse` | detalhe / NFS-e |
+| GET | `/api/settings/plan` | plano + `subscription { status, current_period_end, cancel_at_period_end, can_manage }` |
+| POST | `/api/webhooks/stripe` | webhook (sem JWT; autenticado pela assinatura) |
+
+Teste automatizado do fluxo completo (contra um Stripe simulado): ver `backend/` → scripts de teste descritos em `documentation/stripe/LEIA-ME.md`.
 
 ---
 
@@ -134,7 +100,7 @@ NFEIO_ENVIRONMENT=Development  # ou Production
 
 ### Fluxo de emissão
 
-1. Quando o pagamento é confirmado no webhook do Asaas
+1. Quando o Stripe confirma a fatura (`invoice.paid`, ver acima)
 2. `nfse.service.js` cria um registro `pending` em `nfse_records`
 3. Chama `POST /companies/{companyId}/serviceinvoices` no NFE.io
 4. NFE.io retorna o `id` da nota (status assíncrono)
@@ -175,14 +141,7 @@ Response: {
 ## Tabela de status
 
 ### Pagamentos (`payments.status`)
-| Status        | Descrição                           |
-|---------------|-------------------------------------|
-| `pending`     | Aguardando pagamento                |
-| `confirmed`   | Pagamento confirmado                |
-| `received`    | Pagamento recebido (liquidado)      |
-| `overdue`     | Vencido                             |
-| `refunded`    | Estornado                           |
-| `deleted`     | Cancelado                           |
+Só entram faturas **pagas**: `PAID`. (Estornos e disputas são tratados no painel do Stripe.)
 
 ### NFS-e (`nfse_records.status`)
 | Status      | Descrição                             |
@@ -197,7 +156,7 @@ Response: {
 
 ## Notas de desenvolvimento
 
-- O webhook do Asaas **não** espera processamento: responde `200 OK` imediatamente e processa em background com `.catch(console.error)`.
-- Para testar localmente, use `ngrok` ou similar para expor a porta 3040 com HTTPS.
-- Em sandbox do Asaas, simule pagamentos pelo painel web do Asaas Sandbox.
+- O webhook do Stripe responde `200` só **depois** de processar (e `500` se falhar, para o Stripe reenviar).
+- Para testar localmente, use o Stripe CLI (`stripe listen --forward-to localhost:3040/api/webhooks/stripe`).
+- `STRIPE_API_BASE` existe só para testes automatizados (aponta o SDK para um Stripe simulado) — **não defina em produção**.
 - Em Development do NFE.io, as notas são emitidas no ambiente de homologação.

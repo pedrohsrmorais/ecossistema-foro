@@ -14,7 +14,7 @@ async function update(accountId, { name }) {
 
 async function getPlan(accountId) {
   const [rows] = await query(
-    `SELECT a.plan_id, a.status, a.trial_ends_at, p.name, p.price, p.max_users, p.max_leads, p.features, p.ai_credits_week, p.lookups_week
+    `SELECT a.plan_id, a.status, a.trial_ends_at, a.subscription_status, a.current_period_end, a.cancel_at_period_end, a.stripe_customer_id, p.name, p.price, p.max_users, p.max_leads, p.features, p.ai_credits_week, p.lookups_week
      FROM accounts a JOIN plans p ON p.id = a.plan_id
      WHERE a.id = ? LIMIT 1`,
     [accountId]
@@ -33,6 +33,12 @@ async function getPlan(accountId) {
     features: typeof row.features === 'string' ? JSON.parse(row.features) : row.features,
     account_status: row.status,
     trial_ends_at: row.trial_ends_at,
+    subscription: {
+      status: row.subscription_status,            // active | past_due | canceled | null
+      current_period_end: row.current_period_end,  // próxima renovação
+      cancel_at_period_end: Boolean(row.cancel_at_period_end),
+      can_manage: Boolean(row.stripe_customer_id), // já tem cliente no Stripe → pode abrir o portal
+    },
   };
 }
 

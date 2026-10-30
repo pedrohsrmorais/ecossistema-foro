@@ -39,13 +39,18 @@ async function loadClientContext(req, res, next) {
     }
 
     // Trial expirado e nenhuma assinatura foi contratada (status continua 'trialing').
-    // createSubscription() muda o status para 'active' ao assinar um plano.
+    // O webhook do Stripe (invoice.paid) muda o status para 'active' ao confirmar o pagamento.
+    // Assinatura terminada / não paga (webhook do Stripe marca 'expired'): mesmo bloqueio, mesma saída (/planos).
+    if (account.status === 'expired' && !TRIAL_EXPIRED_ALLOWED.some(rx => rx.test(req.path))) {
+      return res.status(403).json({ error: 'Sua assinatura terminou. Assine um plano para continuar.', code: 'SUBSCRIPTION_EXPIRED' });
+    }
+
     const trialExpired = account.status === 'trialing' && account.trial_ends_at && new Date(account.trial_ends_at) < new Date();
     if (trialExpired && !TRIAL_EXPIRED_ALLOWED.some(rx => rx.test(req.path))) {
       return res.status(403).json({ error: 'Período de teste expirado. Assine um plano para continuar.', code: 'TRIAL_EXPIRED' });
     }
 
-    req.account = { ...account, trial_expired: Boolean(trialExpired) };
+    req.account = { ...account, trial_expired: Boolean(trialExpired), subscription_expired: account.status === 'expired' };
     next();
   } catch (err) {
     next(err);

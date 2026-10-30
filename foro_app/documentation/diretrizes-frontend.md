@@ -6,7 +6,7 @@ Leitura complementar (mesma pasta `documentation/`):
 - [`api-reference.md`](./api-reference.md) — todas as rotas, com body/response de cada uma.
 - [`banco-de-dados.md`](./banco-de-dados.md) — schema completo (útil para entender o que cada tela precisa exibir).
 - [`plataforma-e-precificacao.md`](./plataforma-e-precificacao.md) — modelo de negócio (assinatura + créditos) e por que certas regras existem.
-- [`pagamentos.md`](./pagamentos.md) — fluxo Asaas/NFE.io.
+- [`pagamentos.md`](./pagamentos.md) — fluxo Stripe/NFE.io.
 
 Há um frontend de referência já funcionando em `frontend/` (React + Vite + TypeScript + Tailwind + React Query), com `frontend/src/api.ts` mapeando **1:1** todas as rotas da API. Mesmo que o novo frontend use outra stack, vale usar esse arquivo como checklist de "quais chamadas existem e com qual formato" — é o contrato mais atualizado que existe.
 

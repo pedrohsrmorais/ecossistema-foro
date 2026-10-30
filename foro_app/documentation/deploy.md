@@ -29,6 +29,7 @@ As migrações de banco (`backend/migrations/`) rodam sozinhas no boot, antes de
 - [ ] `RESEND_API_KEY` + domínio verificado no Resend (sem isso ninguém confirma o e-mail)
 - [ ] `ANTHROPIC_API_KEY` com limite de gasto definido no painel da Anthropic
 - [ ] Troque a senha do admin da plataforma (`admin@intellsn.com.br`) para algo forte
-- [ ] Webhook do Stripe (usa `req.rawBody` para validar a assinatura) + `STRIPE_WEBHOOK_SECRET`
+- [ ] Stripe: `STRIPE_SECRET_KEY` + webhook `https://SEU_DOMINIO/api/webhooks/stripe` com os 5 eventos (ver `pagamentos.md`) + `STRIPE_WEBHOOK_SECRET` + Portal do cliente configurado
+- [ ] Faça um pagamento de teste ponta a ponta no modo teste (cartão `4242 4242 4242 4242`) antes de trocar para a chave live
 - [ ] Backup agendado **e** copiado para fora do servidor; teste uma restauração
 - [ ] Termos de uso e política de privacidade (LGPD) publicados

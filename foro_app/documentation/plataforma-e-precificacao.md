@@ -14,7 +14,7 @@ Este documento descreve o Foro como produto: o que ele exige para funcionar, o q
 | Banco de dados        | MySQL 8, provisionado automaticamente pelo `init.sql` no 1º boot do container |
 | Domínio + HTTPS       | Recomendado um reverse proxy (Nginx/Caddy/Traefik) na frente da porta 3040 para TLS |
 | E-mail transacional   | Conta Resend (ou SMTP compatível) — obrigatório para verificação de cadastro e reset de senha |
-| Pagamentos            | Conta Asaas (PIX + cartão de crédito + assinatura recorrente)      |
+| Pagamentos            | Stripe (assinatura mensal recorrente, somente cartão de crédito)   |
 | Nota fiscal           | Conta NFE.io vinculada ao CNPJ da intellsn, para emissão automática de NFS-e |
 | IA                    | Chave da API Anthropic (Claude) — usada no chat do CRM e no resumo de processos |
 
@@ -39,7 +39,7 @@ Cada escritório define seus próprios campos de lead (ex: "área do direito", "
 
 ### 2.3 Cobrança e nota fiscal automatizadas
 
-- PIX, cartão de crédito e assinatura recorrente via Asaas.
+- Assinatura mensal recorrente por cartão de crédito via Stripe (Checkout + Portal do Cliente).
 - **Emissão automática de NFS-e** disparada pelo webhook de confirmação de pagamento — o escritório (e a intellsn, no caso dos créditos) não precisa emitir nota manualmente.
 
 ### 2.4 Consultas de dados jurídicos e cadastrais (créditos)

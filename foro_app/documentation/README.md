@@ -18,7 +18,7 @@ O Foro é uma plataforma SaaS multi-tenant para escritórios de advocacia. O pri
 | Backend     | Node.js + Express (RESTful API)         |
 | Banco       | MySQL 8 via `mysql2` (connection pool)  |
 | IA interna  | Anthropic API (`@anthropic-ai/sdk`)     |
-| Pagamentos  | Asaas (PIX + cartão + assinatura)       |
+| Pagamentos  | Stripe (assinatura, só cartão)          |
 | NFS-e       | NFE.io (emissão automática)             |
 | Container   | Docker + Docker Compose                 |
 
@@ -53,7 +53,7 @@ foro_app/
 │   │   ├── leads.service.js
 │   │   ├── ai.service.js       # Orquestra o chat com a IA + tool use
 │   │   ├── ai-tools.service.js # Define e executa as tools da IA
-│   │   ├── payments.service.js # Integração Asaas
+│   │   ├── payments.service.js # Stripe (webhook) + consulta de faturas
 │   │   ├── nfse.service.js     # Emissão automática NFS-e via NFE.io
 │   │   ├── settings.service.js # Configurações + campos customizáveis
 │   │   ├── admin.service.js        # Operações cross-tenant do painel administrativo
@@ -129,7 +129,7 @@ foro_app/
 │   ├── README.md               # Este arquivo
 │   ├── arquitetura.md          # Decisões de arquitetura
 │   ├── banco-de-dados.md       # Schema completo, tabelas e relacionamentos
-│   ├── pagamentos.md           # Asaas + NFS-e
+│   ├── pagamentos.md           # Stripe + NFS-e
 │   ├── api-reference.md        # Referência de todas as rotas
 │   ├── plataforma-e-precificacao.md # Requisitos, diferenciais, APIs avaliadas e precificação (planos + créditos)
 │   └── diretrizes-frontend.md  # O que precisa existir no frontend, regras de negócio e UX obrigatórias
@@ -188,7 +188,7 @@ O `Dockerfile` (na raiz de `foro_app/`) compila o frontend e embute o resultado 
 | `FRONTEND_URL`     | URL pública do app (links dos e-mails e CORS)    |
 | `RESEND_API_KEY`   | Envio dos e-mails de confirmação/convite (sem ele ninguém confirma a conta em produção) |
 | `ANTHROPIC_API_KEY`| Chave da API da Anthropic (IA interna do CRM)    |
-| `ASAAS_API_KEY`    | Chave do Asaas (pagamentos)                      |
+| `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET` | Chave secreta e segredo de assinatura do webhook do Stripe |
 | `NFEIO_API_KEY`    | Chave do NFE.io (notas fiscais)                  |
 | `NFEIO_COMPANY_ID` | ID da empresa no NFE.io                          |
 

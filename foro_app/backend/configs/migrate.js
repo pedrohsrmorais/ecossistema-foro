@@ -32,6 +32,10 @@ function helpers(conn) {
     async addColumn(table, column, definition) {
       if (!(await this.columnExists(table, column))) await run(`ALTER TABLE \`${table}\` ADD COLUMN \`${column}\` ${definition}`);
     },
+    async indexExists(table, name) {
+      const [r] = await run('SELECT 1 FROM information_schema.statistics WHERE table_schema = DATABASE() AND table_name = ? AND index_name = ?', [table, name]);
+      return r.length > 0;
+    },
     async addIndex(table, name, columnsSql) {
       const [r] = await run('SELECT 1 FROM information_schema.statistics WHERE table_schema = DATABASE() AND table_name = ? AND index_name = ?', [table, name]);
       if (!r.length) await run(`ALTER TABLE \`${table}\` ADD KEY \`${name}\` ${columnsSql}`);

@@ -35,7 +35,7 @@ http.interceptors.response.use(
       window.location.href = '/login'
     }
     // Teste grátis acabou: só resta escolher um plano (ver client.middleware.js)
-    if (err.response?.status === 403 && err.response?.data?.code === 'TRIAL_EXPIRED'
+    if (err.response?.status === 403 && ['TRIAL_EXPIRED', 'SUBSCRIPTION_EXPIRED'].includes(err.response?.data?.code)
         && !window.location.pathname.startsWith('/planos')) {
       window.location.href = '/planos?expirado=1'
     }
@@ -184,15 +184,35 @@ export interface PlanInfo {
 
 export interface Payment {
   id: string
-  asaas_id: string
   type: string
   status: string
   amount: number
   description: string | null
-  pix_qr_code: string | null
-  pix_copy_paste: string | null
+  /** página da fatura no Stripe (recibo) e PDF */
+  hosted_invoice_url: string | null
+  invoice_pdf: string | null
   paid_at: string | null
   created_at: string
+}
+
+/** GET /settings/plan — plano atual + estado da assinatura (Stripe) */
+export interface CurrentPlan {
+  current: string
+  name: string
+  price: number
+  max_users: number | null
+  max_leads: number | null
+  ai_credits_week: number
+  lookups_week: number
+  features: string[]
+  account_status: 'trialing' | 'active' | 'suspended' | 'cancelled' | 'expired'
+  trial_ends_at: string | null
+  subscription: {
+    status: 'active' | 'past_due' | 'canceled' | null
+    current_period_end: string | null
+    cancel_at_period_end: boolean
+    can_manage: boolean
+  }
 }
 
 export interface User {
@@ -536,17 +556,13 @@ export const paymentsApi = {
   list: (params?: { page?: number; limit?: number }) =>
     http.get<Payment[]>('/payments', { params }).then(r => r.data),
 
-  /** POST /payments/pix */
-  createPix: (data: { amount: number; description?: string }) =>
-    http.post<Payment>('/payments/pix', data).then(r => r.data),
+  /** POST /payments/checkout — abre o Checkout do Stripe (cartão). Redirecionar o navegador para `url`. */
+  checkout: (plan: string) =>
+    http.post<{ url: string }>('/payments/checkout', { plan }).then(r => r.data),
 
-  /** POST /payments/card */
-  createCard: (data: { amount: number; description?: string; card: Record<string, string> }) =>
-    http.post<Payment>('/payments/card', data).then(r => r.data),
-
-  /** POST /payments/subscription */
-  createSubscription: (data: { plan: string; billingType?: string; card?: Record<string, string> }) =>
-    http.post('/payments/subscription', data).then(r => r.data),
+  /** POST /payments/portal — Portal do Cliente do Stripe (trocar de plano, cartão, cancelar, faturas). */
+  portal: () =>
+    http.post<{ url: string }>('/payments/portal').then(r => r.data),
 
   /** GET /payments/:id */
   getById: (id: string) =>
@@ -577,7 +593,7 @@ export const settingsApi = {
 
   /** GET /settings/plan */
   getPlan: () =>
-    http.get('/settings/plan').then(r => r.data),
+    http.get<CurrentPlan>('/settings/plan').then(r => r.data),
 }
 
 // ─── CRÉDITOS — carteira pré-paga p/ serviços pagos de terceiros ─────────────
@@ -596,15 +612,7 @@ export const creditsApi = {
 
   /** GET /credits/transactions */
   listTransactions: (params?: { page?: number; limit?: number }) =>
-    http.get<{ transactions: CreditTransaction[] }>('/credits/transactions', { params }).then(r => r.data),
-
-  /** POST /credits/purchase/pix — retorna o pagamento com QR Code PIX p/ recarregar a carteira */
-  purchasePix: (data: { amount: number; description?: string }) =>
-    http.post<Payment>('/credits/purchase/pix', data).then(r => r.data),
-
-  /** POST /credits/purchase/card */
-  purchaseCard: (data: { amount: number; description?: string; card: Record<string, string> }) =>
-    http.post<Payment>('/credits/purchase/card', data).then(r => r.data),
+    http.get<{ transactions: CreditTransaction[] }>('/credits/transactions', { params }).then(r => r.data)
 }
 
 // ─── LOOKUP — consultas pagas (CPF/CNPJ/processual) e resumo por IA ──────────

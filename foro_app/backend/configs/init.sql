@@ -52,6 +52,8 @@ CREATE TABLE IF NOT EXISTS plans (
   ai_credits_week INT         NOT NULL DEFAULT 0 COMMENT 'créditos de IA que renovam toda semana (janela de 7 dias ancorada em accounts.plan_started_at)',
   lookups_week    INT         NOT NULL DEFAULT 0 COMMENT 'consultas pagas (CPF/CNPJ/processual) por semana — recurso bloqueado nesta fase (FEATURE_LOOKUPS_ENABLED)',
   purchasable   TINYINT(1)    NOT NULL DEFAULT 1 COMMENT '0 = plano interno (ex: trial), não aparece para compra',
+  stripe_price_id   VARCHAR(64)  NULL COMMENT 'price_... (opcional; sobrepõe o lookup_key)',
+  stripe_lookup_key VARCHAR(100) NULL COMMENT 'lookup_key do preço no Stripe, ex: foro_pro_monthly_brl_v1',
   features      JSON          NULL COMMENT 'array de strings exibidas na UI',
   active        TINYINT(1)    NOT NULL DEFAULT 1,
   display_order INT           NOT NULL DEFAULT 0,
@@ -69,15 +71,21 @@ CREATE TABLE IF NOT EXISTS accounts (
   id             VARCHAR(36)  NOT NULL DEFAULT (UUID()),
   name           VARCHAR(255) NOT NULL,
   slug           VARCHAR(100) NOT NULL,
-  status         ENUM('trialing','active','suspended','cancelled') NOT NULL DEFAULT 'trialing',
+  status         ENUM('trialing','active','suspended','cancelled','expired') NOT NULL DEFAULT 'trialing',
   plan_id        VARCHAR(50)  NOT NULL DEFAULT 'trial',
   plan_started_at DATETIME    NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT 'âncora das janelas semanais de créditos: início do trial ou da assinatura do plano atual',
   trial_ends_at  DATETIME     NULL COMMENT 'fim do período de teste gratuito',
-  asaas_id       VARCHAR(100) NULL COMMENT 'Customer ID no Asaas',
+  asaas_id       VARCHAR(100) NULL COMMENT 'LEGADO (Asaas, substituído pelo Stripe)',
+  stripe_customer_id     VARCHAR(64) NULL COMMENT 'cus_... no Stripe',
+  stripe_subscription_id VARCHAR(64) NULL COMMENT 'sub_... da assinatura vigente',
+  subscription_status    VARCHAR(30) NULL COMMENT 'status no Stripe: active, past_due, canceled...',
+  current_period_end     DATETIME    NULL COMMENT 'fim do período já pago (próxima renovação)',
+  cancel_at_period_end   TINYINT(1)  NOT NULL DEFAULT 0 COMMENT '1 = cancelamento agendado para o fim do período',
   created_at     DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at     DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (id),
   UNIQUE KEY uk_accounts_slug (slug),
+  KEY idx_accounts_stripe_customer (stripe_customer_id),
   KEY idx_accounts_plan (plan_id),
   CONSTRAINT fk_accounts_plan FOREIGN KEY (plan_id) REFERENCES plans(id) ON UPDATE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
@@ -401,8 +409,12 @@ CREATE TABLE IF NOT EXISTS audit_events (
 CREATE TABLE IF NOT EXISTS payments (
   id              VARCHAR(36)   NOT NULL DEFAULT (UUID()),
   account_id      VARCHAR(36)   NOT NULL,
-  asaas_id        VARCHAR(100)  NOT NULL COMMENT 'ID do pagamento no Asaas',
+  asaas_id        VARCHAR(100)  NULL COMMENT 'LEGADO (Asaas)',
   asaas_charge_id VARCHAR(100)  NULL,
+  stripe_invoice_id        VARCHAR(64)  NULL COMMENT 'in_... — uma linha por fatura paga',
+  stripe_payment_intent_id VARCHAR(64)  NULL,
+  hosted_invoice_url       VARCHAR(500) NULL,
+  invoice_pdf              VARCHAR(500) NULL,
   type            ENUM('pix','credit_card','subscription') NOT NULL,
   status          VARCHAR(50)   NOT NULL DEFAULT 'PENDING',
   amount          DECIMAL(10,2) NOT NULL,
@@ -415,8 +427,18 @@ CREATE TABLE IF NOT EXISTS payments (
   updated_at      DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (id),
   UNIQUE KEY uk_payments_asaas (asaas_id),
+  UNIQUE KEY uk_payments_stripe_invoice (stripe_invoice_id),
   KEY idx_payments_account (account_id),
   CONSTRAINT fk_payments_account FOREIGN KEY (account_id) REFERENCES accounts(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Eventos de webhook do Stripe já recebidos (idempotência: cada evt_ é processado uma única vez).
+CREATE TABLE IF NOT EXISTS stripe_events (
+  id           VARCHAR(100) NOT NULL COMMENT 'evt_...',
+  type         VARCHAR(100) NOT NULL,
+  received_at  DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  processed_at DATETIME     NULL,
+  PRIMARY KEY (id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS nfse_records (
@@ -765,6 +787,7 @@ ON DUPLICATE KEY UPDATE
   max_leads = VALUES(max_leads), ai_credits_week = VALUES(ai_credits_week),
   lookups_week = VALUES(lookups_week), purchasable = VALUES(purchasable),
   features = VALUES(features), display_order = VALUES(display_order);
+UPDATE plans SET stripe_lookup_key = CONCAT('foro_', id, '_monthly_brl_v1') WHERE id IN ('starter','pro','business') AND stripe_lookup_key IS NULL;
 
 -- ─── Administrador da plataforma (equipe intellsn — gestão de todos os tenants) ─
 -- Login: POST /api/auth/platform-login  { "email": "admin@intellsn.com.br", "password": "..." }

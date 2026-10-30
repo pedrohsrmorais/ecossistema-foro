@@ -1,44 +1,76 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useSearchParams } from 'react-router-dom'
-import { Check, Zap, Search, Users, FileText, AlertTriangle, Loader2 } from 'lucide-react'
+import { Check, Zap, Search, Users, FileText, AlertTriangle, Loader2, CreditCard, Lock } from 'lucide-react'
 import clsx from 'clsx'
-import { plansApi, settingsApi, paymentsApi, type PlanInfo } from '../api'
+import { plansApi, settingsApi, paymentsApi } from '../api'
 import CreditMeter from '../components/CreditMeter'
+import { useAuth } from '../context/AuthContext'
 
 const brl = (n: number) => n.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', minimumFractionDigits: 2 })
-
-const EMPTY_CARD = { holderName: '', number: '', expiryMonth: '', expiryYear: '', ccv: '', email: '', cpfCnpj: '', postalCode: '', addressNumber: '', phone: '' }
+const day = (iso?: string | null) => (iso ? new Date(iso).toLocaleDateString('pt-BR') : '')
 
 export default function Plans() {
   const qc = useQueryClient()
-  const [params] = useSearchParams()
-  const expired = params.get('expirado') === '1'
+  const { user } = useAuth()
+  const isAdmin = user?.role === 'admin'
+  const [params, setParams] = useSearchParams()
+  const returned = params.get('checkout') // 'ok' | 'cancelado' (volta do Stripe)
+  const expiredParam = params.get('expirado') === '1'
+
+  const [waiting, setWaiting] = useState(returned === 'ok')
+  const [activated, setActivated] = useState(false) // plano foi ativado nesta visita (webhook chegou)
   const { data: plans = [] } = useQuery({ queryKey: ['plans'], queryFn: plansApi.list })
-  const { data: current } = useQuery({ queryKey: ['plan'], queryFn: settingsApi.getPlan })
+  const { data: current } = useQuery({
+    queryKey: ['plan'], queryFn: settingsApi.getPlan,
+    refetchInterval: waiting ? 2000 : false, // aguardando o webhook do Stripe ativar o plano
+  })
 
-  const [selected, setSelected] = useState<PlanInfo | null>(null)
-  const [billing, setBilling] = useState<'PIX' | 'CREDIT_CARD'>('PIX')
-  const [card, setCard] = useState(EMPTY_CARD)
-  const [busy, setBusy] = useState(false)
+  const [busy, setBusy] = useState<string | null>(null) // id do plano (ou 'portal') em andamento
   const [error, setError] = useState('')
-  const [done, setDone] = useState('')
 
+  const sub = current?.subscription
+  const hasSub = current?.account_status === 'active' && (sub?.status === 'active' || sub?.status === 'past_due')
   const isTrial = current?.current === 'trial'
   const trialEnded = isTrial && current?.trial_ends_at && new Date(current.trial_ends_at) < new Date()
+  const expired = current?.account_status === 'expired'
 
-  async function subscribe() {
-    if (!selected) return
-    setBusy(true); setError('')
-    try {
-      await paymentsApi.createSubscription({ plan: selected.id, billingType: billing, card: billing === 'CREDIT_CARD' ? card : undefined })
-      setDone(`Assinatura do plano ${selected.name} criada! ${billing === 'PIX' ? 'A cobrança PIX será enviada pelo Asaas.' : 'O cartão foi enviado para cobrança.'}`)
-      setSelected(null)
-      qc.invalidateQueries({ queryKey: ['plan'] })
+  // Voltou do Checkout: o plano só muda quando o webhook chega — espera até ~40 s.
+  useEffect(() => {
+    if (!waiting) return
+    if (hasSub) {
+      setWaiting(false)
+      setActivated(true)
       qc.invalidateQueries({ queryKey: ['ai-credits'] })
+      setParams({}, { replace: true })
+      return
+    }
+    const t = setTimeout(() => setWaiting(false), 40_000)
+    return () => clearTimeout(t)
+  }, [waiting, hasSub, qc, setParams])
+
+  async function subscribe(planId: string) {
+    setBusy(planId); setError('')
+    try {
+      const { url } = await paymentsApi.checkout(planId)
+      window.location.href = url
     } catch (e: any) {
-      setError(e?.response?.data?.error || 'Não foi possível criar a assinatura. Tente novamente.')
-    } finally { setBusy(false) }
+      const data = e?.response?.data
+      if (data?.code === 'ALREADY_SUBSCRIBED') return openPortal()
+      setError(data?.error || 'Não foi possível abrir o pagamento. Tente novamente.')
+      setBusy(null)
+    }
+  }
+
+  async function openPortal() {
+    setBusy('portal'); setError('')
+    try {
+      const { url } = await paymentsApi.portal()
+      window.location.href = url
+    } catch (e: any) {
+      setError(e?.response?.data?.error || 'Não foi possível abrir o portal de assinatura.')
+      setBusy(null)
+    }
   }
 
   return (
@@ -46,21 +78,55 @@ export default function Plans() {
       <h1 className="text-xl font-semibold text-slate-900">Plano e créditos</h1>
       <p className="text-sm text-slate-500 mb-5">Seus recursos renovam toda semana, a partir da data de início do plano.</p>
 
-      {(expired || trialEnded) && (
+      {(expiredParam || trialEnded) && !expired && !hasSub && (
         <div className="flex items-start gap-2 p-3 mb-5 rounded-lg bg-amber-50 border border-amber-200 text-sm text-amber-800">
           <AlertTriangle className="w-4 h-4 mt-0.5 shrink-0" />
           <span>Seu teste grátis de 14 dias terminou. Escolha um plano para voltar a usar o CRM e a IA — seus dados estão guardados.</span>
         </div>
       )}
-      {done && <div className="p-3 mb-5 rounded-lg bg-green-50 border border-green-200 text-sm text-green-700">{done}</div>}
+      {expired && (
+        <div className="flex items-start gap-2 p-3 mb-5 rounded-lg bg-amber-50 border border-amber-200 text-sm text-amber-800">
+          <AlertTriangle className="w-4 h-4 mt-0.5 shrink-0" />
+          <span>Sua assinatura terminou. Assine novamente para voltar a usar o CRM e a IA — seus dados continuam guardados.</span>
+        </div>
+      )}
+      {sub?.status === 'past_due' && (
+        <div className="flex items-start gap-2 p-3 mb-5 rounded-lg bg-red-50 border border-red-200 text-sm text-red-700">
+          <AlertTriangle className="w-4 h-4 mt-0.5 shrink-0" />
+          <span>Não conseguimos cobrar seu cartão. O Stripe tentará de novo, mas para evitar a suspensão <button className="underline font-medium" onClick={openPortal}>atualize a forma de pagamento</button>.</span>
+        </div>
+      )}
+      {waiting && (
+        <div className="flex items-center gap-2 p-3 mb-5 rounded-lg bg-blue-50 border border-blue-200 text-sm text-blue-800">
+          <Loader2 className="w-4 h-4 animate-spin shrink-0" /> Pagamento recebido! Estamos ativando o seu plano — isso leva alguns segundos.
+        </div>
+      )}
+      {activated && hasSub && (
+        <div className="p-3 mb-5 rounded-lg bg-green-50 border border-green-200 text-sm text-green-700">Assinatura ativada. Obrigado! 🎉</div>
+      )}
+      {returned === 'ok' && !waiting && !hasSub && !activated && (
+        <div className="p-3 mb-5 rounded-lg bg-amber-50 border border-amber-200 text-sm text-amber-800">
+          Recebemos o seu pagamento, mas a ativação está demorando mais que o normal. Atualize a página em instantes; se continuar assim, fale com o suporte.
+        </div>
+      )}
+      {returned === 'cancelado' && (
+        <div className="p-3 mb-5 rounded-lg bg-slate-50 border border-slate-200 text-sm text-slate-600">Pagamento cancelado — nada foi cobrado. Você pode escolher um plano quando quiser.</div>
+      )}
+      {error && <div className="p-3 mb-5 rounded-lg bg-red-50 border border-red-200 text-sm text-red-700">{error}</div>}
 
       <div className="grid md:grid-cols-[1fr_280px] gap-4 mb-6">
         <div className="card p-4 text-sm">
           <p className="text-slate-500">Plano atual</p>
-          <p className="text-lg font-semibold text-slate-900">{current?.name || '—'}</p>
-          {current?.account_status === 'active' && <p className="text-green-600 text-sm">Assinatura ativa</p>}
-          {isTrial && current?.trial_ends_at && (
-            <p className="text-slate-500">Teste até {new Date(current.trial_ends_at).toLocaleDateString('pt-BR')}</p>
+          <p className="text-lg font-semibold text-slate-900">{expired ? 'Sem assinatura ativa' : current?.name || '—'}</p>
+          {hasSub && !sub?.cancel_at_period_end && <p className="text-green-600 text-sm">Assinatura ativa{sub?.current_period_end ? ` · renova em ${day(sub.current_period_end)}` : ''}</p>}
+          {hasSub && sub?.cancel_at_period_end && <p className="text-amber-600 text-sm">Cancelamento agendado — acesso até {day(sub?.current_period_end)}</p>}
+          {isTrial && current?.trial_ends_at && !expired && (
+            <p className="text-slate-500">Teste até {day(current.trial_ends_at)}</p>
+          )}
+          {sub?.can_manage && isAdmin && (
+            <button className="btn-secondary mt-3" onClick={openPortal} disabled={busy === 'portal'}>
+              {busy === 'portal' ? <Loader2 className="w-4 h-4 animate-spin" /> : <CreditCard className="w-4 h-4" />} Gerenciar assinatura
+            </button>
           )}
         </div>
         <CreditMeter variant="light" />
@@ -73,7 +139,7 @@ export default function Plans() {
 
       <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
         {plans.map(p => {
-          const isCurrent = current?.current === p.id && current?.account_status === 'active'
+          const isCurrent = hasSub && current?.current === p.id
           return (
             <div key={p.id} className={clsx('card p-5 flex flex-col relative', p.id === 'pro' && 'border-accent-400 ring-1 ring-accent-300')}>
               {p.id === 'pro' && <span className="absolute -top-2.5 left-5 badge bg-accent-500 text-white">Mais escolhido</span>}
@@ -85,49 +151,24 @@ export default function Plans() {
                 <li className="flex gap-2"><FileText className="w-4 h-4 text-slate-400 shrink-0 mt-0.5" /> {p.max_leads ? `Até ${p.max_leads} leads` : 'Leads ilimitados'}</li>
                 <li className="flex gap-2 text-slate-400"><Search className="w-4 h-4 shrink-0 mt-0.5" /> {p.lookups_week} consultas/semana <span className="badge bg-accent-100 text-accent-700 !py-0">em breve</span></li>
               </ul>
-              <button className={clsx('mt-5', isCurrent ? 'btn-secondary justify-center' : 'btn-primary justify-center')}
-                disabled={isCurrent} onClick={() => { setSelected(p); setError(''); setDone('') }}>
-                {isCurrent ? <><Check className="w-4 h-4" /> Plano atual</> : `Assinar ${p.name}`}
-              </button>
+              {isCurrent ? (
+                <button className="mt-5 btn-secondary justify-center" disabled><Check className="w-4 h-4" /> Plano atual</button>
+              ) : (
+                <button className="mt-5 btn-primary justify-center" disabled={!isAdmin || busy !== null || waiting}
+                  onClick={() => (hasSub ? openPortal() : subscribe(p.id))}>
+                  {busy === p.id && <Loader2 className="w-4 h-4 animate-spin" />}
+                  {hasSub ? `Trocar para ${p.name}` : `Assinar ${p.name}`}
+                </button>
+              )}
             </div>
           )
         })}
       </div>
 
-      {selected && (
-        <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4" onClick={() => !busy && setSelected(null)}>
-          <div className="card w-full max-w-md p-5 animate-scale-in max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
-            <h2 className="font-semibold text-slate-900">Assinar {selected.name} — {brl(selected.price)}/mês</h2>
-            <div className="flex gap-2 my-4">
-              {(['PIX', 'CREDIT_CARD'] as const).map(b => (
-                <button key={b} onClick={() => setBilling(b)}
-                  className={clsx('flex-1 py-2 text-sm rounded-lg border font-medium', billing === b ? 'bg-brand-50 border-brand-500 text-brand-700' : 'bg-white text-slate-600')}>
-                  {b === 'PIX' ? 'PIX' : 'Cartão de crédito'}
-                </button>
-              ))}
-            </div>
-            {billing === 'CREDIT_CARD' && (
-              <div className="grid grid-cols-2 gap-2 mb-3">
-                {([
-                  ['holderName', 'Nome no cartão', 2], ['number', 'Número do cartão', 2],
-                  ['expiryMonth', 'Mês (MM)', 1], ['expiryYear', 'Ano (AAAA)', 1], ['ccv', 'CVV', 1], ['cpfCnpj', 'CPF/CNPJ', 1],
-                  ['email', 'E-mail', 2], ['postalCode', 'CEP', 1], ['addressNumber', 'Nº', 1], ['phone', 'Telefone', 2],
-                ] as const).map(([k, label, span]) => (
-                  <input key={k} className={clsx('input', span === 2 && 'col-span-2')} placeholder={label}
-                    value={(card as any)[k]} onChange={e => setCard(c => ({ ...c, [k]: e.target.value }))} />
-                ))}
-              </div>
-            )}
-            {error && <p className="text-sm text-red-600 mb-3">{error}</p>}
-            <div className="flex justify-end gap-2">
-              <button className="btn-secondary" disabled={busy} onClick={() => setSelected(null)}>Cancelar</button>
-              <button className="btn-primary" disabled={busy} onClick={subscribe}>
-                {busy && <Loader2 className="w-4 h-4 animate-spin" />} Confirmar assinatura
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      {!isAdmin && <p className="mt-4 text-xs text-slate-500">Só administradores da conta podem assinar ou alterar o plano.</p>}
+      <p className="mt-6 text-xs text-slate-400 flex items-center gap-1.5">
+        <Lock className="w-3.5 h-3.5" /> Pagamento por cartão de crédito, processado com segurança pelo Stripe — o Foro nunca vê o número do seu cartão. Cancele quando quiser, pelo portal da assinatura.
+      </p>
     </div>
   )
 }

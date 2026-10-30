@@ -1,38 +1,30 @@
 const { paging } = require('../utils/paging');
 const paymentsService = require('../services/payments.service');
+const stripeService = require('../services/stripe.service');
 
 async function list(req, res) {
   const { page, limit } = paging(req.query.page, req.query.limit, { defaultLimit: 20 });
-  const result = await paymentsService.list(req.account.id, page, limit);
-  res.json(result);
+  res.json(await paymentsService.list(req.account.id, page, limit));
 }
 
-async function createPix(req, res) {
-  const { amount, description } = req.body;
-  const payment = await paymentsService.createPix(req.account.id, { amount, description });
-  res.status(201).json(payment);
+/** POST /payments/checkout { plan } → { url } (redirecionar o navegador para o Checkout do Stripe) */
+async function checkout(req, res) {
+  const { plan } = req.body;
+  if (typeof plan !== 'string' || !plan) return res.status(422).json({ error: 'Informe o plano.' });
+  res.json(await stripeService.createCheckout(req.account.id, req.user.email, plan));
 }
 
-async function createCard(req, res) {
-  const { amount, description, card } = req.body;
-  const payment = await paymentsService.createCard(req.account.id, { amount, description, card });
-  res.status(201).json(payment);
-}
-
-async function createSubscription(req, res) {
-  const { plan, billingType, card } = req.body;
-  const subscription = await paymentsService.createSubscription(req.account.id, { plan, billingType, card });
-  res.status(201).json(subscription);
+/** POST /payments/portal → { url } (Portal do Cliente: trocar de plano, cartão, cancelar, faturas) */
+async function portal(req, res) {
+  res.json(await stripeService.createPortal(req.account.id));
 }
 
 async function getById(req, res) {
-  const payment = await paymentsService.getById(req.params.id, req.account.id);
-  res.json(payment);
+  res.json(await paymentsService.getById(req.params.id, req.account.id));
 }
 
 async function getNfse(req, res) {
-  const nfse = await paymentsService.getNfse(req.params.id, req.account.id);
-  res.json(nfse);
+  res.json(await paymentsService.getNfse(req.params.id, req.account.id));
 }
 
-module.exports = { list, createPix, createCard, createSubscription, getById, getNfse };
+module.exports = { list, checkout, portal, getById, getNfse };

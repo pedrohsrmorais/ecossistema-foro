@@ -7,8 +7,8 @@
  *   /api/leads     → CRM: leads, notas, tarefas
  *   /api/fields    → campos customizáveis do CRM
  *   /api/ai        → chat IA interno (conversa + tool calls)
- *   /api/payments  → pagamentos via Asaas (PIX + cartão)
- *   /api/webhooks  → webhooks externos (Asaas, NFE.io)
+ *   /api/payments  → assinatura via Stripe (Checkout + Portal)
+ *   /api/webhooks  → webhooks externos (Stripe, NFE.io)
  *   /api/settings  → configurações da conta
  *   /api/admin     → painel administrativo da plataforma (equipe intellsn, cross-tenant)
  */
@@ -96,10 +96,10 @@ router.delete('/admin/challenges/:id', authenticatePlatform, challengesControlle
 router.get   ('/admin/community/posts',     authenticatePlatform, communityController.adminListRecentPosts);
 router.delete('/admin/community/posts/:id', authenticatePlatform, communityController.adminDeletePost);
 
-// ─── Webhooks (público — sem JWT; Asaas/NFE.io não enviam Bearer token) ───────
+// ─── Webhooks (público — sem JWT; Stripe/NFE.io não enviam Bearer token) ───────
 // FICA ANTES de router.use(authenticate): se estivesse depois, toda chamada do
-// Asaas/NFE.io cairia em 401 e a emissão automática de NFS-e nunca seria disparada.
-router.post  ('/webhooks/asaas',       webhooksController.asaas);
+// Stripe/NFE.io cairia em 401 e a emissão automática de NFS-e nunca seria disparada.
+router.post  ('/webhooks/stripe',      webhooksController.stripe);   // corpo bruto em req.rawBody (server.js) p/ validar Stripe-Signature
 router.post  ('/webhooks/nfeio',       webhooksController.nfeio);
 
 // ─── Tudo abaixo exige autenticação de tenant ─────────────────────────────────
@@ -186,9 +186,8 @@ router.get   ('/ai/usage',             requireModule('crm'), aiController.getUsa
 
 // ─── Pagamentos ───────────────────────────────────────────────────────────────
 router.get   ('/payments',             paymentsController.list);
-router.post  ('/payments/pix',         requireAdmin, paymentsController.createPix);
-router.post  ('/payments/card',        requireAdmin, paymentsController.createCard);
-router.post  ('/payments/subscription',requireAdmin, paymentsController.createSubscription);
+router.post  ('/payments/checkout',   requireAdmin, paymentsController.checkout);   // Stripe Checkout (cartão) → { url }
+router.post  ('/payments/portal',     requireAdmin, paymentsController.portal);     // Portal do Cliente do Stripe → { url }
 router.get   ('/payments/:id',         paymentsController.getById);
 router.get   ('/payments/:id/nfse',    paymentsController.getNfse);
 
@@ -202,8 +201,6 @@ router.get   ('/plans',                settingsController.listPlans);
 router.get   ('/credits/balance',          creditsController.getBalance);
 router.get   ('/credits/prices',           creditsController.listPrices);
 router.get   ('/credits/transactions',     creditsController.listTransactions);
-router.post  ('/credits/purchase/pix',     requireAdmin, creditsController.purchasePix);
-router.post  ('/credits/purchase/card',    requireAdmin, creditsController.purchaseCard);
 
 // ─── Consultas pagas (CPF/CNPJ/processual) e resumo por IA ────────────────────
 // Cada chamada debita créditos automaticamente (ver external-lookup.service.js).
