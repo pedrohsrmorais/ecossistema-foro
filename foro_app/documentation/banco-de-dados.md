@@ -392,3 +392,11 @@ O `init.sql` só roda na primeira subida do MySQL (volume vazio). Toda mudança 
 
 - `001_baseline_crm_juridico`: leva bancos antigos ao schema atual (cotas semanais nos planos, `plan_started_at`, `tasks.case_id/is_deadline`, `ai_usage` com cache/créditos, `cases`, `case_updates`, `events`, catálogo de planos).
 - `002_auth_hardening`: `ai_messages.created_at` com milissegundos; `password_reset_tokens.purpose` (`reset` | `invite`).
+
+
+## Alertas de prazo e suporte (migração 004)
+
+- `users.notify_deadlines_email` (padrão 1): recebe o resumo diário por e-mail.
+- `notification_log (user_id, kind, ref_date)` UNIQUE: garante 1 resumo por usuário por dia (mesmo com reinício/2 instâncias).
+- `support_tickets`: chamados da página Suporte (`status` aberto/respondido/fechado, `email_sent`).
+- Índice `idx_tasks_deadline (account_id, completed_at, due_date)` para as consultas de prazo.

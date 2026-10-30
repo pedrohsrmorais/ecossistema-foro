@@ -2,13 +2,14 @@ import { Outlet, NavLink, useNavigate, useLocation } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import {
   MessageSquare, Users, LayoutDashboard, CheckSquare, Settings, LogOut, Scale,
-  GraduationCap, Sparkles, CreditCard, Clock, Briefcase, CalendarDays, Building2, UserSearch, Gavel, FlaskConical, Trophy, Users2,
+  GraduationCap, Sparkles, CreditCard, LifeBuoy, Clock, Briefcase, CalendarDays, Building2, UserSearch, Gavel, FlaskConical, Trophy, Users2,
 } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
 import { modulesApi, settingsApi } from '../api'
 import { ChatProvider } from '../context/ChatContext'
 import AiDock from './AiDock'
 import CreditMeter from './CreditMeter'
+import AlertsBell from './AlertsBell'
 import clsx from 'clsx'
 
 type NavItem = { to: string; label: string; icon: typeof Scale; module: string | null }
@@ -55,6 +56,7 @@ const NAV_SECTIONS: { label: string; items: NavItem[] }[] = [
 const NAV_BOTTOM: NavItem[] = [
   { to: '/planos',   label: 'Plano e créditos', icon: CreditCard, module: null },
   { to: '/settings', label: 'Configurações', icon: Settings, module: null },
+  { to: '/suporte',  label: 'Suporte', icon: LifeBuoy, module: null },
 ]
 
 export default function Layout() {
@@ -106,7 +108,8 @@ export default function Layout() {
         {/* Logo */}
         <div className="flex items-center gap-2 px-4 py-5 border-b border-white/10">
           <Scale className="w-6 h-6 text-accent-400" />
-          <span className="logo-wordmark text-lg text-white">Foro</span>
+          <span className="logo-wordmark text-lg text-white flex-1">Foro</span>
+          {visible({ module: 'crm' } as NavItem) && <AlertsBell />}
         </div>
 
         {/* Nav */}

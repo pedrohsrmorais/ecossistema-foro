@@ -79,6 +79,7 @@ export interface Lead {
   assigned_name: string | null
   last_contact_at: string | null
   created_at: string
+  cases_count?: number
   custom_fields?: Record<string, { label: string; type: string; value: string | null }>
 }
 
@@ -442,6 +443,8 @@ export interface Case {
   id: string
   lead_id: string | null
   lead_name: string | null
+  lead_phone?: string | null
+  lead_email?: string | null
   case_number: string | null
   title: string | null
   tribunal: string | null
@@ -1084,3 +1087,63 @@ export const adminApi = {
 }
 
 export default http
+
+
+// ─── ALERTAS DE PRAZO ────────────────────────────────────────────────────────
+
+export type AlertKind = 'prazo' | 'tarefa' | 'audiencia' | 'pericia' | 'reuniao' | 'evento'
+export interface AlertItem {
+  id: string
+  kind: AlertKind
+  title: string
+  at: string
+  days: number // negativo = atrasado
+  case_id: string | null
+  case_label: string | null
+  lead_id: string | null
+  lead_name: string | null
+  meeting_url?: string | null
+}
+export interface AlertsSummary {
+  counts: { overdue: number; today: number; upcoming: number; urgent: number }
+  overdue: AlertItem[]
+  today: AlertItem[]
+  upcoming: AlertItem[]
+}
+
+export const alertsApi = {
+  summary: () => http.get<AlertsSummary>('/alerts').then(r => r.data),
+  getPrefs: () => http.get<{ deadlines_email: boolean; email: string }>('/alerts/preferences').then(r => r.data),
+  setPrefs: (deadlines_email: boolean) => http.put<{ deadlines_email: boolean }>('/alerts/preferences', { deadlines_email }).then(r => r.data),
+  sendTest: () => http.post<{ sent_to: string }>('/alerts/digest/test').then(r => r.data),
+}
+
+// ─── PAINEL ──────────────────────────────────────────────────────────────────
+
+export interface DashboardData {
+  alerts: { counts: AlertsSummary['counts']; overdue: AlertItem[]; today: AlertItem[]; upcoming: AlertItem[] }
+  leads: {
+    total: number; new_30d: number; converted: number; conversion_rate: number; stale: number; converted_no_case: number
+    funnel: { stage: string; total: number }[]
+    weekly: { week_start: string; total: number }[]
+    stale_list: { id: string; name: string | null; stage: string; last_touch: string }[]
+    converted_no_case_list: { id: string; name: string | null }[]
+  }
+  cases: { total: number; active: number; active_value: number; active_no_deadline: number; by_area: { area: string; total: number }[] }
+  tasks: { pending: number }
+  fees: { projected: number; closed: number }
+}
+
+export const dashboardApi = { get: () => http.get<DashboardData>('/dashboard').then(r => r.data) }
+
+// ─── SUPORTE ─────────────────────────────────────────────────────────────────
+
+export interface SupportInfo { email: string | null; whatsapp: string | null; hours: string; categories: string[] }
+export interface SupportTicket { id: string; category: string; subject: string; message: string; status: 'aberto' | 'respondido' | 'fechado'; created_at: string }
+
+export const supportApi = {
+  info: () => http.get<SupportInfo>('/support').then(r => r.data),
+  list: () => http.get<SupportTicket[]>('/support/tickets').then(r => r.data),
+  create: (data: { category: string; subject: string; message: string; page?: string }) =>
+    http.post<{ id: string; status: string; emailed: boolean; reply_to: string }>('/support/tickets', data).then(r => r.data),
+}

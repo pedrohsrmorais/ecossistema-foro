@@ -102,4 +102,82 @@ async function sendInviteEmail(to, inviteUrl, { inviterName, accountName, expire
   });
 }
 
-module.exports = { sendVerificationEmail, sendPasswordResetEmail, sendInviteEmail };
+const KIND_LABEL = { prazo: 'Prazo', tarefa: 'Tarefa', audiencia: 'Audiência', pericia: 'Perícia', reuniao: 'Reunião', evento: 'Compromisso' };
+const fmtWhen = (iso, withTime) => {
+  const d = new Date(iso);
+  const date = d.toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo', weekday: 'short', day: '2-digit', month: '2-digit' });
+  const time = d.toLocaleTimeString('pt-BR', { timeZone: 'America/Sao_Paulo', hour: '2-digit', minute: '2-digit' });
+  return withTime && time !== '00:00' ? `${date} às ${time}` : date;
+};
+function _rel(days) {
+  if (days < 0) return `vencido há ${-days} dia${days === -1 ? '' : 's'}`;
+  if (days === 0) return 'hoje';
+  if (days === 1) return 'amanhã';
+  return `em ${days} dias`;
+}
+
+/** Resumo diário de prazos e compromissos. `data` vem de deadlines.service.forUser. */
+async function sendDeadlineDigest(to, { name, data, appUrl, isTest = false }) {
+  const { overdue, today, upcoming, counts } = data;
+  const section = (title, color, list) => !list.length ? '' : `
+    <h3 style="margin:20px 0 6px; font-size:14px; color:${color};">${esc(title)} (${list.length})</h3>
+    <table style="width:100%; border-collapse:collapse; font-size:14px;">${list.map(it => `
+      <tr style="border-top:1px solid #e2e8f0;">
+        <td style="padding:8px 6px; vertical-align:top; width:92px; color:#64748b; font-size:12px;">${esc(KIND_LABEL[it.kind] || 'Item')}</td>
+        <td style="padding:8px 6px; color:#0f172a;">
+          <a href="${esc(appUrl)}${it.case_id ? '/processos/' + esc(it.case_id) : (it.lead_id ? '/leads/' + esc(it.lead_id) : '/tasks')}" style="color:#0f172a; text-decoration:none; font-weight:600;">${esc(it.title)}</a>
+          ${it.case_label || it.lead_name ? `<br><span style="color:#64748b; font-size:12px;">${esc([it.case_label, it.lead_name].filter(Boolean).join(' · '))}</span>` : ''}
+        </td>
+        <td style="padding:8px 6px; text-align:right; white-space:nowrap; font-size:12px; color:${color};">${esc(fmtWhen(it.at, it.kind !== 'prazo' && it.kind !== 'tarefa'))}<br>${esc(_rel(it.days))}</td>
+      </tr>`).join('')}
+    </table>`;
+
+  const nothing = !overdue.length && !today.length && !upcoming.length;
+  const parts = [];
+  if (counts.overdue) parts.push(`${counts.overdue} vencido${counts.overdue > 1 ? 's' : ''}`);
+  if (counts.today) parts.push(`${counts.today} para hoje`);
+  const subject = (isTest ? '[Teste] ' : '') + (parts.length ? `Atenção: ${parts.join(' e ')} — Foro` : 'Seus prazos dos próximos dias — Foro');
+  const text = [...overdue, ...today, ...upcoming].map(it => `- ${KIND_LABEL[it.kind]}: ${it.title} (${_rel(it.days)})`).join('\n') || 'Nada pendente.';
+
+  return _send({
+    to, subject,
+    devFallbackText: `Resumo de prazos para ${name}:\n${text}`,
+    html: `
+      <div style="font-family: sans-serif; max-width: 560px; margin: 0 auto;">
+        <h2 style="color:#1e293b; margin-bottom:4px;">Bom dia, ${esc((name || '').split(' ')[0] || 'doutor(a)')}</h2>
+        <p style="color:#475569; margin-top:0;">${nothing ? 'Você não tem prazos nem compromissos nos próximos 7 dias.' : 'Este é o seu resumo de prazos e compromissos.'}</p>
+        ${section('Vencidos', '#b91c1c', overdue)}
+        ${section('Hoje', '#b45309', today)}
+        ${section('Próximos 7 dias', '#334155', upcoming)}
+        <p style="text-align:center; margin: 28px 0 12px;">
+          <a href="${esc(appUrl)}/dashboard" style="background:#4f46e5; color:#fff; padding:12px 24px; border-radius:8px; text-decoration:none; font-weight:600;">Abrir o Foro</a>
+        </p>
+        <p style="color:#94a3b8; font-size:12px;">Você recebe este resumo porque está ativo na conta do seu escritório. Para parar de receber, desative em Configurações → Notificações. Este aviso não substitui a conferência dos prazos no processo.</p>
+        ${SPAM_NOTE_HTML}
+      </div>`,
+  });
+}
+
+/** Chamado de suporte → caixa do suporte, com Reply-To do usuário. */
+async function sendSupportRequest(to, { fromName, fromEmail, accountName, planName, category, subject, message, ticketId, page }) {
+  if (!resend) {
+    console.log(`[DEV — RESEND_API_KEY não configurada] Suporte #${ticketId} de ${fromName} <${fromEmail}> (${accountName}): [${category}] ${subject}\n${message}`);
+    return { dev: true };
+  }
+  const { error } = await resend.emails.send({
+    from: EMAIL_FROM, to, replyTo: fromEmail,
+    subject: `[Suporte Foro #${String(ticketId).slice(0, 8)}] ${subject}`,
+    html: `
+      <div style="font-family: sans-serif; max-width: 600px;">
+        <p style="color:#64748b; font-size:13px; margin:0 0 12px;">
+          <strong>${esc(fromName)}</strong> &lt;${esc(fromEmail)}&gt; · ${esc(accountName)} · plano ${esc(planName || '—')} · categoria ${esc(category)}${page ? ' · página ' + esc(page) : ''}
+        </p>
+        <div style="white-space:pre-wrap; color:#0f172a; border-left:3px solid #4f46e5; padding-left:12px;">${esc(message)}</div>
+        <p style="color:#94a3b8; font-size:12px; margin-top:16px;">Responda este e-mail: a resposta vai direto para o cliente.</p>
+      </div>`,
+  });
+  if (error) throw new Error(error.message || 'Falha ao enviar o e-mail de suporte.');
+  return { sent: true };
+}
+
+module.exports = { sendVerificationEmail, sendPasswordResetEmail, sendInviteEmail, sendDeadlineDigest, sendSupportRequest };

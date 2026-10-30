@@ -130,6 +130,7 @@ foro_app/
 │   ├── arquitetura.md          # Decisões de arquitetura
 │   ├── banco-de-dados.md       # Schema completo, tabelas e relacionamentos
 │   ├── pagamentos.md           # Stripe + NFS-e
+│   ├── mercado-requisitos.md   # pesquisa de mercado jurídico e Must-Have
 │   ├── api-reference.md        # Referência de todas as rotas
 │   ├── plataforma-e-precificacao.md # Requisitos, diferenciais, APIs avaliadas e precificação (planos + créditos)
 │   └── diretrizes-frontend.md  # O que precisa existir no frontend, regras de negócio e UX obrigatórias

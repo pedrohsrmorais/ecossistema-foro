@@ -29,6 +29,7 @@ export default function CaseDetail() {
   const [dlDate, setDlDate] = useState('')
   const [showEvent, setShowEvent] = useState(false)
   const [error, setError] = useState('')
+  const [newClient, setNewClient] = useState('')
 
   const { data: c, isLoading } = useQuery({ queryKey: ['case', id], queryFn: () => casesApi.getById(id!), enabled: !!id })
   const { data: leads } = useQuery({ queryKey: ['leads', 'board'], queryFn: () => leadsApi.list({ limit: 500 }), staleTime: 30_000 })
@@ -36,6 +37,10 @@ export default function CaseDetail() {
   const refresh = () => { qc.invalidateQueries({ queryKey: ['case', id] }); qc.invalidateQueries({ queryKey: ['cases'] }); qc.invalidateQueries({ queryKey: ['tasks'] }); qc.invalidateQueries({ queryKey: ['events'] }) }
   const fail = (e: any) => setError(e?.response?.data?.error || 'Não foi possível salvar.')
   const update = useMutation({ mutationFn: (d: Record<string, unknown>) => casesApi.update(id!, d), onSuccess: () => { setError(''); refresh() }, onError: fail })
+  const createClient = useMutation({
+    mutationFn: async (name: string) => { const l = await leadsApi.create({ name, stage: 'convertido' }); return casesApi.update(id!, { lead_id: l.id }) },
+    onSuccess: () => { setNewClient(''); setError(''); qc.invalidateQueries({ queryKey: ['leads'] }); refresh() }, onError: fail,
+  })
   const addUpd = useMutation({ mutationFn: () => casesApi.addUpdate(id!, { text: updText.trim(), update_date: updDate }), onSuccess: () => { setUpdText(''); refresh() }, onError: fail })
   const delUpd = useMutation({ mutationFn: (uid: string) => casesApi.deleteUpdate(id!, uid), onSuccess: refresh })
   const addDeadline = useMutation({
@@ -98,6 +103,22 @@ export default function CaseDetail() {
                 <option value="">— sem cliente —</option>
                 {leads?.data.map(l => <option key={l.id} value={l.id}>{l.name || 'Sem nome'}</option>)}
               </select>
+              {c.lead_id ? (
+                <div className="mt-1.5 text-xs text-slate-600 flex flex-wrap items-center gap-x-3 gap-y-1">
+                  <Link to={`/leads/${c.lead_id}`} className="text-brand-700 hover:underline font-medium">Abrir cliente</Link>
+                  {c.lead_phone && <>
+                    <a href={`tel:${c.lead_phone}`} className="hover:underline">{c.lead_phone}</a>
+                    <a href={`https://wa.me/${c.lead_phone.replace(/\D/g, '').replace(/^(?!55)/, '55')}`} target="_blank" rel="noreferrer" className="text-green-700 hover:underline">WhatsApp</a>
+                  </>}
+                  {c.lead_email && <a href={`mailto:${c.lead_email}`} className="hover:underline break-all">{c.lead_email}</a>}
+                  {!c.lead_phone && !c.lead_email && <span className="text-slate-400">sem telefone/e-mail cadastrado</span>}
+                </div>
+              ) : (
+                <form className="mt-1.5 flex gap-2" onSubmit={e => { e.preventDefault(); if (newClient.trim()) createClient.mutate(newClient.trim()) }}>
+                  <input className="input !py-1 !text-sm" placeholder="ou crie um cliente novo: nome" value={newClient} onChange={e => setNewClient(e.target.value)} />
+                  <button className="btn-secondary !py-1 text-xs shrink-0" disabled={!newClient.trim() || createClient.isPending}>Criar</button>
+                </form>
+              )}
             </Row>
             <Row label="Área"><EditableCell value={c.area} placeholder="Ex: Trabalhista" onSave={v => update.mutate({ area: v })} /></Row>
             <Row label="Fase"><EditableCell value={c.phase} placeholder="Ex: Conhecimento" onSave={v => update.mutate({ phase: v })} /></Row>

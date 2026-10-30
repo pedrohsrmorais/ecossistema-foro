@@ -28,13 +28,34 @@ export default function LeadDetail() {
   const [noteText, setNoteText] = useState('')
   const [taskText, setTaskText] = useState('')
   const [taskDate, setTaskDate] = useState('')
+  const [newCase, setNewCase] = useState('')
+  const [linkId, setLinkId] = useState('')
+  const [caseError, setCaseError] = useState('')
 
   const { data: lead, isLoading } = useQuery({ queryKey: ['lead', id], queryFn: () => leadsApi.getById(id!), enabled: !!id })
   const { data: notes = [] } = useQuery({ queryKey: ['lead-notes', id], queryFn: () => leadsApi.listNotes(id!), enabled: !!id })
   const { data: tasks = [] } = useQuery({ queryKey: ['lead-tasks', id], queryFn: () => leadsApi.listTasks(id!), enabled: !!id })
 
   const { data: cases } = useQuery({ queryKey: ['cases', 'lead', id], queryFn: () => casesApi.list({ lead_id: id }), enabled: !!id })
+  const { data: unlinked } = useQuery({ queryKey: ['cases', 'unlinked'], queryFn: () => casesApi.list(), staleTime: 15_000 })
+  const unlinkedCases = (unlinked?.data ?? []).filter(c => !c.lead_id && c.status !== 'arquivado' && c.status !== 'encerrado')
   const { data: events = [] } = useQuery({ queryKey: ['events', 'lead', id], queryFn: () => eventsApi.list({ lead_id: id, from: new Date(Date.now() - 864e5).toISOString() }), enabled: !!id })
+
+  const refreshCases = () => { qc.invalidateQueries({ queryKey: ['cases'] }); qc.invalidateQueries({ queryKey: ['leads'] }) }
+  const createCase = useMutation({
+    mutationFn: (v: string) => {
+      const digits = v.replace(/\D/g, '')
+      return casesApi.create({ lead_id: id, ...(digits.length >= 15 ? { case_number: v } : { title: v }) })
+    },
+    onSuccess: () => { setNewCase(''); setCaseError(''); refreshCases() },
+    onError: (e: any) => setCaseError(e?.response?.data?.error || 'Não foi possível cadastrar o processo.'),
+  })
+  const linkCase = useMutation({
+    mutationFn: (caseId: string) => casesApi.update(caseId, { lead_id: id }),
+    onSuccess: () => { setLinkId(''); setCaseError(''); refreshCases() },
+    onError: (e: any) => setCaseError(e?.response?.data?.error || 'Não foi possível vincular.'),
+  })
+  const unlinkCase = useMutation({ mutationFn: (caseId: string) => casesApi.update(caseId, { lead_id: null }), onSuccess: refreshCases })
 
   const refreshLead = () => {
     qc.invalidateQueries({ queryKey: ['lead', id] })
@@ -122,19 +143,37 @@ export default function LeadDetail() {
             <h2 className="font-medium text-slate-900 flex items-center gap-1.5"><Briefcase className="w-4 h-4 text-slate-400" /> Processos ({cases?.total ?? 0})</h2>
             <Link to="/processos" className="text-xs text-brand-600 hover:underline">Ver todos</Link>
           </div>
-          {!cases?.data.length ? <p className="text-sm text-slate-400">Nenhum processo. Cadastre em Processos ou peça à IA.</p> : (
-            <ul className="divide-y">
+          {lead?.stage === 'convertido' && !cases?.data.length && (
+            <p className="mb-3 text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded-lg p-2">Cliente convertido sem processo. Cadastre abaixo para acompanhar prazos e andamentos.</p>
+          )}
+          {!cases?.data.length ? <p className="text-sm text-slate-400 mb-3">Nenhum processo ligado a este contato.</p> : (
+            <ul className="divide-y mb-3">
               {cases.data.map(c => (
                 <li key={c.id} className="flex items-center gap-2 py-2">
                   <Link to={`/processos/${c.id}`} className="flex-1 min-w-0 hover:underline">
                     <p className="text-sm font-mono text-slate-900 truncate">{c.case_number || c.title}</p>
-                    <p className="text-xs text-slate-500">{[c.tribunal, c.area, c.phase].filter(Boolean).join(' · ') || c.status}</p>
+                    <p className="text-xs text-slate-500">{[c.tribunal, c.area, c.phase].filter(Boolean).join(' · ') || c.status}{c.next_deadline ? ` · prazo ${fmtDate(c.next_deadline)}` : ''}</p>
                   </Link>
                   {c.court_url && <a href={c.court_url} target="_blank" rel="noreferrer" title="Abrir no tribunal" className="text-brand-600"><ExternalLink className="w-4 h-4" /></a>}
+                  <button title="Desvincular deste contato" aria-label="Desvincular processo" className="text-slate-300 hover:text-red-500" onClick={() => { if (confirm('Desvincular este processo do contato? O processo não é apagado.')) unlinkCase.mutate(c.id) }}><Trash2 className="w-4 h-4" /></button>
                 </li>
               ))}
             </ul>
           )}
+          <form className="flex gap-2" onSubmit={e => { e.preventDefault(); if (newCase.trim()) createCase.mutate(newCase.trim()) }}>
+            <input className="input !py-1.5 text-sm" placeholder="Novo processo: número CNJ ou título" value={newCase} onChange={e => setNewCase(e.target.value)} />
+            <button className="btn-secondary !py-1.5 text-xs shrink-0" disabled={!newCase.trim() || createCase.isPending}><Plus className="w-3.5 h-3.5" /> Criar</button>
+          </form>
+          {unlinkedCases.length > 0 && (
+            <div className="flex gap-2 mt-2">
+              <select className="input !py-1.5 text-sm" value={linkId} onChange={e => setLinkId(e.target.value)} aria-label="Vincular processo existente">
+                <option value="">Vincular processo existente…</option>
+                {unlinkedCases.map(c => <option key={c.id} value={c.id}>{c.case_number || c.title || 'Sem título'}</option>)}
+              </select>
+              <button className="btn-secondary !py-1.5 text-xs shrink-0" disabled={!linkId || linkCase.isPending} onClick={() => linkCase.mutate(linkId)}>Vincular</button>
+            </div>
+          )}
+          {caseError && <p className="text-xs text-red-600 mt-2">{caseError}</p>}
         </div>
         <div className="card p-5">
           <div className="flex items-center justify-between mb-3">

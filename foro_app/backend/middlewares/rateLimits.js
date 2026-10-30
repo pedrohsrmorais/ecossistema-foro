@@ -33,4 +33,11 @@ const aiLimiter = rateLimit({
   message: json('Muitas mensagens em pouco tempo. Aguarde um instante.'),
 });
 
-module.exports = { loginLimiter, registerLimiter, emailFlowLimiter, verifyLimiter, aiLimiter };
+// Chamados de suporte: 5 por hora por usuário (evita spam na caixa do suporte).
+const supportLimiter = rateLimit({
+  ...base, windowMs: 60 * 60 * 1000, max: 5,
+  keyGenerator: (req) => req.user?.id || req.ip,
+  message: json('Você já enviou vários chamados em pouco tempo. Aguarde um pouco ou escreva para o e-mail de suporte.'),
+});
+
+module.exports = { supportLimiter, loginLimiter, registerLimiter, emailFlowLimiter, verifyLimiter, aiLimiter };

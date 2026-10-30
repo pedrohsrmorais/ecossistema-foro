@@ -75,7 +75,8 @@ async function list(accountId, { stage, search, assigned, page = 1, limit = 50 }
 
   const [rows] = await query(
     `SELECT l.id, l.name, l.phone, l.email, l.stage, l.source, l.assigned_user_id,
-            l.last_contact_at, l.created_at, u.name AS assigned_name
+            l.last_contact_at, l.created_at, u.name AS assigned_name,
+            (SELECT COUNT(*) FROM cases c WHERE c.lead_id = l.id AND c.deleted_at IS NULL) AS cases_count
      FROM leads l
      LEFT JOIN users u ON u.id = l.assigned_user_id
      WHERE ${where}

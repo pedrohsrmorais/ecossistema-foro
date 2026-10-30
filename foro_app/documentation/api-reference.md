@@ -448,6 +448,77 @@ GET /payments/:id/nfse
 
 ---
 
+## Alertas de prazo e e-mail diário
+
+Fonte única: `services/deadlines.service.js`. "Hoje" é o dia de Brasília. Cada usuário vê os prazos/tarefas que criou e os de processos
+sob sua responsabilidade; **administradores veem também todos os prazos e audiências/perícias do escritório**.
+
+### Resumo (sino do app e painel)
+```
+GET /alerts
+Response 200: {
+  counts: { overdue, today, upcoming, urgent },   // urgent = vencidos + hoje + próximos 3 dias
+  overdue:  [ { id, kind: "prazo|tarefa|audiencia|pericia|reuniao|evento", title, at, days, case_id, case_label, lead_id, lead_name } ],
+  today:    [ ... ],
+  upcoming: [ ... ]                               // amanhã até 7 dias à frente
+}
+```
+
+### Preferências
+```
+GET /alerts/preferences        → { deadlines_email: true, email }
+PUT /alerts/preferences        Body: { deadlines_email: boolean }     422 se não for boolean
+```
+
+### E-mail de teste (usuário logado)
+```
+POST /alerts/digest/test       → { sent_to }       # limitado por emailFlowLimiter
+```
+
+### Resumo diário automático
+Job `jobs/deadline-digest.js`: a cada 10 min; a partir de `DIGEST_HOUR` (padrão 7h, Brasília) envia **um** e-mail por usuário/dia quando há algo
+vencido, para hoje ou nos próximos 3 dias. Só para usuários ativos, com e-mail confirmado, com a preferência ligada e conta em teste válido ou ativa.
+Trava de duplicidade: tabela `notification_log` (UNIQUE usuário+tipo+dia). Falha de envio libera nova tentativa (máx. 3 por dia).
+`DEADLINE_DIGEST=off` desliga.
+
+---
+
+## Painel
+
+```
+GET /dashboard
+Response 200: {
+  alerts: { counts, overdue[], today[], upcoming[] },
+  leads:  { total, new_30d, converted, conversion_rate, stale, converted_no_case, funnel[], weekly[], stale_list[], converted_no_case_list[] },
+  cases:  { total, active, active_value, active_no_deadline, by_area[] },
+  tasks:  { pending },
+  fees:   { projected, closed }      // soma do campo "honorarios" dos leads em proposta / convertidos
+}
+```
+
+---
+
+## Suporte (liberado mesmo com teste ou assinatura encerrados)
+
+```
+GET  /support                  → { email, whatsapp, hours, categories }   (SUPPORT_EMAIL, SUPPORT_WHATSAPP, SUPPORT_HOURS)
+GET  /support/tickets          → últimos 20 chamados do usuário
+POST /support/tickets          Body: { category: duvida|problema|cobranca|sugestao|outro, subject (3-200), message (10-5000), page? }
+                               201: { id, status: "aberto", emailed, reply_to }
+                               422 validação · 429 (5 chamados/hora por usuário)
+```
+O chamado é sempre gravado em `support_tickets`; o e-mail para `SUPPORT_EMAIL` sai com `Reply-To` do cliente (responder o e-mail responde o cliente).
+
+---
+
+## Vínculo lead ↔ processo
+
+- `cases.lead_id` liga o processo ao cliente. `PUT /cases/:id { lead_id }` vincula; `{ lead_id: null }` desvincula (404 se o lead não existir/for de outra conta).
+- `POST /cases` aceita `lead_id`. `GET /cases?lead_id=…` lista os processos de um lead.
+- `GET /cases` e `GET /cases/:id` trazem `lead_name`, `lead_phone`, `lead_email`. `GET /leads` traz `cases_count`.
+
+---
+
 ## Configurações
 
 ### Buscar configurações da conta

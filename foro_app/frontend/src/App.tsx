@@ -21,6 +21,7 @@ import Agenda from './pages/Agenda'
 import Tasks from './pages/Tasks'
 import Plans from './pages/Plans'
 import Settings from './pages/Settings'
+import Support from './pages/Support'
 import Education from './pages/Education'
 import TrilhaDetail from './pages/TrilhaDetail'
 import ModuloDesativado from './pages/ModuloDesativado'
@@ -72,6 +73,7 @@ export default function App() {
                 <Route path="/tasks"     element={<Tasks />} />
                 <Route path="/settings"  element={<Settings />} />
                 <Route path="/planos"    element={<Plans />} />
+                <Route path="/suporte"   element={<Support />} />
                 <Route path="/education"      element={<Education />} />
                 <Route path="/education/:id"  element={<TrilhaDetail />} />
                 <Route path="/modulo-desativado" element={<ModuloDesativado />} />

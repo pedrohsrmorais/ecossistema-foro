@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { settingsApi, fieldsApi, usersApi } from '../api'
+import { settingsApi, fieldsApi, usersApi, alertsApi } from '../api'
 import { useAuth } from '../context/AuthContext'
 
 function TeamSection({ maxUsers }: { maxUsers?: number }) {
@@ -78,6 +78,43 @@ function TeamSection({ maxUsers }: { maxUsers?: number }) {
   )
 }
 
+function NotificationsSection() {
+  const qc = useQueryClient()
+  const { data } = useQuery({ queryKey: ['alert-prefs'], queryFn: alertsApi.getPrefs })
+  const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null)
+  const toggle = useMutation({
+    mutationFn: (v: boolean) => alertsApi.setPrefs(v),
+    // marca/desmarca na hora; se o servidor recusar, volta ao valor salvo
+    onMutate: (v: boolean) => { qc.setQueryData(['alert-prefs'], (old: any) => old && { ...old, deadlines_email: v }) },
+    onSettled: () => qc.invalidateQueries({ queryKey: ['alert-prefs'] }),
+    onError: () => setMsg({ ok: false, text: 'Não foi possível salvar. Tente de novo.' }),
+  })
+  const test = useMutation({
+    mutationFn: alertsApi.sendTest,
+    onSuccess: r => setMsg({ ok: true, text: `Enviamos um e-mail de teste para ${r.sent_to}. Se não chegar em 1 minuto, olhe o spam / lixeira.` }),
+    onError: (e: any) => setMsg({ ok: false, text: e?.response?.data?.error || 'Não foi possível enviar o teste.' }),
+  })
+  return (
+    <div className="card p-5 mb-5">
+      <h2 className="font-medium text-slate-900 mb-1">Notificações</h2>
+      <p className="text-sm text-slate-500 mb-4">Alertas de prazo no sino do app (sempre ligados) e no seu e-mail.</p>
+      <label className="flex items-start gap-3 text-sm cursor-pointer">
+        <input type="checkbox" className="mt-0.5 w-4 h-4" checked={!!data?.deadlines_email} disabled={!data || toggle.isPending} onChange={e => toggle.mutate(e.target.checked)} />
+        <span>
+          <span className="font-medium text-slate-900">Resumo diário de prazos por e-mail</span>
+          <span className="block text-slate-500">Às 7h (Brasília), se houver algo vencido, para hoje ou nos próximos 3 dias. Enviado para {data?.email || 'o seu e-mail'}.</span>
+        </span>
+      </label>
+      <div className="mt-4 flex items-center gap-3 flex-wrap">
+        <button className="btn-secondary text-sm" onClick={() => { setMsg(null); test.mutate() }} disabled={test.isPending}>
+          {test.isPending ? 'Enviando…' : 'Enviar e-mail de teste agora'}
+        </button>
+        {msg && <p className={msg.ok ? 'text-sm text-green-700' : 'text-sm text-red-600'}>{msg.text}</p>}
+      </div>
+    </div>
+  )
+}
+
 export default function Settings() {
   const { data: settings } = useQuery({ queryKey: ['settings'], queryFn: settingsApi.get })
   const { data: plan }     = useQuery({ queryKey: ['plan'],     queryFn: settingsApi.getPlan })
@@ -101,7 +138,7 @@ export default function Settings() {
           </div>
           <div className="flex gap-4">
             <dt className="text-slate-500 w-24">Status</dt>
-            <dd className="text-green-600 capitalize">{settings?.status}</dd>
+            <dd className={settings?.status === 'active' || settings?.status === 'trialing' ? 'text-green-600' : 'text-amber-600'}>{({ trialing: 'Em teste', active: 'Ativa', expired: 'Encerrada', suspended: 'Suspensa', cancelled: 'Cancelada' } as Record<string, string>)[settings?.status ?? ''] ?? settings?.status}</dd>
           </div>
         </dl>
       </div>
@@ -139,6 +176,8 @@ export default function Settings() {
           </table>
         </div>
       </div>
+
+      <NotificationsSection />
 
       <TeamSection maxUsers={plan?.max_users ?? undefined} />
 

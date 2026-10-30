@@ -3,7 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { Link } from 'react-router-dom'
 import { Search, Plus, ChevronDown, ChevronRight, ExternalLink, Copy, Check, Trash2, Link2Off, Sparkles, AlertTriangle } from 'lucide-react'
 import clsx from 'clsx'
-import { casesApi, type Case } from '../api'
+import { casesApi, leadsApi, type Case } from '../api'
 import { EditableCell } from '../components/crm'
 import { useChat } from '../context/ChatContext'
 import { CASE_STATUSES, fmtDate } from '../lib/cases'
@@ -26,6 +26,8 @@ export default function Cases() {
   const [search, setSearch] = useState('')
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({})
   const [newNumber, setNewNumber] = useState('')
+  const [newLead, setNewLead] = useState('')
+  const { data: leadsList } = useQuery({ queryKey: ['leads', 'board'], queryFn: () => leadsApi.list({ limit: 500 }), staleTime: 30_000 })
   const [error, setError] = useState('')
 
   const { data, isLoading } = useQuery({ queryKey: ['cases', 'all'], queryFn: () => casesApi.list(), staleTime: 15_000 })
@@ -34,9 +36,9 @@ export default function Cases() {
   const create = useMutation({
     mutationFn: (v: string) => {
       const looksLikeNumber = /\d{7}/.test(v.replace(/\D/g, '').slice(0, 7)) && v.replace(/\D/g, '').length >= 15
-      return casesApi.create(looksLikeNumber ? { case_number: v } : { title: v })
+      return casesApi.create({ ...(looksLikeNumber ? { case_number: v } : { title: v }), ...(newLead ? { lead_id: newLead } : {}) })
     },
-    onSuccess: () => { setNewNumber(''); setError(''); refresh() },
+    onSuccess: () => { setNewNumber(''); setNewLead(''); setError(''); refresh(); qc.invalidateQueries({ queryKey: ['leads'] }) },
     onError: (e: any) => setError(e?.response?.data?.error || 'Não foi possível cadastrar o processo.'),
   })
   const update = useMutation({
@@ -69,6 +71,10 @@ export default function Cases() {
         </div>
         <form className="flex gap-2 flex-1 min-w-[300px]" onSubmit={e => { e.preventDefault(); if (newNumber.trim()) create.mutate(newNumber.trim()) }}>
           <input className="input" placeholder="Novo processo: cole o número CNJ (0000000-00.0000.0.00.0000) ou um título" value={newNumber} onChange={e => setNewNumber(e.target.value)} />
+          <select className="input max-w-[200px]" value={newLead} onChange={e => setNewLead(e.target.value)} aria-label="Cliente do processo">
+            <option value="">Cliente (opcional)</option>
+            {leadsList?.data.map(l => <option key={l.id} value={l.id}>{l.name || 'Sem nome'}</option>)}
+          </select>
           <button className="btn-primary shrink-0" disabled={!newNumber.trim() || create.isPending}><Plus className="w-4 h-4" /> Adicionar</button>
         </form>
       </div>

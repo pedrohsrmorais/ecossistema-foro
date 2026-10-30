@@ -101,6 +101,7 @@ CREATE TABLE IF NOT EXISTS users (
   role               ENUM('admin','user') NOT NULL DEFAULT 'user',
   active             TINYINT(1)   NOT NULL DEFAULT 1,
   email_verified_at  DATETIME     NULL,
+  notify_deadlines_email TINYINT(1) NOT NULL DEFAULT 1 COMMENT '1 = recebe o resumo diário de prazos por e-mail',
   phone_verified_at  DATETIME     NULL,
   created_at         DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at         DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
@@ -244,6 +245,7 @@ CREATE TABLE IF NOT EXISTS tasks (
   KEY idx_tasks_user    (user_id),
   KEY idx_tasks_lead    (lead_id),
   KEY idx_tasks_case    (case_id),
+  KEY idx_tasks_deadline (account_id, completed_at, due_date),
   CONSTRAINT fk_tasks_lead FOREIGN KEY (lead_id) REFERENCES leads(id) ON DELETE SET NULL,
   CONSTRAINT fk_tasks_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
@@ -433,6 +435,33 @@ CREATE TABLE IF NOT EXISTS payments (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- Eventos de webhook do Stripe já recebidos (idempotência: cada evt_ é processado uma única vez).
+-- Alertas de prazo: 1 envio por usuário/dia (ver migrations/004).
+CREATE TABLE IF NOT EXISTS notification_log (
+  id        VARCHAR(36) NOT NULL DEFAULT (UUID()),
+  user_id   VARCHAR(36) NOT NULL,
+  kind      VARCHAR(30) NOT NULL,
+  ref_date  DATE        NOT NULL,
+  sent_at   DATETIME    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  UNIQUE KEY uk_notif (user_id, kind, ref_date)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Suporte: chamados abertos pelo app (também vão por e-mail).
+CREATE TABLE IF NOT EXISTS support_tickets (
+  id         VARCHAR(36)  NOT NULL DEFAULT (UUID()),
+  account_id VARCHAR(36)  NOT NULL,
+  user_id    VARCHAR(36)  NOT NULL,
+  category   VARCHAR(30)  NOT NULL DEFAULT 'duvida',
+  subject    VARCHAR(200) NOT NULL,
+  message    TEXT         NOT NULL,
+  status     ENUM('aberto','respondido','fechado') NOT NULL DEFAULT 'aberto',
+  email_sent TINYINT(1)   NOT NULL DEFAULT 0 COMMENT '1 = e-mail para o suporte saiu; 0 = só registrado',
+  created_at DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  KEY idx_support_account (account_id, created_at),
+  KEY idx_support_user (user_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 CREATE TABLE IF NOT EXISTS stripe_events (
   id           VARCHAR(100) NOT NULL COMMENT 'evt_...',
   type         VARCHAR(100) NOT NULL,

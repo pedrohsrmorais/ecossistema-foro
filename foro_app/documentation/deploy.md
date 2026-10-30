@@ -30,6 +30,7 @@ As migrações de banco (`backend/migrations/`) rodam sozinhas no boot, antes de
 - [ ] `ANTHROPIC_API_KEY` com limite de gasto definido no painel da Anthropic
 - [ ] Troque a senha do admin da plataforma (`admin@intellsn.com.br`) para algo forte
 - [ ] Stripe: `STRIPE_SECRET_KEY` + webhook `https://SEU_DOMINIO/api/webhooks/stripe` com os 5 eventos (ver `pagamentos.md`) + `STRIPE_WEBHOOK_SECRET` + Portal do cliente configurado
+- [ ] `SUPPORT_EMAIL` (caixa que recebe os chamados) e, se quiser, `SUPPORT_WHATSAPP`; `DIGEST_HOUR` (padrão 7) para o resumo diário de prazos. Mande um e-mail de teste em Configurações → Notificações
 - [ ] Faça um pagamento de teste ponta a ponta no modo teste (cartão `4242 4242 4242 4242`) antes de trocar para a chave live
 - [ ] Backup agendado **e** copiado para fora do servidor; teste uma restauração
 - [ ] Termos de uso e política de privacidade (LGPD) publicados

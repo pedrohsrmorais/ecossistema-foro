@@ -25,6 +25,7 @@ function assertEnv() {
     process.exit(1);
   }
   if (isProd && !process.env.RESEND_API_KEY) console.warn('⚠️  RESEND_API_KEY ausente: e-mails de confirmação NÃO serão enviados (só logados).');
+  if (isProd && !process.env.SUPPORT_EMAIL) console.warn('⚠️  SUPPORT_EMAIL ausente: chamados de suporte ficam só no banco (ninguém será avisado).');
   if (isProd && !process.env.ANTHROPIC_API_KEY) console.warn('⚠️  ANTHROPIC_API_KEY ausente: o chat de IA ficará indisponível.');
   if (isProd && !process.env.CORS_ORIGIN && !process.env.FRONTEND_URL) console.warn('⚠️  Defina FRONTEND_URL/CORS_ORIGIN com o domínio público.');
 }
@@ -104,6 +105,7 @@ async function start() {
     console.log(`📦 Serving React build from: ${distPath}`);
     console.log(`🌍 Environment: ${process.env.NODE_ENV || 'development'}`);
   });
+  require('./jobs/deadline-digest').start();
   const shutdown = () => { server.close(() => process.exit(0)); setTimeout(() => process.exit(0), 10000).unref(); };
   process.on('SIGTERM', shutdown);
   process.on('SIGINT', shutdown);

@@ -33,9 +33,11 @@ const educationController   = require('../controllers/education.controller');
 const quizzesController     = require('../controllers/quizzes.controller');
 const challengesController  = require('../controllers/challenges.controller');
 const communityController   = require('../controllers/community.controller');
+const alertsController      = require('../controllers/alerts.controller');
+const supportController     = require('../controllers/support.controller');
 
 const { authenticate, requireAdmin, requireVerifiedEmail } = require('../middlewares/auth.middleware');
-const { loginLimiter, registerLimiter, emailFlowLimiter, verifyLimiter, aiLimiter } = require('../middlewares/rateLimits');
+const { loginLimiter, registerLimiter, emailFlowLimiter, verifyLimiter, aiLimiter, supportLimiter } = require('../middlewares/rateLimits');
 const { loadClientContext }   = require('../middlewares/client.middleware');
 const { authenticatePlatform } = require('../middlewares/platform.middleware');
 const { requireModule }       = require('../middlewares/modules.middleware');
@@ -175,6 +177,20 @@ router.get   ('/events',               requireModule('crm'), eventsController.li
 router.post  ('/events',               requireModule('crm'), eventsController.create);
 router.put   ('/events/:id',           requireModule('crm'), eventsController.update);
 router.delete('/events/:id',           requireModule('crm'), eventsController.remove);
+
+// ─── Alertas de prazo (módulo "crm") — sino do app, painel e resumo diário por e-mail ─────
+router.get ('/alerts',               requireModule('crm'), alertsController.summary);
+router.get ('/alerts/preferences',   requireModule('crm'), alertsController.getPrefs);
+router.put ('/alerts/preferences',   requireModule('crm'), alertsController.setPrefs);
+router.post('/alerts/digest/test',   requireModule('crm'), emailFlowLimiter, alertsController.sendTest);
+
+// ─── Painel ────────────────────────────────────────────────────────────────────
+router.get('/dashboard',             requireModule('crm'), supportController.dashboardOverview);
+
+// ─── Suporte (liberado mesmo com teste/assinatura encerrados: quem não consegue assinar precisa de ajuda) ──
+router.get ('/support',              supportController.info);
+router.get ('/support/tickets',      supportController.list);
+router.post('/support/tickets',      supportLimiter, supportController.create);
 
 // ─── IA — Chat interno (módulo "crm") ──────────────────────────────────────────
 router.post  ('/ai/message',           requireModule('crm'), aiLimiter, aiController.sendMessage);

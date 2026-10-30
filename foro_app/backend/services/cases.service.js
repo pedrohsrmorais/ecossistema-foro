@@ -9,7 +9,7 @@ const cnj = require('../utils/cnj');
 
 const STATUSES = ['ativo', 'suspenso', 'arquivado', 'encerrado'];
 
-const SELECT = `SELECT c.*, l.name AS lead_name, u.name AS responsible_name,
+const SELECT = `SELECT c.*, l.name AS lead_name, l.phone AS lead_phone, l.email AS lead_email, u.name AS responsible_name,
     (SELECT MIN(t.due_date) FROM tasks t WHERE t.case_id = c.id AND t.is_deadline = 1 AND t.completed_at IS NULL AND t.due_date >= NOW()) AS next_deadline
   FROM cases c
   LEFT JOIN leads l ON l.id = c.lead_id
