@@ -6,7 +6,7 @@ const authValidations = {
     body('email').isEmail().normalizeEmail().withMessage('E-mail inválido.'),
     body('password').isLength({ min: 8, max: 72 }).withMessage('Senha deve ter de 8 a 72 caracteres.'),
     body('phone').optional({ checkFalsy: true }).isMobilePhone('pt-BR').withMessage('Celular inválido.'),
-    body('accountName').trim().notEmpty().isLength({ max: 255 }).withMessage('Nome da empresa é obrigatório.'),
+    body('accountName').optional({ checkFalsy: true }).trim().isLength({ max: 255 }).withMessage('Nome do escritório muito longo.'),
   ],
   forgotPassword: [
     body('email').isEmail().normalizeEmail().withMessage('E-mail inválido.'),

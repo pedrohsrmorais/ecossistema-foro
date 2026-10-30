@@ -453,7 +453,17 @@ Além das 10 originais de leads/notas/tarefas, o chat opera: `create_case`, `sea
 
 | Método | Rota | Descrição |
 |---|---|---|
-| GET | `/permissions` | Catálogo de permissões (`templates_manage`, `ai_drafts`, `delete_records`) |
+| GET | `/permissions` | Catálogo de permissões (`group: module|action`) |
+| GET | `/office` | Dados do escritório + vagas; admin recebe `code` e `pending_requests`; usuário sem escritório recebe `configured:false` e `my_join_request` |
+| POST | `/office` | **Admin.** Cria o escritório da conta rascunho: `{ name, cnpj?, address?, city?, state?, office_phone? }` → gera código e reinicia o teste de 14 dias. `409 OFFICE_EXISTS` se já existe |
+| PUT | `/office` | **Admin.** Atualiza dados (CNPJ validado, UF válida) |
+| POST | `/office/code/regenerate` | **Admin.** Novo código (recusa pedidos pendentes) |
+| POST | `/office/join` · DELETE `/office/join` | Usuário sem escritório pede entrada `{ code }` / cancela o pedido |
+| GET | `/office/requests` · POST `/office/requests/:id` | **Admin.** Lista pedidos / `{ approve: boolean }` (respeita `PLAN_LIMIT_USERS`) |
+| GET | `/office/activity?days=30` | **Admin.** Tempo ativo, dias ativos, ações, última atividade, nível, créditos de IA, documentos e processos por usuário + série diária |
+| POST | `/activity/ping` | Heartbeat do front (1/min com aba visível e interação recente) |
+
+Sem escritório criado, todas as rotas do CRM devolvem `403 { code: "OFFICE_REQUIRED" }` (liberadas: `/auth`, `/users/me`, `/office*`, `/settings*`, `/support*`, `/plans`, `/payments*`, `/modules`, `/activity`).
 | PUT | `/users/:id` | **Admin.** Aceita `permissions: { chave: boolean }` (mescla; chaves desconhecidas ignoradas). Dono do escritório: `400 OWNER_PROTECTED` ao rebaixar/desativar. `GET /users*` traz `permissions` e `is_owner` |
 | GET | `/office-templates` · `/office-templates/:id` | Modelos do escritório (qualquer usuário da conta) |
 | POST | `/office-templates` | **Permissão `templates_manage`.** `{ title, area_key, description?, body, legal_basis? }` (sem `legal_basis`, usa os dispositivos citados no texto). Nasce não revisado |

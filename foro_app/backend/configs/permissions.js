@@ -1,27 +1,39 @@
 /**
  * permissions.js — o que cada usuário pode fazer, definido pelo administrador do escritório.
  * Administradores sempre podem tudo. Para usuários comuns vale o que estiver em users.permissions
- * (JSON { chave: true|false }); chave ausente usa o padrão abaixo.
+ * (JSON { chave: true|false, view_scope: 'all'|'own' }); chave ausente usa o padrão abaixo.
+ *
+ * group 'module' = acesso à área do CRM (a aba some/bloqueia); group 'action' = ação específica.
  */
 const DEFS = [
-  { key: 'templates_manage', label: 'Criar e editar modelos de documento do escritório', default: false },
-  { key: 'ai_drafts', label: 'Gerar rascunhos de documentos com IA (gasta créditos)', default: true },
-  { key: 'delete_records', label: 'Excluir processos e documentos', default: true },
+  { key: 'access_leads', group: 'module', label: 'Acessar Leads', default: true },
+  { key: 'access_cases', group: 'module', label: 'Acessar Processos', default: true },
+  { key: 'access_documents', group: 'module', label: 'Acessar Documentos e o Gerador', default: true },
+  { key: 'access_agenda', group: 'module', label: 'Acessar Agenda e Tarefas', default: true },
+  { key: 'access_ai', group: 'module', label: 'Usar o Assistente de IA (gasta créditos)', default: true },
+  { key: 'templates_manage', group: 'action', label: 'Criar e editar modelos de documento do escritório', default: false },
+  { key: 'ai_drafts', group: 'action', label: 'Gerar rascunhos de documentos com IA (gasta créditos)', default: true },
+  { key: 'delete_records', group: 'action', label: 'Excluir processos e documentos', default: true },
 ];
 const KEYS = DEFS.map(d => d.key);
+const SCOPES = ['all', 'own'];
 
 function resolve(role, stored) {
   const s = (typeof stored === 'string' ? safeParse(stored) : stored) || {};
   const out = {};
   for (const d of DEFS) out[d.key] = role === 'admin' ? true : (typeof s[d.key] === 'boolean' ? s[d.key] : d.default);
+  out.view_scope = role === 'admin' ? 'all' : (SCOPES.includes(s.view_scope) ? s.view_scope : 'all');
   return out;
 }
 function safeParse(v) { try { return JSON.parse(v); } catch { return {}; } }
 
-/** Valida o que o admin enviou: só chaves conhecidas, só booleanos. */
+/** Valida o que o admin enviou: só chaves conhecidas, booleanos (e view_scope all|own). */
 function sanitize(input) {
   const out = {};
-  for (const [k, v] of Object.entries(input || {})) if (KEYS.includes(k) && typeof v === 'boolean') out[k] = v;
+  for (const [k, v] of Object.entries(input || {})) {
+    if (KEYS.includes(k) && typeof v === 'boolean') out[k] = v;
+    else if (k === 'view_scope' && SCOPES.includes(v)) out[k] = v;
+  }
   return out;
 }
 
@@ -32,4 +44,4 @@ function requirePermission(key) {
   };
 }
 
-module.exports = { DEFS, KEYS, resolve, sanitize, requirePermission };
+module.exports = { DEFS, KEYS, SCOPES, resolve, sanitize, requirePermission };

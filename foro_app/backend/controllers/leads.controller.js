@@ -4,7 +4,7 @@ const leadsService = require('../services/leads.service');
 async function list(req, res) {
   const { stage, search, assigned } = req.query;
   const { page, limit } = paging(req.query.page, req.query.limit, { maxLimit: 500 });
-  const result = await leadsService.list(req.account.id, { stage, search, assigned, page, limit });
+  const result = await leadsService.list(req.account.id, { stage, search, assigned, page, limit, viewer: req.viewer });
   res.json(result);
 }
 

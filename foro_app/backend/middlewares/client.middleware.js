@@ -20,7 +20,7 @@ async function loadClientContext(req, res, next) {
     }
 
     const [rows] = await query(
-      'SELECT id, name, status, plan_id, trial_ends_at FROM accounts WHERE id = ? LIMIT 1',
+      'SELECT id, name, status, plan_id, trial_ends_at, office_configured FROM accounts WHERE id = ? LIMIT 1',
       [accountId]
     );
 
@@ -50,7 +50,7 @@ async function loadClientContext(req, res, next) {
       return res.status(403).json({ error: 'Período de teste expirado. Assine um plano para continuar.', code: 'TRIAL_EXPIRED' });
     }
 
-    req.account = { ...account, trial_expired: Boolean(trialExpired), subscription_expired: account.status === 'expired' };
+    req.account = { ...account, office_configured: Boolean(account.office_configured), trial_expired: Boolean(trialExpired), subscription_expired: account.status === 'expired' };
     next();
   } catch (err) {
     next(err);

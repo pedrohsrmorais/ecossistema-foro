@@ -58,10 +58,11 @@ async function _enrichLead(accountId, lead) {
 
 // ─── CRUD ──────────────────────────────────────────────────────────────────────
 
-async function list(accountId, { stage, search, assigned, page = 1, limit = 50 }) {
+async function list(accountId, { stage, search, assigned, page = 1, limit = 50, viewer }) {
   const conditions = ['l.account_id = ?', 'l.deleted_at IS NULL'];
   const params = [accountId];
 
+  if (viewer)   { conditions.push('l.assigned_user_id = ?');   params.push(viewer); }
   if (stage)    { conditions.push('l.stage = ?');              params.push(stage); }
   if (assigned) { conditions.push('l.assigned_user_id = ?');   params.push(assigned); }
   if (search)   {

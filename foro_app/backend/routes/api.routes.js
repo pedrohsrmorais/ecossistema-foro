@@ -23,6 +23,9 @@ const casesController       = require('../controllers/cases.controller');
 const documentsController   = require('../controllers/documents.controller');
 const officeTemplates       = require('../controllers/office-templates.controller');
 const { requirePermission } = require('../configs/permissions');
+const officeController = require('../controllers/office.controller');
+const { requireOffice, requireAccess, scoped } = require('../middlewares/office.middleware');
+const { countActions } = require('../middlewares/activity.middleware');
 const eventsController      = require('../controllers/events.controller');
 const aiController          = require('../controllers/ai.controller');
 const paymentsController    = require('../controllers/payments.controller');
@@ -118,6 +121,20 @@ router.get  ('/users/me',              usersController.me); // exposto antes do 
 
 // ─── A partir daqui, exige e-mail confirmado (ver requireVerifiedEmail) ───────
 router.use(requireVerifiedEmail);
+router.use(countActions);   // conta ações de escrita por usuário/dia (nível de atividade)
+router.use(requireOffice);  // CRM bloqueado até criar/entrar em um escritório (403 OFFICE_REQUIRED)
+
+// ─── Escritório (workspace): dados, código, pedidos de entrada, atividade ─────
+router.get   ('/office',                     officeController.get);
+router.post  ('/office',                     requireAdmin, officeController.create);          // criação rápida: só o nome é obrigatório
+router.put   ('/office',                     requireAdmin, officeController.update);
+router.post  ('/office/code/regenerate',     requireAdmin, officeController.regenerateCode);
+router.post  ('/office/join',                emailFlowLimiter, officeController.requestJoin);   // entrar por código (aprovação do admin)
+router.delete('/office/join',                officeController.cancelRequest);
+router.get   ('/office/requests',            requireAdmin, officeController.listRequests);
+router.post  ('/office/requests/:id',        requireAdmin, officeController.decide);
+router.get   ('/office/activity',            requireAdmin, officeController.activity);
+router.post  ('/activity/ping',              officeController.ping);
 
 // ─── Módulos — quais estão ativos para a conta logada (ver modules.service.js) ─
 // Usado pelo frontend pra decidir o que mostrar no menu sem precisar tentar
@@ -142,55 +159,55 @@ router.put   ('/fields/:id',           requireModule('crm'), requireAdmin, valid
 router.delete('/fields/:id',           requireModule('crm'), requireAdmin, fieldsController.remove);
 
 // ─── Leads (módulo "crm") ──────────────────────────────────────────────────────
-router.get   ('/leads',                requireModule('crm'), leadsController.list);
-router.post  ('/leads',                requireModule('crm'), validate(leadValidations.create), leadsController.create);
-router.get   ('/leads/funnel',         requireModule('crm'), leadsController.getFunnelSummary);
-router.get   ('/leads/:id',            requireModule('crm'), leadsController.getById);
-router.put   ('/leads/:id',            requireModule('crm'), leadsController.update);
-router.patch ('/leads/:id/stage',      requireModule('crm'), leadsController.moveStage);
-router.patch ('/leads/:id/archive',    requireModule('crm'), leadsController.archive);
-router.delete('/leads/:id',            requireModule('crm'), leadsController.softDelete);
+router.get   ('/leads',                requireModule('crm'), requireAccess('leads'), scoped('leads'), leadsController.list);
+router.post  ('/leads',                requireModule('crm'), requireAccess('leads'), validate(leadValidations.create), leadsController.create);
+router.get   ('/leads/funnel',         requireModule('crm'), requireAccess('leads'), scoped('leads'), leadsController.getFunnelSummary);
+router.get   ('/leads/:id',            requireModule('crm'), requireAccess('leads'), scoped('leads'), leadsController.getById);
+router.put   ('/leads/:id',            requireModule('crm'), requireAccess('leads'), scoped('leads'), leadsController.update);
+router.patch ('/leads/:id/stage',      requireModule('crm'), requireAccess('leads'), scoped('leads'), leadsController.moveStage);
+router.patch ('/leads/:id/archive',    requireModule('crm'), requireAccess('leads'), scoped('leads'), leadsController.archive);
+router.delete('/leads/:id',            requireModule('crm'), requireAccess('leads'), scoped('leads'), leadsController.softDelete);
 
 // Notas do lead
-router.get   ('/leads/:id/notes',      requireModule('crm'), leadsController.listNotes);
-router.post  ('/leads/:id/notes',      requireModule('crm'), leadsController.addNote);
-router.delete('/leads/:leadId/notes/:noteId', requireModule('crm'), leadsController.deleteNote);
+router.get   ('/leads/:id/notes',      requireModule('crm'), requireAccess('leads'), scoped('leads'), leadsController.listNotes);
+router.post  ('/leads/:id/notes',      requireModule('crm'), requireAccess('leads'), scoped('leads'), leadsController.addNote);
+router.delete('/leads/:leadId/notes/:noteId', requireModule('crm'), requireAccess('leads'), scoped('leads', 'leadId'), leadsController.deleteNote);
 
 // Tarefas do lead
-router.get   ('/leads/:id/tasks',      requireModule('crm'), leadsController.listTasks);
-router.post  ('/leads/:id/tasks',      requireModule('crm'), leadsController.createTask);
-router.patch ('/leads/:leadId/tasks/:taskId/complete', requireModule('crm'), leadsController.completeTask);
+router.get   ('/leads/:id/tasks',      requireModule('crm'), requireAccess('leads'), scoped('leads'), leadsController.listTasks);
+router.post  ('/leads/:id/tasks',      requireModule('crm'), requireAccess('leads'), scoped('leads'), leadsController.createTask);
+router.patch ('/leads/:leadId/tasks/:taskId/complete', requireModule('crm'), requireAccess('leads'), scoped('leads', 'leadId'), leadsController.completeTask);
 
 // ─── Tarefas (visão global, módulo "crm") ──────────────────────────────────────
-router.get('/tasks',                   requireModule('crm'), leadsController.listAllTasks);
-router.post('/tasks',                  requireModule('crm'), leadsController.createGlobalTask);   // tarefa/prazo com ou sem lead
+router.get('/tasks',                   requireModule('crm'), requireAccess('agenda'), leadsController.listAllTasks);
+router.post('/tasks',                  requireModule('crm'), requireAccess('agenda'), leadsController.createGlobalTask);   // tarefa/prazo com ou sem lead
 
 // ─── Processos (módulo "crm") — número CNJ, link do tribunal, andamentos ──────
-router.get   ('/cases',                requireModule('crm'), casesController.list);
-router.post  ('/cases',                requireModule('crm'), casesController.create);
-router.get   ('/cases/analyze',        requireModule('crm'), casesController.analyze);
-router.get   ('/cases/:id',            requireModule('crm'), casesController.getById);
-router.put   ('/cases/:id',            requireModule('crm'), casesController.update);
-router.delete('/cases/:id',            requireModule('crm'), requirePermission('delete_records'), casesController.remove);
-router.get   ('/permissions',          officeTemplates.permissionDefs);
-router.get   ('/office-templates',     requireModule('crm'), officeTemplates.list);
-router.post  ('/office-templates',     requireModule('crm'), requirePermission('templates_manage'), officeTemplates.create);
-router.post  ('/office-templates/check',   requireModule('crm'), requirePermission('templates_manage'), officeTemplates.check);
-router.post  ('/office-templates/extract', requireModule('crm'), requirePermission('templates_manage'), officeTemplates.extract);
-router.post  ('/office-templates/convert', requireModule('crm'), requirePermission('templates_manage'), aiLimiter, officeTemplates.convert);
-router.get   ('/office-templates/:id', requireModule('crm'), officeTemplates.get);
-router.put   ('/office-templates/:id', requireModule('crm'), requirePermission('templates_manage'), officeTemplates.update);
-router.delete('/office-templates/:id', requireModule('crm'), requirePermission('templates_manage'), officeTemplates.remove);
-router.get   ('/document-templates',   requireModule('crm'), documentsController.listTemplates);
-router.get   ('/documents',            requireModule('crm'), documentsController.list);
-router.post  ('/documents',            requireModule('crm'), documentsController.create);
-router.get   ('/documents/:id',        requireModule('crm'), documentsController.getById);
-router.put   ('/documents/:id',        requireModule('crm'), documentsController.update);
-router.delete('/documents/:id',        requireModule('crm'), requirePermission('delete_records'), documentsController.remove);
-router.post  ('/documents/:id/draft',  requireModule('crm'), requirePermission('ai_drafts'), aiLimiter, documentsController.draft);
-router.get   ('/documents/:id/export.docx', requireModule('crm'), documentsController.exportDocx);
-router.get   ('/documents/:id/versions/:n', requireModule('crm'), documentsController.getVersion);
-router.post  ('/documents/:id/versions/:n/restore', requireModule('crm'), documentsController.restore);
+router.get   ('/cases',                requireModule('crm'), requireAccess('cases'), scoped('cases'), casesController.list);
+router.post  ('/cases',                requireModule('crm'), requireAccess('cases'), casesController.create);
+router.get   ('/cases/analyze',        requireModule('crm'), requireAccess('cases'), casesController.analyze);
+router.get   ('/cases/:id',            requireModule('crm'), requireAccess('cases'), scoped('cases'), casesController.getById);
+router.put   ('/cases/:id',            requireModule('crm'), requireAccess('cases'), scoped('cases'), casesController.update);
+router.delete('/cases/:id',            requireModule('crm'), requireAccess('cases'), scoped('cases'), requirePermission('delete_records'), casesController.remove);
+router.get   ('/permissions',          officeController.permissionDefs);
+router.get   ('/office-templates',     requireModule('crm'), requireAccess('documents'), officeTemplates.list);
+router.post  ('/office-templates',     requireModule('crm'), requireAccess('documents'), requirePermission('templates_manage'), officeTemplates.create);
+router.post  ('/office-templates/check',   requireModule('crm'), requireAccess('documents'), requirePermission('templates_manage'), officeTemplates.check);
+router.post  ('/office-templates/extract', requireModule('crm'), requireAccess('documents'), requirePermission('templates_manage'), officeTemplates.extract);
+router.post  ('/office-templates/convert', requireModule('crm'), requireAccess('documents'), requirePermission('templates_manage'), aiLimiter, officeTemplates.convert);
+router.get   ('/office-templates/:id', requireModule('crm'), requireAccess('documents'), officeTemplates.get);
+router.put   ('/office-templates/:id', requireModule('crm'), requireAccess('documents'), requirePermission('templates_manage'), officeTemplates.update);
+router.delete('/office-templates/:id', requireModule('crm'), requireAccess('documents'), requirePermission('templates_manage'), officeTemplates.remove);
+router.get   ('/document-templates',   requireModule('crm'), requireAccess('documents'), documentsController.listTemplates);
+router.get   ('/documents',            requireModule('crm'), requireAccess('documents'), scoped('documents'), documentsController.list);
+router.post  ('/documents',            requireModule('crm'), requireAccess('documents'), documentsController.create);
+router.get   ('/documents/:id',        requireModule('crm'), requireAccess('documents'), scoped('documents'), documentsController.getById);
+router.put   ('/documents/:id',        requireModule('crm'), requireAccess('documents'), scoped('documents'), documentsController.update);
+router.delete('/documents/:id',        requireModule('crm'), requireAccess('documents'), scoped('documents'), requirePermission('delete_records'), documentsController.remove);
+router.post  ('/documents/:id/draft',  requireModule('crm'), requireAccess('documents'), scoped('documents'), requirePermission('ai_drafts'), aiLimiter, documentsController.draft);
+router.get   ('/documents/:id/export.docx', requireModule('crm'), requireAccess('documents'), scoped('documents'), documentsController.exportDocx);
+router.get   ('/documents/:id/versions/:n', requireModule('crm'), requireAccess('documents'), scoped('documents'), documentsController.getVersion);
+router.post  ('/documents/:id/versions/:n/restore', requireModule('crm'), requireAccess('documents'), scoped('documents'), documentsController.restore);
 router.get   ('/areas',                requireModule('crm'), casesController.areasMeta);
 router.get   ('/case-stages',          requireModule('crm'), casesController.stagesList);
 router.post  ('/case-stages',          requireModule('crm'), requireAdmin, casesController.stagesCreate);
@@ -198,21 +215,21 @@ router.put   ('/case-stages/reorder',  requireModule('crm'), requireAdmin, cases
 router.post  ('/case-stages/reset',    requireModule('crm'), requireAdmin, casesController.stagesReset);
 router.put   ('/case-stages/:id',      requireModule('crm'), requireAdmin, casesController.stagesUpdate);
 router.delete('/case-stages/:id',      requireModule('crm'), requireAdmin, casesController.stagesRemove);
-router.put   ('/cases/:id/stage',      requireModule('crm'), casesController.moveStage);
-router.get   ('/cases/:id/parties',    requireModule('crm'), casesController.listParties);
-router.post  ('/cases/:id/parties',    requireModule('crm'), casesController.addParty);
-router.put   ('/cases/:id/parties/:partyId',    requireModule('crm'), casesController.updateParty);
-router.delete('/cases/:id/parties/:partyId',    requireModule('crm'), casesController.removeParty);
-router.get   ('/cases/:id/members',    requireModule('crm'), casesController.listMembers);
-router.put   ('/cases/:id/members',    requireModule('crm'), casesController.setMembers);
-router.post  ('/cases/:id/updates',    requireModule('crm'), casesController.addUpdate);
-router.delete('/cases/:id/updates/:updateId', requireModule('crm'), casesController.deleteUpdate);
+router.put   ('/cases/:id/stage',      requireModule('crm'), requireAccess('cases'), scoped('cases'), casesController.moveStage);
+router.get   ('/cases/:id/parties',    requireModule('crm'), requireAccess('cases'), scoped('cases'), casesController.listParties);
+router.post  ('/cases/:id/parties',    requireModule('crm'), requireAccess('cases'), scoped('cases'), casesController.addParty);
+router.put   ('/cases/:id/parties/:partyId',    requireModule('crm'), requireAccess('cases'), scoped('cases'), casesController.updateParty);
+router.delete('/cases/:id/parties/:partyId',    requireModule('crm'), requireAccess('cases'), scoped('cases'), casesController.removeParty);
+router.get   ('/cases/:id/members',    requireModule('crm'), requireAccess('cases'), scoped('cases'), casesController.listMembers);
+router.put   ('/cases/:id/members',    requireModule('crm'), requireAccess('cases'), scoped('cases'), casesController.setMembers);
+router.post  ('/cases/:id/updates',    requireModule('crm'), requireAccess('cases'), scoped('cases'), casesController.addUpdate);
+router.delete('/cases/:id/updates/:updateId', requireModule('crm'), requireAccess('cases'), scoped('cases'), casesController.deleteUpdate);
 
 // ─── Agenda (módulo "crm") — reuniões/audiências com link ──────────────────────
-router.get   ('/events',               requireModule('crm'), eventsController.list);
-router.post  ('/events',               requireModule('crm'), eventsController.create);
-router.put   ('/events/:id',           requireModule('crm'), eventsController.update);
-router.delete('/events/:id',           requireModule('crm'), eventsController.remove);
+router.get   ('/events',               requireModule('crm'), requireAccess('agenda'), eventsController.list);
+router.post  ('/events',               requireModule('crm'), requireAccess('agenda'), eventsController.create);
+router.put   ('/events/:id',           requireModule('crm'), requireAccess('agenda'), eventsController.update);
+router.delete('/events/:id',           requireModule('crm'), requireAccess('agenda'), eventsController.remove);
 
 // ─── Alertas de prazo (módulo "crm") — sino do app, painel e resumo diário por e-mail ─────
 router.get ('/alerts',               requireModule('crm'), alertsController.summary);
@@ -229,10 +246,10 @@ router.get ('/support/tickets',      supportController.list);
 router.post('/support/tickets',      supportLimiter, supportController.create);
 
 // ─── IA — Chat interno (módulo "crm") ──────────────────────────────────────────
-router.post  ('/ai/message',           requireModule('crm'), aiLimiter, aiController.sendMessage);
-router.get   ('/ai/conversations',     requireModule('crm'), aiController.listConversations);
-router.get   ('/ai/conversations/:id', requireModule('crm'), aiController.getConversation);
-router.delete('/ai/conversations/:id', requireModule('crm'), aiController.clearConversation);
+router.post  ('/ai/message',           requireModule('crm'), requireAccess('ai'), aiLimiter, aiController.sendMessage);
+router.get   ('/ai/conversations',     requireModule('crm'), requireAccess('ai'), aiController.listConversations);
+router.get   ('/ai/conversations/:id', requireModule('crm'), requireAccess('ai'), aiController.getConversation);
+router.delete('/ai/conversations/:id', requireModule('crm'), requireAccess('ai'), aiController.clearConversation);
 router.get   ('/ai/credits',           requireModule('crm'), aiController.getCredits);
 router.get   ('/ai/usage',             requireModule('crm'), aiController.getUsage);
 

@@ -1,6 +1,6 @@
 const casesService = require('../services/cases.service');
 
-async function list(req, res) { res.json(await casesService.list(req.account.id, req.query)); }
+async function list(req, res) { res.json(await casesService.list(req.account.id, { ...req.query, viewer: req.viewer })); }
 async function getById(req, res) { res.json(await casesService.getById(req.params.id, req.account.id)); }
 async function create(req, res) { res.status(201).json(await casesService.create(req.account.id, req.user.id, req.body)); }
 async function update(req, res) { res.json(await casesService.update(req.params.id, req.account.id, req.body)); }

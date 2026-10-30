@@ -36,9 +36,10 @@ async function _assertLead(leadId, accountId) {
   if (!r.length) throw new AppError('Contato não encontrado.', 404);
 }
 
-async function list(accountId, { status, search, lead_id, area_key, stage_id, limit = 200 } = {}) {
+async function list(accountId, { status, search, lead_id, area_key, stage_id, limit = 200, viewer } = {}) {
   const cond = ['c.account_id = ?', 'c.deleted_at IS NULL'];
   const params = [accountId];
+  if (viewer) { cond.push('(c.responsible_user_id = ? OR EXISTS (SELECT 1 FROM case_members m WHERE m.case_id = c.id AND m.user_id = ?))'); params.push(viewer, viewer); }
   if (status) { cond.push('c.status = ?'); params.push(status); }
   if (lead_id) { cond.push('c.lead_id = ?'); params.push(lead_id); }
   if (area_key) { cond.push('c.area_key = ?'); params.push(area_key); }

@@ -6,7 +6,7 @@ import { useAuth } from '../context/AuthContext'
 export default function Register() {
   const { register } = useAuth()
   const navigate = useNavigate()
-  const [form, setForm] = useState({ name: '', email: '', password: '', phone: '', accountName: '' })
+  const [form, setForm] = useState({ name: '', email: '', password: '', phone: '' })
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
 
@@ -47,10 +47,6 @@ export default function Register() {
 
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">Nome do escritório</label>
-              <input type="text" className="input" value={form.accountName} onChange={setField('accountName')} placeholder="Advocacia Silva" required />
-            </div>
-            <div>
               <label className="block text-sm font-medium text-slate-700 mb-1">Seu nome</label>
               <input type="text" className="input" value={form.name} onChange={setField('name')} placeholder="João Silva" required />
             </div>
@@ -66,6 +62,7 @@ export default function Register() {
               <label className="block text-sm font-medium text-slate-700 mb-1">Celular (opcional)</label>
               <input type="tel" className="input" value={form.phone} onChange={setField('phone')} placeholder="+55 51 99999-9999" />
             </div>
+            <p className="text-xs text-slate-500">Depois de entrar você cria o seu escritório (leva 10 segundos) ou entra em um que já existe com um convite ou código.</p>
             <p className="text-xs text-slate-500 bg-slate-50 border border-slate-200 rounded-lg p-2.5">
               📬 Vamos enviar um código para confirmar seu e-mail. Se não chegar, <strong>confira o spam, o lixo eletrônico e a lixeira</strong>.
             </p>

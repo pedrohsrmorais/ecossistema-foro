@@ -2,17 +2,20 @@ import { Outlet, NavLink, useNavigate, useLocation } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import {
   MessageSquare, Users, LayoutDashboard, CheckSquare, Settings, LogOut, Scale,
-  GraduationCap, FileText, Sparkles, CreditCard, LifeBuoy, Clock, Briefcase, CalendarDays, Building2, UserSearch, Gavel, FlaskConical, Trophy, Users2,
+  GraduationCap, FileText, Sparkles, Wand2, Landmark, CreditCard, LifeBuoy, Clock, Briefcase, CalendarDays, Building2, UserSearch, Gavel, FlaskConical, Trophy, Users2,
 } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
-import { modulesApi, settingsApi } from '../api'
+import { modulesApi, settingsApi, officeApi, usersApi } from '../api'
+import { LOCKED_FEATURES } from '../config/featureFlags'
+import OfficeGate from './OfficeGate'
+import { useEffect, useRef } from 'react'
 import { ChatProvider } from '../context/ChatContext'
 import AiDock from './AiDock'
 import CreditMeter from './CreditMeter'
 import AlertsBell from './AlertsBell'
 import clsx from 'clsx'
 
-type NavItem = { to: string; label: string; icon: typeof Scale; module: string | null }
+type NavItem = { to: string; label: string; icon: typeof Scale; module: string | null; access?: string; soon?: boolean; crm?: boolean }
 
 // `module` é opcional: item sem módulo associado nunca é escondido. Os
 // demais só aparecem se o módulo estiver ativo pra conta — ver GET /modules
@@ -24,32 +27,34 @@ type NavItem = { to: string; label: string; icon: typeof Scale; module: string |
 // crescendo com o tempo); a segunda reúne o conteúdo educativo e tudo que
 // gira em torno dele (provas de conceito, desafios semanais).
 const NAV_TOP: NavItem[] = [
-  { to: '/chat',      label: 'IA',      icon: MessageSquare,   module: 'crm' },
-  { to: '/leads',     label: 'Leads',   icon: Users,           module: 'crm' },
-  { to: '/processos', label: 'Processos', icon: Briefcase,    module: 'crm' },
-  { to: '/documentos', label: 'Documentos', icon: FileText,   module: 'crm' },
-  { to: '/agenda',    label: 'Agenda',    icon: CalendarDays, module: 'crm' },
-  { to: '/dashboard', label: 'Painel',  icon: LayoutDashboard, module: 'crm' },
-  { to: '/tasks',     label: 'Tarefas', icon: CheckSquare,     module: 'crm' },
+  { to: '/chat',      label: 'IA',      icon: MessageSquare,   module: 'crm', access: 'ai', crm: true },
+  { to: '/leads',     label: 'Leads',   icon: Users,           module: 'crm', access: 'leads', crm: true },
+  { to: '/processos', label: 'Processos', icon: Briefcase,    module: 'crm', access: 'cases', crm: true },
+  { to: '/documentos', label: 'Documentos', icon: FileText,   module: 'crm', access: 'documents', crm: true },
+  { to: '/agenda',    label: 'Agenda',    icon: CalendarDays, module: 'crm', access: 'agenda', crm: true },
+  { to: '/dashboard', label: 'Painel',  icon: LayoutDashboard, module: 'crm', crm: true },
+  { to: '/tasks',     label: 'Tarefas', icon: CheckSquare,     module: 'crm', access: 'agenda', crm: true },
+  { to: '/escritorio', label: 'Escritório', icon: Landmark,    module: null },
 ]
 
 const NAV_SECTIONS: { label: string; items: NavItem[] }[] = [
   {
     label: 'Aplicativos',
     items: [
-      { to: '/pesquisa-inteligente', label: 'Pesquisa inteligente',  icon: Sparkles,    module: null },
-      { to: '/consulta-cnpj',        label: 'Consulta CNPJ',         icon: Building2,   module: 'pesquisa_cpf_cnpj' },
-      { to: '/consulta-cpf',         label: 'Consulta CPF',          icon: UserSearch,  module: 'pesquisa_cpf_cnpj' },
-      { to: '/consulta-processual',  label: 'Consulta processual',   icon: Gavel,       module: 'pesquisa_processual' },
+      { to: '/gerador-documentos',   label: 'Gerador de documentos', icon: Wand2,       module: 'crm', access: 'documents', crm: true },
+      { to: '/pesquisa-inteligente', label: 'Pesquisa inteligente',  icon: Sparkles,    module: null, soon: LOCKED_FEATURES.pesquisaInteligente },
+      { to: '/consulta-cnpj',        label: 'Consulta CNPJ',         icon: Building2,   module: 'pesquisa_cpf_cnpj', soon: LOCKED_FEATURES.pesquisaCnpj },
+      { to: '/consulta-cpf',         label: 'Consulta CPF',          icon: UserSearch,  module: 'pesquisa_cpf_cnpj', soon: LOCKED_FEATURES.pesquisaCpf },
+      { to: '/consulta-processual',  label: 'Consulta processual',   icon: Gavel,       module: 'pesquisa_processual', soon: LOCKED_FEATURES.pesquisaProcessual },
     ],
   },
   {
     label: 'Inteligência',
     items: [
-      { to: '/education',           label: 'Educação',              icon: GraduationCap, module: 'educacao' },
-      { to: '/provas-de-conceito',  label: 'Provas de conceito',    icon: FlaskConical,  module: 'provas_conceito' },
-      { to: '/desafios-semanais',   label: 'Desafios semanais',     icon: Trophy,        module: 'desafios_semanais' },
-      { to: '/comunidade',          label: 'Comunidade',            icon: Users2,        module: 'comunidade' },
+      { to: '/education',           label: 'Educação',              icon: GraduationCap, module: 'educacao', soon: LOCKED_FEATURES.educacao },
+      { to: '/provas-de-conceito',  label: 'Provas de conceito',    icon: FlaskConical,  module: 'provas_conceito', soon: LOCKED_FEATURES.provasConceito },
+      { to: '/desafios-semanais',   label: 'Desafios semanais',     icon: Trophy,        module: 'desafios_semanais', soon: LOCKED_FEATURES.desafios },
+      { to: '/comunidade',          label: 'Comunidade',            icon: Users2,        module: 'comunidade', soon: LOCKED_FEATURES.comunidade },
     ],
   },
 ]
@@ -73,14 +78,33 @@ export default function Layout() {
   const trialDaysLeft = plan?.account_status === 'trialing' && plan?.trial_ends_at
     ? Math.ceil((new Date(plan.trial_ends_at).getTime() - Date.now()) / 86_400_000)
     : null
-  const visible = (item: NavItem) => !item.module || !disabledModules.has(item.module)
+  const { data: office } = useQuery({ queryKey: ['office'], queryFn: officeApi.get, staleTime: 30_000 })
+  const { data: meP } = useQuery({ queryKey: ['me-profile'], queryFn: usersApi.me, staleTime: 60_000 })
+  const hasOffice = office?.configured !== false // enquanto carrega, assume que tem (evita piscar o bloqueio)
+  const canAccess = (item: NavItem) => !item.access || meP?.permissions?.[('access_' + item.access) as keyof NonNullable<typeof meP.permissions>] !== false
+  const visible = (item: NavItem) => (!item.module || !disabledModules.has(item.module)) && canAccess(item)
+  const CRM_PATHS = ['/chat', '/leads', '/processos', '/documentos', '/agenda', '/dashboard', '/tasks', '/gerador-documentos']
+  const gated = !hasOffice && CRM_PATHS.some(p => location.pathname === p || location.pathname.startsWith(p + '/'))
+
+  // Tempo ativo na aba: um "ping" por minuto enquanto a aba está visível e houve interação recente
+  const lastInteraction = useRef(Date.now())
+  useEffect(() => {
+    if (!hasOffice) return
+    const mark = () => { lastInteraction.current = Date.now() }
+    const evs = ['mousemove', 'keydown', 'click', 'scroll', 'touchstart']
+    evs.forEach(e => window.addEventListener(e, mark, { passive: true }))
+    const tick = () => { if (document.visibilityState === 'visible' && Date.now() - lastInteraction.current < 120_000) officeApi.ping().catch(() => {}) }
+    const first = setTimeout(tick, 5_000)
+    const id = setInterval(tick, 60_000)
+    return () => { evs.forEach(e => window.removeEventListener(e, mark)); clearTimeout(first); clearInterval(id) }
+  }, [hasOffice])
 
   function handleLogout() {
     logout()
     navigate('/login')
   }
 
-  function renderNavItem({ to, label, icon: Icon }: NavItem) {
+  function renderNavItem({ to, label, icon: Icon, soon }: NavItem) {
     return (
       <NavLink
         key={to}
@@ -95,7 +119,9 @@ export default function Layout() {
         }
       >
         <Icon className="w-4 h-4 shrink-0" />
-        {label}
+        <span className="flex-1">{label}</span>
+        {soon && <span className="text-[9px] uppercase tracking-wide px-1.5 py-0.5 rounded bg-white/10 text-accent-300">em breve</span>}
+        {to === '/escritorio' && (office?.pending_requests || 0) > 0 && <span className="text-[10px] px-1.5 rounded-full bg-accent-500 text-white">{office?.pending_requests}</span>}
       </NavLink>
     )
   }
@@ -110,7 +136,7 @@ export default function Layout() {
         <div className="flex items-center gap-2 px-4 py-5 border-b border-white/10">
           <Scale className="w-6 h-6 text-accent-400" />
           <span className="logo-wordmark text-lg text-white flex-1">Foro</span>
-          {visible({ module: 'crm' } as NavItem) && <AlertsBell />}
+          {visible({ module: 'crm' } as NavItem) && hasOffice && <AlertsBell />}
         </div>
 
         {/* Nav */}
@@ -136,7 +162,7 @@ export default function Layout() {
         </nav>
 
         {/* Créditos de IA da semana — regra tokens → créditos no tooltip */}
-        <div className="px-3 pb-3"><CreditMeter /></div>
+        {hasOffice && <div className="px-3 pb-3"><CreditMeter /></div>}
 
         {/* User */}
         <div className="p-3 border-t border-white/10">
@@ -170,10 +196,10 @@ export default function Layout() {
           </div>
         )}
         <div key={location.pathname} className="animate-fade-in">
-          <Outlet />
+          {gated ? <OfficeGate /> : <Outlet />}
         </div>
       </main>
-      <AiDock />
+      {hasOffice && <AiDock />}
     </div>
     </ChatProvider>
   )

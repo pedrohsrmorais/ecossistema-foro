@@ -16,6 +16,11 @@ export const LOCKED_FEATURES = {
   pesquisaCpf: true,
   pesquisaProcessual: true,
   pesquisaInteligente: true,
+  // Trilha de educação — conteúdo ainda não publicado
+  educacao: true,
+  provasConceito: true,
+  desafios: true,
+  comunidade: true,
 } as const
 
 export type LockedFeatureKey = keyof typeof LOCKED_FEATURES

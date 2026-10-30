@@ -68,7 +68,10 @@ Centerbase (EUA) e na documentação pública do DataJud/CNJ. Onde a fonte não 
 | Prazos, audiências, compromissos, tarefas | ✅ (rodada anterior; agora alerta toda a equipe do processo) |
 | **Elaboração de documentos** (petição, ETP, TR…) | ✅ MVP: modelos + IA nos trechos marcados + Word/PDF (modelos **não revisados**) |
 | Modelos próprios do escritório + permissões por usuário | ✅ importação de peça pronta por IA, editor, revisão pelo admin |
-| Consumo de IA e tempo de uso por usuário (painel do admin) | ❌ próxima rodada |
+| **Escritório (workspace)**: criação rápida, convite/código com aprovação, módulos e visão por usuário | ✅ CRM bloqueado até existir escritório |
+| Consumo de IA e tempo de uso por usuário (painel do admin) | ✅ aba Atividade (tempo ativo na aba, ações, nível, créditos de IA) |
+| Plano individual por usuário pago pelo admin | ❌ cobrança segue por escritório (vagas + créditos compartilhados) |
+| Log de auditoria, 2FA, transferência de propriedade, multi-escritório | ❌ não feito |
 | Provas / anexos (upload) | ❌ não feito |
 | Movimentações automáticas e publicações/intimações | ❌ não feito (DataJud / provedor pago) |
 | Honorários, despesas, pagamentos | ❌ não feito |

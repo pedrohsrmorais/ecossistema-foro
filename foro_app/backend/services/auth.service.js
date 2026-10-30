@@ -39,6 +39,8 @@ async function register({ name, email, password, phone, accountName }) {
   if (existing.length) throw new AppError('E-mail já cadastrado.', 409);
 
   const passwordHash = await bcrypt.hash(password, 12);
+  const configured = Boolean(accountName && String(accountName).trim());
+  accountName = configured ? String(accountName).trim() : `Conta de ${name}`;
   const slug = accountName.toLowerCase().replace(/[^a-z0-9]/g, '-').replace(/-+/g, '-').slice(0, 60);
 
   const result = await transaction(async (conn) => {
@@ -46,8 +48,8 @@ async function register({ name, email, password, phone, accountName }) {
     const accountId = uuidv4();
     const trialEndsAt = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000);
     await conn.execute(
-      'INSERT INTO accounts (id, name, slug, plan_id, plan_started_at, trial_ends_at) VALUES (?, ?, ?, ?, ?, ?)',
-      [accountId, accountName, `${slug}-${accountId.slice(0, 8)}`, 'trial', new Date(), trialEndsAt]
+      'INSERT INTO accounts (id, name, slug, plan_id, plan_started_at, trial_ends_at, office_configured, office_code) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+      [accountId, accountName, `${slug}-${accountId.slice(0, 8)}`, 'trial', new Date(), trialEndsAt, configured ? 1 : 0, configured ? require('./office.service').genCode() : null]
     );
 
     // Cria o usuário admin
@@ -64,7 +66,7 @@ async function register({ name, email, password, phone, accountName }) {
     await caseStages.seedAccount((sql, p) => conn.execute(sql, p), accountId);
 
     const token = generateToken({ id: userId, account_id: accountId, role: 'admin', email });
-    return { token, user: { id: userId, name, email, role: 'admin' }, account: { id: accountId, name: accountName } };
+    return { token, user: { id: userId, name, email, role: 'admin' }, account: { id: accountId, name: accountName, office_configured: configured } };
   });
 
   // Dispara o código de verificação de e-mail (fora da transação, não bloqueia o cadastro se falhar)
@@ -120,7 +122,7 @@ async function refreshToken(token) {
   }
   const [rows] = await query('SELECT id, account_id, role, email, active FROM users WHERE id = ? LIMIT 1', [decoded.id]);
   const u = rows[0];
-  if (!u || !u.active || u.account_id !== decoded.account_id) throw new AppError('Sessão inválida. Entre novamente.', 401);
+  if (!u || !u.active) throw new AppError('Sessão inválida. Entre novamente.', 401);
   return { token: generateToken({ id: u.id, account_id: u.account_id, role: u.role, email: u.email }) };
 }
 

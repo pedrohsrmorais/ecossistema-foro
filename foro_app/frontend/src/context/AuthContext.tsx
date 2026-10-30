@@ -15,7 +15,7 @@ interface AuthContextType {
   token: string | null
   isLoading: boolean
   login: (email: string, password: string) => Promise<AuthResponse>
-  register: (data: { name: string; email: string; password: string; phone?: string; accountName: string }) => Promise<AuthResponse>
+  register: (data: { name: string; email: string; password: string; phone?: string; accountName?: string }) => Promise<AuthResponse>
   logout: () => void
   markEmailVerified: () => void
 }
@@ -50,7 +50,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return res
   }
 
-  async function register(data: { name: string; email: string; password: string; phone?: string; accountName: string }) {
+  async function register(data: { name: string; email: string; password: string; phone?: string; accountName?: string }) {
     const res = await authApi.register(data)
     _storeSession(res)
     return res

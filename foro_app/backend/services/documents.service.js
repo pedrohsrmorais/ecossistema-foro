@@ -91,8 +91,9 @@ async function _get(id, accountId) {
   return r[0];
 }
 
-async function list(accountId, { case_id, area_key, status, search } = {}) {
+async function list(accountId, { case_id, area_key, status, search, viewer } = {}) {
   const cond = ['d.account_id = ?', 'd.deleted_at IS NULL']; const params = [accountId];
+  if (viewer) { cond.push('(d.created_by = ? OR (d.case_id IS NOT NULL AND (c.responsible_user_id = ? OR EXISTS (SELECT 1 FROM case_members m WHERE m.case_id = c.id AND m.user_id = ?))))'); params.push(viewer, viewer, viewer); }
   if (case_id) { cond.push('d.case_id = ?'); params.push(case_id); }
   if (area_key) { cond.push('d.area_key = ?'); params.push(area_key); }
   if (status) { cond.push('d.status = ?'); params.push(status); }

@@ -230,8 +230,12 @@ export interface User {
   is_owner?: boolean
   permissions?: Permissions
 }
-export type Permissions = { templates_manage: boolean; ai_drafts: boolean; delete_records: boolean }
-export interface PermissionDef { key: keyof Permissions; label: string; default: boolean }
+export type Permissions = {
+  templates_manage: boolean; ai_drafts: boolean; delete_records: boolean
+  access_leads: boolean; access_cases: boolean; access_documents: boolean; access_agenda: boolean; access_ai: boolean
+  view_scope: 'all' | 'own'
+}
+export interface PermissionDef { key: Exclude<keyof Permissions, 'view_scope'>; label: string; default: boolean; group: 'module' | 'action' }
 
 export interface ServicePrice {
   service_key: string
@@ -284,7 +288,7 @@ export interface ProcessoResult {
 
 export const authApi = {
   /** POST /auth/register */
-  register: (data: { name: string; email: string; password: string; phone?: string; accountName: string }) =>
+  register: (data: { name: string; email: string; password: string; phone?: string; accountName?: string }) =>
     http.post<AuthResponse>('/auth/register', data).then(r => r.data),
 
   /** POST /auth/login */
@@ -565,6 +569,32 @@ export interface OfficeTemplate extends DocumentTemplate { id: string; body: str
 export interface OfficeTemplateRow { id: string; key: string; title: string; area_key: string; description: string | null; reviewed: number; version: number; legal_basis: string[]; created_by: string; created_by_name: string | null; updated_at: string; size: number }
 export interface ConvertResult { title: string; description: string | null; area_key: string; body: string; legal_basis: string[]; modified_fragments: string[]; unknown_placeholders: string[]; ai_slots: number; credits_used: number }
 export interface TemplateInput { title: string; area_key: string; description?: string | null; body: string; reviewed?: boolean; legal_basis?: string[] }
+export interface Office {
+  configured: boolean; id: string; name: string; cnpj: string | null; address: string | null; city: string | null; state: string | null; phone: string | null
+  owner_user_id: string | null; created_at: string; seats_used: number; is_admin: boolean
+  plan: { id: string; name: string; max_users: number | null; status: string; trial_ends_at: string | null }
+  code?: string; pending_requests?: number
+  my_join_request?: { id: string; office_name: string; created_at: string } | null
+}
+export interface OfficeData { name?: string; cnpj?: string; address?: string; city?: string; state?: string; office_phone?: string }
+export interface JoinRequest { id: string; name: string; email: string; created_at: string }
+export interface ActivityRow {
+  user_id: string; name: string; email: string; role: string; active: boolean; seconds: number; active_days: number; actions: number
+  last_seen_at: string | null; level: 'inativo' | 'baixo' | 'médio' | 'alto'; ai_credits: number; ai_calls: number; documents_created: number; cases_responsible: number
+}
+export interface ActivityReport { days: number; users: ActivityRow[]; series: { day: string; seconds: number }[] }
+export const officeApi = {
+  get: () => http.get<Office>('/office').then(r => r.data),
+  create: (d: OfficeData) => http.post<Office>('/office', d).then(r => r.data),
+  update: (d: OfficeData) => http.put<Office>('/office', d).then(r => r.data),
+  regenerateCode: () => http.post<Office>('/office/code/regenerate').then(r => r.data),
+  join: (code: string) => http.post<{ office_name: string }>('/office/join', { code }).then(r => r.data),
+  cancelJoin: () => http.delete('/office/join').then(r => r.data),
+  requests: () => http.get<JoinRequest[]>('/office/requests').then(r => r.data),
+  decide: (id: string, approve: boolean) => http.post(`/office/requests/${id}`, { approve }).then(r => r.data),
+  activity: (days: number) => http.get<ActivityReport>('/office/activity', { params: { days } }).then(r => r.data),
+  ping: () => http.post('/activity/ping').then(r => r.data),
+}
 export const permissionsApi = { defs: () => http.get<PermissionDef[]>('/permissions').then(r => r.data) }
 export const officeTemplatesApi = {
   list: () => http.get<OfficeTemplateRow[]>('/office-templates').then(r => r.data),

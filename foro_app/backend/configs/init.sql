@@ -84,8 +84,16 @@ CREATE TABLE IF NOT EXISTS accounts (
   created_at     DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at     DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   owner_user_id VARCHAR(36) NULL COMMENT 'administrador principal do escritório',
+  office_configured TINYINT(1) NOT NULL DEFAULT 1 COMMENT '0 = conta rascunho: usuário ainda não criou o escritório (CRM bloqueado)',
+  office_code VARCHAR(12) NULL COMMENT 'código para pedir entrada no escritório (o admin aprova)',
+  cnpj VARCHAR(18) NULL COMMENT 'autodeclarado, validado por dígito verificador, não único',
+  address VARCHAR(255) NULL,
+  city VARCHAR(100) NULL,
+  state CHAR(2) NULL,
+  office_phone VARCHAR(30) NULL,
   PRIMARY KEY (id),
   UNIQUE KEY uk_accounts_slug (slug),
+  UNIQUE KEY uk_accounts_office_code (office_code),
   KEY idx_accounts_stripe_customer (stripe_customer_id),
   KEY idx_accounts_plan (plan_id),
   CONSTRAINT fk_accounts_plan FOREIGN KEY (plan_id) REFERENCES plans(id) ON UPDATE CASCADE
@@ -920,4 +928,18 @@ CREATE TABLE IF NOT EXISTS office_templates (
   deleted_at  DATETIME     NULL,
   PRIMARY KEY (id),
   KEY idx_office_tpl_account (account_id, deleted_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- 007 — Escritório: pedidos de entrada por código e atividade dos usuários
+CREATE TABLE IF NOT EXISTS office_join_requests (
+  id VARCHAR(36) NOT NULL DEFAULT (UUID()), account_id VARCHAR(36) NOT NULL, user_id VARCHAR(36) NOT NULL,
+  status ENUM('pending','approved','rejected') NOT NULL DEFAULT 'pending', created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  decided_at DATETIME NULL, decided_by VARCHAR(36) NULL,
+  PRIMARY KEY (id), KEY idx_join_account (account_id, status), KEY idx_join_user (user_id, status)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS user_activity (
+  user_id VARCHAR(36) NOT NULL, day DATE NOT NULL, account_id VARCHAR(36) NOT NULL, seconds INT NOT NULL DEFAULT 0,
+  actions INT NOT NULL DEFAULT 0, last_seen_at DATETIME NULL, last_ping_at DATETIME NULL,
+  PRIMARY KEY (user_id, day), KEY idx_activity_account (account_id, day)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

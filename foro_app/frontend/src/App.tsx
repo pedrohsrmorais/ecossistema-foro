@@ -46,6 +46,10 @@ import Documents from './pages/Documents'
 import DocumentEditor from './pages/DocumentEditor'
 import OfficeTemplates from './pages/OfficeTemplates'
 import NotFound from './pages/NotFound'
+import Escritorio from './pages/Escritorio'
+import GeradorDocumentos from './pages/aplicativos/GeradorDocumentos'
+import ComingSoon from './components/ComingSoon'
+import { LOCKED_FEATURES } from './config/featureFlags'
 
 export default function App() {
   return (
@@ -76,12 +80,14 @@ export default function App() {
                 <Route path="/documentos/modelos" element={<OfficeTemplates />} />
                 <Route path="/documentos/:id" element={<DocumentEditor />} />
                 <Route path="/agenda"        element={<Agenda />} />
+                <Route path="/escritorio"    element={<Escritorio />} />
+                <Route path="/gerador-documentos" element={<GeradorDocumentos />} />
                 <Route path="/tasks"     element={<Tasks />} />
                 <Route path="/settings"  element={<Settings />} />
                 <Route path="/planos"    element={<Plans />} />
                 <Route path="/suporte"   element={<Support />} />
-                <Route path="/education"      element={<Education />} />
-                <Route path="/education/:id"  element={<TrilhaDetail />} />
+                <Route path="/education"      element={LOCKED_FEATURES.educacao ? <ComingSoon title="Educação" description="As trilhas de estudo em vídeo chegam em breve." /> : <Education />} />
+                <Route path="/education/:id"  element={LOCKED_FEATURES.educacao ? <ComingSoon title="Educação" description="As trilhas de estudo em vídeo chegam em breve." /> : <TrilhaDetail />} />
                 <Route path="/modulo-desativado" element={<ModuloDesativado />} />
 
                 {/* Aplicativos — consultas pagas (todas atrás de "Em breve" por
@@ -92,10 +98,10 @@ export default function App() {
                 <Route path="/consulta-processual"  element={<ConsultaProcessual />} />
 
                 {/* Inteligência — Provas de conceito, Desafios semanais, Comunidade */}
-                <Route path="/provas-de-conceito"          element={<ProvasDeConceito />} />
-                <Route path="/provas-de-conceito/:aulaId"  element={<QuizTake />} />
-                <Route path="/desafios-semanais"           element={<DesafiosSemanais />} />
-                <Route path="/comunidade"                  element={<Comunidade />} />
+                <Route path="/provas-de-conceito"          element={LOCKED_FEATURES.provasConceito ? <ComingSoon title="Provas de conceito" description="Quizzes ligados às aulas chegam em breve." /> : <ProvasDeConceito />} />
+                <Route path="/provas-de-conceito/:aulaId"  element={LOCKED_FEATURES.provasConceito ? <ComingSoon title="Provas de conceito" description="Quizzes ligados às aulas chegam em breve." /> : <QuizTake />} />
+                <Route path="/desafios-semanais"           element={LOCKED_FEATURES.desafios ? <ComingSoon title="Desafios semanais" description="Desafios semanais para a equipe chegam em breve." /> : <DesafiosSemanais />} />
+                <Route path="/comunidade"                  element={LOCKED_FEATURES.comunidade ? <ComingSoon title="Comunidade" description="O mural do seu escritório chega em breve." /> : <Comunidade />} />
               </Route>
             </Route>
           </Route>

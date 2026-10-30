@@ -415,3 +415,10 @@ O `init.sql` só roda na primeira subida do MySQL (volume vazio). Toda mudança 
 - `office_templates (account_id, title, area_key, description, body MEDIUMTEXT, legal_basis JSON, reviewed, version, created_by, deleted_at)`: biblioteca de modelos de cada escritório.
 - `users.permissions` JSON: permissões definidas pelo admin (`templates_manage`, `ai_drafts`, `delete_records`).
 - `accounts.owner_user_id`: administrador principal (backfill: admin mais antigo da conta).
+
+## Escritório e atividade (migração 007)
+
+- `accounts`: `office_configured` (0 = conta rascunho), `office_code` (único), `cnpj`, `address`, `city`, `state`, `office_phone`. Contas existentes viram escritórios configurados e recebem código.
+- `office_join_requests (account_id, user_id, status pending|approved|rejected, decided_by)`: pedidos de entrada por código.
+- `user_activity (user_id, day, account_id, seconds, actions, last_seen_at, last_ping_at)`: tempo ativo e ações por usuário/dia.
+- `users.permissions` agora também guarda `access_*` e `view_scope`.

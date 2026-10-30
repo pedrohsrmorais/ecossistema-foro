@@ -4,7 +4,7 @@ const permissions = require('../configs/permissions');
 
 /**
  * Verifica o JWT (Authorization: Bearer <token>) e confere no banco que o usuário
- * ainda existe, está ATIVO e pertence à conta do token. Papel (role) e verificação
+ * ainda existe e está ATIVO. A conta vem sempre do banco (o usuário pode trocar de escritório). Papel (role) e verificação
  * de e-mail vêm sempre do banco — nunca do token — para que desativar/rebaixar
  * alguém tenha efeito imediato.
  * Injeta req.user = { id, account_id, role, email, email_verified }
@@ -30,7 +30,7 @@ async function authenticate(req, res, next) {
       [decoded.id]
     );
     const u = rows[0];
-    if (!u || !u.active || u.account_id !== decoded.account_id) {
+    if (!u || !u.active) {
       return res.status(401).json({ error: 'Sessão inválida. Entre novamente.' });
     }
     req.user = { id: u.id, account_id: u.account_id, role: u.role, email: u.email, email_verified: Boolean(u.email_verified_at), permissions: permissions.resolve(u.role, u.permissions) };
