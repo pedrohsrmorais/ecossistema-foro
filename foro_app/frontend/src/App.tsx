@@ -47,6 +47,7 @@ import DocumentEditor from './pages/DocumentEditor'
 import OfficeTemplates from './pages/OfficeTemplates'
 import NotFound from './pages/NotFound'
 import Escritorio from './pages/Escritorio'
+import LogIA from './pages/LogIA'
 import GeradorDocumentos from './pages/aplicativos/GeradorDocumentos'
 import ComingSoon from './components/ComingSoon'
 import { LOCKED_FEATURES } from './config/featureFlags'
@@ -81,6 +82,7 @@ export default function App() {
                 <Route path="/documentos/:id" element={<DocumentEditor />} />
                 <Route path="/agenda"        element={<Agenda />} />
                 <Route path="/escritorio"    element={<Escritorio />} />
+                <Route path="/ia-log"        element={<LogIA />} />
                 <Route path="/gerador-documentos" element={<GeradorDocumentos />} />
                 <Route path="/tasks"     element={<Tasks />} />
                 <Route path="/settings"  element={<Settings />} />

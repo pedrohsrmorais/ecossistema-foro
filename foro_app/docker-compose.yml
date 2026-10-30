@@ -64,7 +64,7 @@ services:
       DIGEST_HOUR: ${DIGEST_HOUR:-7}
       DEADLINE_DIGEST: ${DEADLINE_DIGEST:-on}
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
-      ANTHROPIC_MODEL: ${ANTHROPIC_MODEL:-claude-sonnet-4-6}
+      ANTHROPIC_MODEL: ${ANTHROPIC_MODEL:-claude-sonnet-5-5}
       DOCUMENT_TEMPLATES_DIR: ${DOCUMENT_TEMPLATES_DIR:-/app/modelos}   # modelos do escritório (sobrepõem os embutidos) — ver documentation/documentos-e-modelos.md
       FEATURE_LOOKUPS_ENABLED: ${FEATURE_LOOKUPS_ENABLED:-false}
       STRIPE_SECRET_KEY: ${STRIPE_SECRET_KEY:-}

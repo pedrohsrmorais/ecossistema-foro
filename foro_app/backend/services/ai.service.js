@@ -25,7 +25,7 @@ const MAX_HISTORY = 20;          // mensagens do histórico enviadas ao modelo
 const MAX_TOOL_CALLS_PER_TURN = 8; // evita loops
 const MAX_MODEL_CALLS_PER_TURN = MAX_TOOL_CALLS_PER_TURN + 2; // teto de chamadas ao modelo por mensagem (limita custo)
 const inFlight = new Set(); // 1 mensagem por vez por usuário (evita rajadas paralelas furarem o saldo de créditos)
-const MODEL = process.env.ANTHROPIC_MODEL || 'claude-sonnet-4-6';
+const MODEL = process.env.ANTHROPIC_MODEL || 'claude-sonnet-5-5';
 const MAX_OUTPUT_TOKENS = 1500; // teto por chamada: limita o custo de um turno
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -120,12 +120,18 @@ function _summarizeAction(name, input, result) {
     case 'get_case':         return `Consultou processo: ${result?.case_number || result?.title || ''}`.trim();
     case 'search_cases':     return `Busca de processos: ${result?.data?.length ?? 0}`;
     case 'create_event':     return `Agendado: ${result?.title || input.title}`;
+    case 'update_event':     return `Compromisso alterado: ${result?.title || ''}`.trim();
+    case 'delete_event':     return 'Compromisso excluído';
+    case 'update_task':      return `Tarefa alterada: ${result?.description || ''}`.trim();
+    case 'delete_task':      return 'Tarefa excluída';
+    case 'delete_lead':      return 'Lead enviado para a lixeira';
     case 'list_events':      return `Consultou agenda: ${Array.isArray(result) ? result.length : 0} compromisso(s)`;
     default: return name;
   }
 }
 
-const WRITE_TOOLS = new Set(['create_lead','update_lead','move_lead_stage','add_note','create_task','complete_task','create_case','update_case','add_case_update','create_event','add_party','create_document']);
+const aiActions = require('./ai-actions.service');
+const WRITE_TOOLS = { has: (n) => aiActions.isWriteTool(n) };
 
 // ─── Chat principal ────────────────────────────────────────────────────────────
 
@@ -145,7 +151,7 @@ async function chat(args) {
 
 async function _chat({ accountId, userId, conversationId, userMessage }) {
   // Regra de créditos: sem saldo na semana, nem chama o modelo (ver ai-credits.service.js)
-  await aiCredits.assertHasCredits(accountId);
+  await aiCredits.assertHasCredits(accountId, userId);
 
   const convId = await _getOrCreateConversation(accountId, userId, conversationId);
   const history = await _loadHistory(convId);
@@ -203,7 +209,7 @@ INSIGHTS TÉCNICOS SOBRE PROCESSOS (permitidos, com disciplina):
       return {
         conversation_id: convId, message: text, actions,
         usage: { input_tokens: totals.input + totals.cacheCreation + totals.cacheRead, output_tokens: totals.output, credits_used: creditsUsed },
-        credits: await aiCredits.getStatus(accountId),
+        credits: await aiCredits.getStatus(accountId, userId),
       };
     }
     const response = await client.messages.create({
@@ -228,7 +234,7 @@ INSIGHTS TÉCNICOS SOBRE PROCESSOS (permitidos, com disciplina):
         input_tokens: totals.input + totals.cacheCreation + totals.cacheRead, output_tokens: totals.output,
       });
       const creditsUsed = await _recordUsage(accountId, userId, convId, totals);
-      const credits = await aiCredits.getStatus(accountId);
+      const credits = await aiCredits.getStatus(accountId, userId);
 
       return {
         conversation_id: convId,
@@ -259,12 +265,22 @@ INSIGHTS TÉCNICOS SOBRE PROCESSOS (permitidos, com disciplina):
         }
 
         let result;
+        let token = null;
+        try { token = await aiActions.begin(toolUse.name, toolUse.input, accountId); } catch (e) { console.error('[ai] snapshot:', e.message); }
         try {
           result = await executeTool(toolUse.name, toolUse.input, { accountId, userId });
         } catch (err) {
           result = { error: err.message };
         }
+        let actionId = null;
+        if (token) {
+          try {
+            actionId = await aiActions.finish(token, { accountId, userId, conversationId: convId },
+              { input: toolUse.input, result, error: result?.error, summary: _summarizeAction(toolUse.name, toolUse.input, result) });
+          } catch (e) { console.error('[ai] log de ação:', e.message); }
+        }
         actions.push({
+          id: actionId,
           tool: toolUse.name,
           write: WRITE_TOOLS.has(toolUse.name),
           ok: !result?.error,
@@ -300,10 +316,34 @@ INSIGHTS TÉCNICOS SOBRE PROCESSOS (permitidos, com disciplina):
     if (err.statusCode) throw err;
     console.error('[ai] erro na chamada ao modelo:', err.status || '', err.message);
     const overloaded = err.status === 429 || err.status === 529 || err.status >= 500;
-    throw new AppError(
+    const e = new AppError(
       overloaded ? 'A IA está sobrecarregada no momento. Tente de novo em instantes.' : 'Não foi possível falar com a IA agora. Tente novamente.',
       503, 'AI_UPSTREAM_ERROR'
     );
+    e.extra = { diagnosis: diagnose(err) };
+    throw e;
+  }
+}
+
+/** Traduz o erro da API da Anthropic em algo que o dono da plataforma consiga corrigir (não expõe segredo). */
+function diagnose(err) {
+  const msg = String(err?.message || '');
+  if (err?.status === 401 || err?.status === 403) return 'A chave ANTHROPIC_API_KEY foi recusada pela Anthropic (inválida, revogada ou sem permissão). Confira o .env da VPS e reinicie o container.';
+  if (err?.status === 404) return `O modelo "${MODEL}" não existe para esta chave. Ajuste ANTHROPIC_MODEL no .env da VPS (ex.: claude-sonnet-5-5) e reinicie.`;
+  if (err?.status === 400 && /credit balance|billing/i.test(msg)) return 'A conta da Anthropic está sem saldo. Adicione créditos em console.anthropic.com > Billing.';
+  if (err?.status === 400) return 'A Anthropic recusou a requisição: ' + msg.slice(0, 160);
+  if (!err?.status) return 'Sem conexão com a API da Anthropic (rede/DNS/firewall da VPS): ' + msg.slice(0, 120);
+  return null;
+}
+
+/** Teste rápido da integração (usado por POST /ai/diagnose, só admin). */
+async function selfTest() {
+  if (!process.env.ANTHROPIC_API_KEY) return { ok: false, model: MODEL, diagnosis: 'ANTHROPIC_API_KEY não está definida no ambiente do container.' };
+  try {
+    await client.messages.create({ model: MODEL, max_tokens: 8, messages: [{ role: 'user', content: 'Responda: ok' }] });
+    return { ok: true, model: MODEL };
+  } catch (err) {
+    return { ok: false, model: MODEL, status: err.status || null, diagnosis: diagnose(err) || 'Erro: ' + String(err.message).slice(0, 160) };
   }
 }
 
@@ -358,4 +398,4 @@ async function getUsageSummary(accountId, { from, to } = {}) {
   return rows;
 }
 
-module.exports = { MODEL, recordUsage: _recordUsage, chat, listConversations, getConversation, clearConversation, getUsageSummary };
+module.exports = { selfTest, MODEL, recordUsage: _recordUsage, chat, listConversations, getConversation, clearConversation, getUsageSummary };

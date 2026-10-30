@@ -334,7 +334,7 @@ Response 200: {
 }
 402 { code: "AI_CREDITS_EXHAUSTED", renews_at }   // sem créditos até a renovação semanal
 ```
-Modelo: `claude-sonnet-4-6` (env `ANTHROPIC_MODEL`), com prompt caching.
+Modelo: `claude-sonnet-5-5` (env `ANTHROPIC_MODEL`), com prompt caching.
 
 ### Saldo semanal de créditos
 ```
@@ -980,3 +980,26 @@ Formato de erro:
   "details": [...]   // apenas em erros de validação (400)
 }
 ```
+
+
+## Log da IA e desfazer ações
+
+Toda ação de escrita feita pela IA (criar/alterar/excluir lead, tarefa, processo, evento, nota, documento…) é gravada em `ai_actions` com o estado antes/depois.
+
+| Método | Rota | Quem | Descrição |
+|---|---|---|---|
+| GET | `/ai/actions?mine=1&status=&page=&limit=` | módulo IA | Lista as ações. Membro só vê as próprias; admin vê as de todos. Cada linha traz `can_undo`. |
+| POST | `/ai/actions/:id/undo` | autor da ação ou admin | Desfaz a ação. Só restaura campos que a IA mexeu e que ainda têm o valor que a IA gravou (edições manuais posteriores são preservadas → status `partial`). Erros: `409 NOT_UNDOABLE`. |
+| POST | `/ai/diagnose` | admin | Testa a conexão com a Anthropic (chave, modelo, saldo) e devolve o diagnóstico. |
+
+Limite conhecido: `custom_fields` de leads não são desfeitos. Exclusões de leads/processos/documentos são *soft delete* (restauradas); tarefas/eventos/notas/andamentos/partes são recriados.
+
+## Planos por usuário (assentos)
+
+Cada pessoa do escritório tem o próprio plano e a própria assinatura Stripe (todas no mesmo customer do escritório). Só o administrador contrata. O plano só pode **subir** (nunca reduzir).
+
+- `GET /billing/seats` (admin): `[{ user_id, name, email, role, active, plan_id, plan_name, plan_price, subscription_status, current_period_end, cancel_at_period_end, is_owner, on_trial }]`.
+- `POST /payments/checkout` body `{ plan, user_id? }` (padrão: o próprio usuário). Resposta `{ url }` (Checkout) ou `{ updated: true }` (upgrade de assinatura existente, cobrança proporcional). Erros: `NO_DOWNGRADE`, `SAME_PLAN`.
+- Créditos de IA são por usuário. Usuário sem plano em conta paga: `402 AI_NO_PLAN`. Teste grátis: cada usuário recebe os créditos do trial (máx. 5 usuários, `TRIAL_USER_LIMIT`).
+- Conta fica `active` enquanto houver ao menos um assento vivo; `expired` quando nenhum.
+- **Portal Stripe:** desative "trocar plano" e "cancelar assinatura" na configuração do portal, senão é possível reduzir/cancelar por fora das regras. O portal deve servir só para cartão e faturas.

@@ -12,32 +12,32 @@ async function update(accountId, { name }) {
   return get(accountId);
 }
 
-async function getPlan(accountId) {
+async function getPlan(accountId, userId) {
   const [rows] = await query(
-    `SELECT a.plan_id, a.status, a.trial_ends_at, a.subscription_status, a.current_period_end, a.cancel_at_period_end, a.stripe_customer_id, p.name, p.price, p.max_users, p.max_leads, p.features, p.ai_credits_week, p.lookups_week
-     FROM accounts a JOIN plans p ON p.id = a.plan_id
-     WHERE a.id = ? LIMIT 1`,
-    [accountId]
-  );
+    `SELECT a.plan_id AS account_plan, a.status, a.trial_ends_at, a.stripe_customer_id,
+            u.plan_id AS user_plan, u.subscription_status, u.current_period_end, u.cancel_at_period_end
+     FROM accounts a LEFT JOIN users u ON u.id = ? AND u.account_id = a.id WHERE a.id = ? LIMIT 1`, [userId || null, accountId]);
   if (!rows.length) throw new AppError('Conta não encontrada.', 404);
-
   const row = rows[0];
+  // plano "mostrado": o da pessoa; no teste, o trial; sem assento numa conta paga, o plano mais alto do escritório só como referência
+  const shownId = row.user_plan || (row.status === 'trialing' ? 'trial' : row.account_plan);
+  const [[p]] = await query('SELECT * FROM plans WHERE id = ? LIMIT 1', [shownId]);
   return {
-    current: row.plan_id,
-    name: row.name,
-    price: Number(row.price),
-    max_users: row.max_users,
-    max_leads: row.max_leads,
-    ai_credits_week: row.ai_credits_week,
-    lookups_week: row.lookups_week,
-    features: typeof row.features === 'string' ? JSON.parse(row.features) : row.features,
+    current: row.user_plan || (row.status === 'trialing' ? 'trial' : null),
+    name: row.user_plan || row.status === 'trialing' ? p.name : 'Sem plano',
+    price: row.user_plan ? Number(p.price) : 0,
+    max_users: null,
+    max_leads: p.max_leads,
+    ai_credits_week: row.user_plan || row.status === 'trialing' ? p.ai_credits_week : 0,
+    lookups_week: p.lookups_week,
+    features: typeof p.features === 'string' ? JSON.parse(p.features) : p.features,
     account_status: row.status,
     trial_ends_at: row.trial_ends_at,
     subscription: {
-      status: row.subscription_status,            // active | past_due | canceled | null
-      current_period_end: row.current_period_end,  // próxima renovação
+      status: row.subscription_status,            // active | past_due | canceled | null (da pessoa)
+      current_period_end: row.current_period_end,
       cancel_at_period_end: Boolean(row.cancel_at_period_end),
-      can_manage: Boolean(row.stripe_customer_id), // já tem cliente no Stripe → pode abrir o portal
+      can_manage: Boolean(row.stripe_customer_id), // o escritório já tem cliente no Stripe → admin abre o portal
     },
   };
 }

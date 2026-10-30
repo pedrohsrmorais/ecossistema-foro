@@ -142,7 +142,7 @@ async function convertWithAI(accountId, user, { text, area_key }) {
   const src = String(text || '').replace(/\r\n/g, '\n').trim();
   if (src.length < 80) throw new AppError('Cole o texto completo da peça (mínimo ~80 caracteres).', 422, 'VALIDATION');
   if (src.length > MAX_SOURCE) throw new AppError(`Texto grande demais (máx. ${MAX_SOURCE} caracteres). Divida a peça.`, 422, 'VALIDATION');
-  await aiCredits.assertHasCredits(accountId);
+  await aiCredits.assertHasCredits(accountId, user.id);
   const resp = await client.messages.create({
     model: aiService.MODEL, max_tokens: 6000,
     system: [{ type: 'text', text: CONVERT_SYSTEM }],
@@ -162,7 +162,7 @@ async function convertWithAI(accountId, user, { text, area_key }) {
     legal_basis: guard.citedRefIds(src),                    // o que a peça original já cita
     modified_fragments: modifiedFragments(body, src),       // frases que a IA alterou em relação ao original
     ...checkBody(body, areaKey),
-    credits_used: creditsUsed, credits: await aiCredits.getStatus(accountId),
+    credits_used: creditsUsed, credits: await aiCredits.getStatus(accountId, user.id),
   };
 }
 

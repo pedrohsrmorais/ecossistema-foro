@@ -51,7 +51,7 @@ async function get(accountId, user) {
   const out = {
     configured: Boolean(a.office_configured), id: a.id, name: a.name, cnpj: a.cnpj, address: a.address, city: a.city, state: a.state, phone: a.office_phone,
     owner_user_id: a.owner_user_id, created_at: a.created_at,
-    plan: { id: a.plan_id, name: a.plan_name, max_users: a.max_users, status: a.status, trial_ends_at: a.trial_ends_at },
+    plan: { id: a.plan_id, name: a.plan_name, max_users: null, status: a.status, trial_ends_at: a.trial_ends_at },
     seats_used: used, is_admin: isAdmin,
   };
   if (isAdmin) {
@@ -140,11 +140,7 @@ async function decide(accountId, requestId, approve, actorId) {
       return { status: 'rejected' };
     }
     await conn.execute('SELECT id FROM accounts WHERE id = ? FOR UPDATE', [accountId]);
-    const [[plan]] = await conn.execute('SELECT p.max_users, p.name FROM accounts a JOIN plans p ON p.id = a.plan_id WHERE a.id = ? LIMIT 1', [accountId]);
-    const [[{ n }]] = await conn.execute('SELECT COUNT(*) AS n FROM users WHERE account_id = ? AND active = 1', [accountId]);
-    if (plan?.max_users != null && n >= plan.max_users) {
-      throw new AppError(`Limite de ${plan.max_users} usuário(s) do plano ${plan.name} atingido. Faça upgrade para aceitar mais pessoas.`, 403, 'PLAN_LIMIT_USERS');
-    }
+    await require('./seats.service').assertCanAddUser(accountId, conn);
     const [[u]] = await conn.execute('SELECT id, account_id FROM users WHERE id = ? FOR UPDATE', [r.user_id]);
     if (!u) throw new AppError('Usuário não existe mais.', 404);
     const oldAccount = u.account_id;

@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { Building2, Copy, RefreshCw, Check, X, Clock, ShieldCheck } from 'lucide-react'
+import { Building2, Copy, RefreshCw, Check, X, ShieldCheck } from 'lucide-react'
 import clsx from 'clsx'
 import { officeApi, settingsApi, type ActivityRow } from '../api'
 import CreateOffice from '../components/CreateOffice'
@@ -161,19 +161,17 @@ function PlanoTab() {
   const { data: o } = useQuery({ queryKey: ['office'], queryFn: officeApi.get })
   const { data: plan } = useQuery({ queryKey: ['plan'], queryFn: settingsApi.getPlan })
   if (!o) return null
-  const limit = o.plan.max_users
   return (
     <div className="card p-5 space-y-3">
-      <h2 className="font-medium text-slate-900">Plano e vagas</h2>
+      <h2 className="font-medium text-slate-900">Planos por usuário</h2>
       <dl className="text-sm grid grid-cols-[9rem_1fr] gap-y-2">
-        <dt className="text-slate-500">Plano</dt><dd className="text-slate-900">{plan?.name || o.plan.name}</dd>
-        <dt className="text-slate-500">Vagas de usuário</dt><dd className="text-slate-900">{o.seats_used} de {limit ?? 'ilimitadas'} em uso</dd>
-        <dt className="text-slate-500">Créditos de IA/semana</dt><dd className="text-slate-900">{plan?.ai_credits_week ?? '—'} (dividido entre todos do escritório)</dd>
+        <dt className="text-slate-500">Seu plano</dt><dd className="text-slate-900">{plan?.name || o.plan.name}</dd>
+        <dt className="text-slate-500">Usuários</dt><dd className="text-slate-900">{o.seats_used} em uso (cada pessoa tem o próprio plano)</dd>
+        <dt className="text-slate-500">Créditos de IA/semana</dt><dd className="text-slate-900">{plan?.ai_credits_week ?? '—'} por usuário</dd>
       </dl>
-      <p className="text-sm text-slate-500">Quem paga é o escritório: o administrador contrata o plano e as vagas e os créditos valem para toda a equipe. Quer liberar mais gente ou mais IA? Faça upgrade do plano.</p>
+      <p className="text-sm text-slate-500">Cada pessoa tem o próprio plano. O administrador contrata e melhora o plano de qualquer usuário, mas nunca pode reduzi-lo.</p>
       <div className="flex gap-2 items-center flex-wrap">
-        <Link to="/planos" className="btn-primary">Ver planos e fazer upgrade</Link>
-        <span className="text-xs text-slate-400 flex items-center gap-1"><Clock className="w-3.5 h-3.5" /> Plano individual por usuário: em breve</span>
+        <Link to="/planos" className="btn-primary">Ver e contratar planos</Link>
       </div>
     </div>
   )

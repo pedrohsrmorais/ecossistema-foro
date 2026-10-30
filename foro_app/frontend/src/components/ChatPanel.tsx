@@ -1,5 +1,7 @@
 import { useState, useRef, useEffect, FormEvent } from 'react'
-import { Send, Plus, Bot, User, CheckCircle2, Search, AlertTriangle, Sparkles } from 'lucide-react'
+import { Send, Plus, Bot, User, CheckCircle2, Search, AlertTriangle, Sparkles, Mic, Square, Undo2 } from 'lucide-react'
+import { useMutation, useQueryClient } from '@tanstack/react-query'
+import { aiLogApi } from '../api'
 import { Link } from 'react-router-dom'
 import clsx from 'clsx'
 import { useChat } from '../context/ChatContext'
@@ -14,7 +16,39 @@ const SUGGESTIONS = [
   'Quais prazos vencem esta semana?',
 ]
 
+// Ditado por voz: usa o reconhecimento de fala do navegador (Chrome, Edge, Safari). O texto cai na caixa para você
+// conferir antes de enviar — importante porque a IA executa ações no CRM.
+const SpeechRec: any = typeof window !== 'undefined' ? ((window as any).SpeechRecognition || (window as any).webkitSpeechRecognition) : null
+
+function UndoButton({ id }: { id: string }) {
+  const qc = useQueryClient()
+  const [done, setDone] = useState<string | null>(null)
+  const undo = useMutation({
+    mutationFn: () => aiLogApi.undo(id),
+    onSuccess: () => {
+      setDone('desfeito')
+      for (const k of ['leads', 'lead', 'funnel', 'tasks', 'cases', 'case', 'events', 'documents', 'ai-log']) qc.invalidateQueries({ queryKey: [k] })
+    },
+    onError: (e: any) => setDone(e?.response?.data?.error || 'não foi possível desfazer'),
+  })
+  if (done) return <span className="text-[11px] text-slate-500 shrink-0">{done}</span>
+  return <button className="underline shrink-0 inline-flex items-center gap-0.5" disabled={undo.isPending} onClick={() => undo.mutate()}><Undo2 className="w-3 h-3" />desfazer</button>
+}
+
 export default function ChatPanel({ compact = false }: { compact?: boolean }) {
+  const [listening, setListening] = useState(false)
+  const recRef = useRef<any>(null)
+  function toggleMic() {
+    if (!SpeechRec) return
+    if (listening) { recRef.current?.stop(); return }
+    const rec = new SpeechRec()
+    rec.lang = 'pt-BR'; rec.interimResults = true; rec.continuous = false
+    const base = input ? input.trim() + ' ' : ''
+    rec.onresult = (e: any) => { setInput(base + Array.from(e.results).map((r: any) => r[0].transcript).join('')) }
+    rec.onend = () => setListening(false)
+    rec.onerror = () => setListening(false)
+    recRef.current = rec; setListening(true); rec.start()
+  }
   const { messages, loading, send, reset } = useChat()
   const [input, setInput] = useState('')
   const bottomRef = useRef<HTMLDivElement>(null)
@@ -92,6 +126,7 @@ export default function ChatPanel({ compact = false }: { compact?: boolean }) {
                     : a.write ? 'bg-green-50 border-green-200 text-green-700' : 'bg-slate-50 text-slate-600')}>
                   {a.write ? <CheckCircle2 className="w-3 h-3 shrink-0" /> : <Search className="w-3 h-3 shrink-0" />}
                   <span className="truncate">{a.summary}</span>
+                  {a.ok && a.write && a.id && <UndoButton id={a.id} />}
                   {a.ok && (a.case_id
                     ? <Link to={`/processos/${a.case_id}`} className="underline shrink-0">abrir</Link>
                     : a.lead_id && <Link to={`/leads/${a.lead_id}`} className="underline shrink-0">abrir</Link>)}
@@ -117,12 +152,18 @@ export default function ChatPanel({ compact = false }: { compact?: boolean }) {
             className="flex-1 resize-none text-sm outline-none px-2 py-1.5 max-h-32 leading-relaxed"
             disabled={loading}
           />
+          {SpeechRec ? (
+            <button type="button" onClick={toggleMic} disabled={loading} aria-label={listening ? 'Parar de ouvir' : 'Falar com a IA'} title={listening ? 'Parar' : 'Ditar por voz (você confere o texto antes de enviar)'}
+              className={clsx('w-8 h-8 rounded-lg flex items-center justify-center shrink-0 transition-colors border', listening ? 'bg-red-50 border-red-300 text-red-600 animate-pulse' : 'text-slate-500 hover:bg-slate-100')}>
+              {listening ? <Square className="w-4 h-4" /> : <Mic className="w-4 h-4" />}
+            </button>
+          ) : null}
           <button type="submit" disabled={loading || !input.trim()}
             className="w-8 h-8 rounded-lg bg-brand-600 text-white flex items-center justify-center hover:bg-brand-700 disabled:opacity-40 shrink-0 transition-colors">
             <Send className="w-4 h-4" />
           </button>
         </form>
-        <p className="text-[11px] text-slate-400 text-center mt-1.5">A IA pode cometer erros. Confira ações importantes.</p>
+        <p className="text-[11px] text-slate-400 text-center mt-1.5">A IA pode cometer erros. Tudo que ela faz fica no <Link to="/ia-log" className="underline">Log da IA</Link>, onde você pode desfazer.</p>
       </div>
     </div>
   )

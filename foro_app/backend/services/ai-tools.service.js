@@ -231,6 +231,43 @@ const TOOL_DEFINITIONS = [
     },
   },
   {
+    name: 'update_event',
+    description: 'Altera um compromisso da agenda (título, horário, link, local, status: agendado, realizado, cancelado). Use list_events para achar o id.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        event_id: { type: 'string' }, title: { type: 'string' }, starts_at: { type: 'string' }, ends_at: { type: 'string' },
+        type: { type: 'string' }, meeting_url: { type: 'string' }, location: { type: 'string' }, notes: { type: 'string' },
+        status: { type: 'string', description: 'agendado, realizado ou cancelado' },
+      },
+      required: ['event_id'],
+    },
+  },
+  {
+    name: 'delete_event',
+    description: 'Exclui um compromisso da agenda. Só use com pedido claro do usuário (o usuário pode desfazer depois no Log da IA).',
+    input_schema: { type: 'object', properties: { event_id: { type: 'string' } }, required: ['event_id'] },
+  },
+  {
+    name: 'update_task',
+    description: 'Altera uma tarefa/prazo: descrição, data, se é prazo processual, ou reabre/conclui (completed true/false). Use list_tasks para achar o id.',
+    input_schema: {
+      type: 'object',
+      properties: { task_id: { type: 'string' }, description: { type: 'string' }, due_date: { type: 'string', description: 'ISO 8601 ou vazio para remover a data.' }, is_deadline: { type: 'boolean' }, completed: { type: 'boolean' } },
+      required: ['task_id'],
+    },
+  },
+  {
+    name: 'delete_task',
+    description: 'Exclui uma tarefa. Só com pedido claro do usuário (pode ser desfeito no Log da IA).',
+    input_schema: { type: 'object', properties: { task_id: { type: 'string' } }, required: ['task_id'] },
+  },
+  {
+    name: 'delete_lead',
+    description: 'Envia um lead para a lixeira (exclusão lógica). Só com pedido claro do usuário (pode ser desfeito no Log da IA).',
+    input_schema: { type: 'object', properties: { lead_id: { type: 'string' } }, required: ['lead_id'] },
+  },
+  {
     name: 'list_events',
     description: 'Lista compromissos da agenda num período (padrão: próximos 14 dias).',
     input_schema: { type: 'object', properties: { from: { type: 'string' }, to: { type: 'string' } } },
@@ -313,6 +350,22 @@ async function executeTool(toolName, toolInput, context) {
       return casesService.addUpdate(toolInput.case_id, accountId, userId, toolInput, 'ai_chat');
     case 'create_event':
       return eventsService.create(accountId, userId, toolInput);
+    case 'update_event': {
+      const { event_id, ...rest } = toolInput;
+      return eventsService.update(event_id, accountId, rest);
+    }
+    case 'delete_event':
+      await eventsService.remove(toolInput.event_id, accountId);
+      return { id: toolInput.event_id, deleted: true };
+    case 'update_task': {
+      const { task_id, ...rest } = toolInput;
+      return leadsService.updateTask(task_id, accountId, rest);
+    }
+    case 'delete_task':
+      return leadsService.removeTask(toolInput.task_id, accountId);
+    case 'delete_lead':
+      await leadsService.softDelete(toolInput.lead_id, accountId, userId);
+      return { id: toolInput.lead_id, deleted: true };
     case 'list_events': {
       const from = toolInput.from || new Date().toISOString();
       const to = toolInput.to || new Date(Date.now() + 14 * 864e5).toISOString();

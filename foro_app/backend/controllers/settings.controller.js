@@ -12,7 +12,7 @@ async function update(req, res) {
 }
 
 async function getPlan(req, res) {
-  const plan = await settingsService.getPlan(req.account.id);
+  const plan = await settingsService.getPlan(req.account.id, req.user.id);
   res.json(plan);
 }
 

@@ -44,40 +44,65 @@ function currentWindow(anchor, now = new Date()) {
   return { index: idx, start, end };
 }
 
-async function getStatus(accountId) {
+/**
+ * Créditos POR USUÁRIO: cada pessoa tem o plano (assento) que o admin contratou para ela.
+ *  • com plano pago        → limite e janela semanal do plano do usuário (âncora users.plan_started_at)
+ *  • teste grátis (trial)  → limite do plano "trial" para cada usuário
+ *  • sem plano (conta paga, usuário sem assento) → 0 crédito; precisa pedir ao admin
+ */
+async function getStatus(accountId, userId) {
   const [rows] = await query(
-    `SELECT a.plan_started_at, a.status, a.trial_ends_at, p.id AS plan_id, p.name AS plan_name,
-            p.ai_credits_week, p.lookups_week
-     FROM accounts a JOIN plans p ON p.id = a.plan_id WHERE a.id = ? LIMIT 1`,
-    [accountId]
+    `SELECT a.plan_started_at AS acc_anchor, a.plan_id AS acc_plan, a.status, a.trial_ends_at, u.plan_id AS user_plan, u.plan_started_at AS user_anchor
+     FROM accounts a LEFT JOIN users u ON u.id = ? AND u.account_id = a.id WHERE a.id = ? LIMIT 1`,
+    [userId || null, accountId]
   );
   if (!rows.length) throw new AppError('Conta não encontrada.', 404);
   const acc = rows[0];
-  const win = currentWindow(acc.plan_started_at);
-  const [[{ used }]] = await query(
-    'SELECT COALESCE(SUM(credits), 0) AS used FROM ai_usage WHERE account_id = ? AND created_at >= ?',
-    [accountId, win.start]
-  );
-  const limit = Number(acc.ai_credits_week);
+  let planId = null, anchor = acc.acc_anchor;
+  if (acc.user_plan) { planId = acc.user_plan; anchor = acc.user_anchor || acc.acc_anchor; }
+  else if (acc.status === 'trialing') planId = 'trial';
+  else if (acc.status === 'active') {
+    // Conta ativa sem NENHUM assento pago (concessão manual pela equipe da plataforma / legado): todos usam o plano da conta.
+    const [[c]] = await query('SELECT COUNT(*) AS n FROM users WHERE account_id = ? AND active = 1 AND plan_id IS NOT NULL', [accountId]);
+    if (c.n === 0) planId = acc.acc_plan;
+  } else if (!userId) { planId = 'trial'; }
+  let plan = null;
+  if (planId) { const [p] = await query('SELECT id, name, ai_credits_week, lookups_week FROM plans WHERE id = ? LIMIT 1', [planId]); plan = p[0] || null; }
+  const win = currentWindow(anchor);
+  const limit = plan ? Number(plan.ai_credits_week) : 0;
+  let used = 0;
+  if (userId) {
+    const [[r]] = await query('SELECT COALESCE(SUM(credits), 0) AS used FROM ai_usage WHERE account_id = ? AND user_id = ? AND created_at >= ?', [accountId, userId, win.start]);
+    used = r.used;
+  } else {
+    const [[r]] = await query('SELECT COALESCE(SUM(credits), 0) AS used FROM ai_usage WHERE account_id = ? AND created_at >= ?', [accountId, win.start]);
+    used = r.used;
+  }
   const usedN = Math.round(Number(used) * 100) / 100;
   return {
-    plan_id: acc.plan_id,
-    plan_name: acc.plan_name,
+    plan_id: plan?.id || null,
+    plan_name: plan?.name || 'Sem plano',
+    has_plan: Boolean(plan),
     weekly_limit: limit,
     used: usedN,
     remaining: Math.max(0, Math.round((limit - usedN) * 100) / 100),
     window_start: win.start,
     renews_at: win.end,
-    lookups_week: acc.lookups_week,
+    lookups_week: plan?.lookups_week ?? 0,
     account_status: acc.status,
     trial_ends_at: acc.trial_ends_at,
     rule: { tokens_per_credit: TOKENS_PER_CREDIT, output_weight: OUTPUT_WEIGHT },
   };
 }
 
-/** Bloqueia o turno se a semana já esgotou. O último turno pode ultrapassar levemente o saldo. */
-async function assertHasCredits(accountId) {
-  const s = await getStatus(accountId);
+/** Bloqueia o turno se a semana já esgotou (ou se o usuário não tem plano). O último turno pode ultrapassar levemente o saldo. */
+async function assertHasCredits(accountId, userId) {
+  const s = await getStatus(accountId, userId);
+  if (!s.has_plan) {
+    const err = new AppError('Você ainda não tem um plano de IA. Peça ao administrador do escritório para contratar um plano para você.', 402);
+    err.code = 'AI_NO_PLAN';
+    throw err;
+  }
   if (s.remaining <= 0) {
     const err = new AppError(
       `Seus créditos de IA desta semana acabaram. Renovam em ${new Date(s.renews_at).toLocaleDateString('pt-BR')}.`,

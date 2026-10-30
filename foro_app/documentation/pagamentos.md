@@ -160,3 +160,14 @@ Só entram faturas **pagas**: `PAID`. (Estornos e disputas são tratados no pain
 - Para testar localmente, use o Stripe CLI (`stripe listen --forward-to localhost:3040/api/webhooks/stripe`).
 - `STRIPE_API_BASE` existe só para testes automatizados (aponta o SDK para um Stripe simulado) — **não defina em produção**.
 - Em Development do NFE.io, as notas são emitidas no ambiente de homologação.
+
+
+## Assinatura por usuário
+
+Cada usuário paga um plano independente. O administrador do escritório contrata/melhora o plano de qualquer pessoa em `/planos` (seletor "Contratar plano para"), mas nunca reduz. Webhooks mapeiam assinatura → usuário (`users.stripe_subscription_id` ou `metadata.user_id`). Configure o portal do cliente no Stripe sem troca de plano e sem cancelamento.
+
+## IA: áudio, log e diagnóstico
+
+- Áudio: botão de microfone no chat usa o ditado do navegador (Web Speech API, pt-BR); o texto é conferido antes de enviar. Sem suporte no Firefox; não há upload de arquivo de áudio.
+- Log da IA (`/ia-log`): tudo que a IA fez, com botão Desfazer.
+- Se a IA falhar: admin clica em "Testar conexão da IA" no Log da IA; confira `docker compose logs backend | grep "\[ai\]"`, a `ANTHROPIC_API_KEY`, `ANTHROPIC_MODEL` (ex.: `claude-sonnet-5-5`) e o saldo na Anthropic.

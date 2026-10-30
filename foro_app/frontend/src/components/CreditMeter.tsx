@@ -7,10 +7,18 @@ import { aiApi } from '../api'
 export default function CreditMeter({ variant = 'dark' }: { variant?: 'dark' | 'light' }) {
   const { data } = useQuery({ queryKey: ['ai-credits'], queryFn: aiApi.getCredits, staleTime: 60_000 })
   if (!data) return null
+  const dark = variant === 'dark'
 
+  if (data.has_plan === false) {
+    return (
+      <div className={clsx('rounded-md px-3 py-2.5 text-xs', dark ? 'bg-white/5 text-brand-200' : 'bg-slate-50 border text-slate-600')}>
+        <span className="flex items-center gap-1 font-medium"><Zap className="w-3 h-3 text-accent-400" /> Créditos IA</span>
+        <p className="mt-1">Sem plano — peça ao administrador para contratar um para você.</p>
+      </div>
+    )
+  }
   const pct = data.weekly_limit ? Math.min(100, (data.used / data.weekly_limit) * 100) : 100
   const low = data.remaining <= data.weekly_limit * 0.1
-  const dark = variant === 'dark'
   const renews = new Date(data.renews_at).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })
   const fmt = (n: number) => n.toLocaleString('pt-BR', { maximumFractionDigits: 1 })
 

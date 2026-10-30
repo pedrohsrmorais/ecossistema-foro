@@ -206,7 +206,7 @@ async function draftWithAI(id, accountId, user, { instructions } = {}) {
   const slots = [...d.content.matchAll(slotRe())];
   if (!slots.length) throw new AppError('Este documento não tem trechos para a IA preencher.', 422, 'NO_AI_SLOTS');
   if (slots.length > 25) throw new AppError('Trechos demais para uma única geração.', 422, 'VALIDATION');
-  await aiCredits.assertHasCredits(accountId);
+  await aiCredits.assertHasCredits(accountId, user.id);
 
   const tpl = d.template_key ? await templates.get(d.template_key, accountId) : null;
   const area = areas.get(d.area_key);
@@ -262,7 +262,7 @@ ${slots.map((m, i) => `${i + 1}. ${m[1].trim()}`).join('\n')}
     await _saveVersion(conn, { id, content }, accountId, user.id, 'Rascunho gerado pela IA');
   });
   const doc = await getById(id, accountId);
-  return { document: doc, flagged_citations: [...new Set(flags)], unfilled_slots: left, credits_used: creditsUsed, credits: await aiCredits.getStatus(accountId) };
+  return { document: doc, flagged_citations: [...new Set(flags)], unfilled_slots: left, credits_used: creditsUsed, credits: await aiCredits.getStatus(accountId, user.id) };
 }
 
 // ─── Exportação .docx ────────────────────────────────────────────────────────

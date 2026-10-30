@@ -1,6 +1,9 @@
 /**
  * stripe.service.js — assinatura do Foro via Stripe (somente cartão).
  *
+ * PLANO POR USUÁRIO: cada pessoa do escritório tem o próprio plano (1 assinatura Stripe por pessoa, todas no mesmo
+ * cliente/cartão do escritório). Só administradores contratam; o plano de um usuário só SOBE (nunca é reduzido pelo app).
+ *
  * Fluxo:
  *   1. POST /payments/checkout  → cria uma Checkout Session (página hospedada pelo Stripe: o cartão NUNCA passa
  *      pelo nosso servidor) e devolve a URL.
@@ -125,17 +128,48 @@ async function _ensureCustomer(accountId, userEmail) {
 
 const LIVE_SUB = new Set(['active', 'trialing', 'past_due']);
 
-async function createCheckout(accountId, userEmail, planCode) {
+/**
+ * Contrata (ou melhora) o plano de UMA pessoa do escritório. Só o admin chama (ver rota).
+ *  • pessoa sem assinatura  → Checkout Session (cartão) → { url }
+ *  • pessoa com assinatura  → troca o preço da assinatura (com proporcional) → { updated: true }; só aceita plano MAIOR.
+ */
+async function createCheckout(accountId, userEmail, planCode, targetUserId) {
   const plan = await _planRow(planCode);
   if (!plan || !plan.purchasable) throw new AppError('Plano inválido.', 400);
+  if (!targetUserId) throw new AppError('Informe para qual usuário é o plano.', 422);
 
-  const [[acc]] = await query('SELECT stripe_subscription_id, subscription_status FROM accounts WHERE id = ? LIMIT 1', [accountId]);
-  if (acc?.stripe_subscription_id && LIVE_SUB.has(acc.subscription_status)) {
-    throw new AppError('Você já tem uma assinatura. Para trocar de plano, atualizar o cartão ou cancelar, use "Gerenciar assinatura".', 409, 'ALREADY_SUBSCRIBED');
-  }
+  const [[target]] = await query(
+    `SELECT u.id, u.name, u.plan_id, u.stripe_subscription_id, u.subscription_status, p.price AS cur_price
+     FROM users u LEFT JOIN plans p ON p.id = u.plan_id WHERE u.id = ? AND u.account_id = ? AND u.active = 1 LIMIT 1`, [targetUserId, accountId]);
+  if (!target) throw new AppError('Usuário não encontrado neste escritório.', 404);
 
   const priceId = await resolvePriceId(plan);
+  const live = target.stripe_subscription_id && LIVE_SUB.has(target.subscription_status);
+
+  if (live) {
+    if (target.plan_id === plan.id) throw new AppError('Esta pessoa já está neste plano.', 409, 'SAME_PLAN');
+    if (Number(plan.price) <= Number(target.cur_price)) {
+      throw new AppError('Não é possível reduzir o plano de um usuário do escritório. Você só pode contratar um plano melhor.', 403, 'NO_DOWNGRADE');
+    }
+    try {
+      const stripe = client();
+      const sub = await stripe.subscriptions.retrieve(target.stripe_subscription_id);
+      const item = sub.items?.data?.[0];
+      if (!item) throw new Error('assinatura sem item');
+      await stripe.subscriptions.update(sub.id, {
+        items: [{ id: item.id, price: priceId }],
+        proration_behavior: 'always_invoice',
+        metadata: { account_id: accountId, user_id: target.id, plan_code: plan.id },
+      });
+      return { updated: true };
+    } catch (err) { throw stripeErr(err, 'Não foi possível melhorar o plano agora. Tente novamente.'); }
+  }
+  if (target.plan_id && Number(plan.price) < Number(target.cur_price)) {
+    throw new AppError('Não é possível reduzir o plano de um usuário do escritório.', 403, 'NO_DOWNGRADE');
+  }
+
   const customer = await _ensureCustomer(accountId, userEmail);
+  const meta = { account_id: accountId, user_id: target.id, plan_code: plan.id };
   try {
     const session = await client().checkout.sessions.create({
       mode: 'subscription',
@@ -143,13 +177,13 @@ async function createCheckout(accountId, userEmail, planCode) {
       payment_method_types: ['card'],
       line_items: [{ price: priceId, quantity: 1 }],
       client_reference_id: accountId,
-      subscription_data: { metadata: { account_id: accountId, plan_code: plan.id } },
-      metadata: { account_id: accountId, plan_code: plan.id },
+      subscription_data: { metadata: meta },
+      metadata: meta,
       billing_address_collection: 'required',
       tax_id_collection: { enabled: true },           // CPF/CNPJ do escritório (útil para a NFS-e)
       customer_update: { name: 'auto', address: 'auto' },
       locale: 'pt-BR',
-      success_url: `${frontUrl()}/planos?checkout=ok`,
+      success_url: `${frontUrl()}/planos?checkout=ok&user=${encodeURIComponent(target.id)}`,
       cancel_url: `${frontUrl()}/planos?checkout=cancelado`,
     });
     return { url: session.url };
@@ -198,41 +232,58 @@ async function _accountByCustomer(customerRef) {
   return rows[0] || null;
 }
 
+const seatsService = require('./seats.service');
+
+/** Acha o assento (usuário) de uma assinatura: pelo id gravado, senão pelos metadados (inclusive consultando o Stripe). */
+async function _seatBySub(subId, hintMeta) {
+  if (!subId) return null;
+  const [byId] = await query('SELECT * FROM users WHERE stripe_subscription_id = ? LIMIT 1', [subId]);
+  if (byId.length) return byId[0];
+  let userId = hintMeta?.user_id;
+  if (!userId) {
+    try { userId = (await client().subscriptions.retrieve(subId)).metadata?.user_id; } catch (err) { console.error('[stripe] retrieve sub:', err.message); }
+  }
+  if (!userId) return null;
+  const [byUser] = await query('SELECT * FROM users WHERE id = ? LIMIT 1', [userId]);
+  return byUser[0] || null;
+}
+const invoiceMeta = (inv) => inv.parent?.subscription_details?.metadata ?? inv.subscription_details?.metadata ?? invoiceLine(inv)?.metadata ?? null;
+
 /**
- * Coloca a conta no plano pago. A âncora das janelas semanais de crédito (plan_started_at) só reinicia quando a
- * conta NÃO estava ativa (1ª assinatura ou reassinatura). Trocar de plano no meio do ciclo mantém a janela —
- * senão dava para ganhar créditos novos alternando entre planos.
+ * Coloca o USUÁRIO no plano pago. A âncora das janelas semanais de crédito (plan_started_at) só reinicia quando ele
+ * NÃO tinha assinatura ativa (1ª contratação ou reassinatura). Melhorar o plano no meio do ciclo mantém a janela.
  */
-async function _activate(account, planCode, { subscriptionId, periodEnd, cancelAtPeriodEnd }) {
+async function _activateSeat(user, planCode, { subscriptionId, periodEnd, cancelAtPeriodEnd }) {
   await query(
-    `UPDATE accounts SET
-       plan_started_at = IF(status = 'active', plan_started_at, NOW()),
-       plan_id = ?, status = 'active', stripe_subscription_id = ?, subscription_status = 'active',
+    `UPDATE users SET
+       plan_started_at = IF(plan_id IS NOT NULL AND subscription_status = 'active', plan_started_at, NOW()),
+       plan_id = ?, stripe_subscription_id = ?, subscription_status = 'active',
        current_period_end = COALESCE(?, current_period_end), cancel_at_period_end = ?
      WHERE id = ?`,
-    [planCode, subscriptionId, periodEnd, cancelAtPeriodEnd ? 1 : 0, account.id]
+    [planCode, subscriptionId, periodEnd, cancelAtPeriodEnd ? 1 : 0, user.id]
   );
+  await seatsService.syncAccount(user.account_id);
 }
 
-async function _expire(account) {
+async function _expireSeat(user) {
   await query(
-    "UPDATE accounts SET status = 'expired', subscription_status = 'canceled', stripe_subscription_id = NULL, cancel_at_period_end = 0 WHERE id = ?",
-    [account.id]
+    "UPDATE users SET plan_id = NULL, subscription_status = 'canceled', stripe_subscription_id = NULL, cancel_at_period_end = 0 WHERE id = ?",
+    [user.id]
   );
+  await seatsService.syncAccount(user.account_id);
 }
 
 const HANDLERS = {
   async 'checkout.session.completed'(session) {
     if (session.mode !== 'subscription') return;
     const accountId = session.client_reference_id || session.metadata?.account_id;
+    const userId = session.metadata?.user_id;
     if (!accountId) return;
     const customer = typeof session.customer === 'string' ? session.customer : session.customer?.id;
     const sub = typeof session.subscription === 'string' ? session.subscription : session.subscription?.id;
-    // Só registra os ids; QUEM ATIVA O PLANO é o invoice.paid (pagamento confirmado).
-    await query(
-      'UPDATE accounts SET stripe_customer_id = COALESCE(stripe_customer_id, ?), stripe_subscription_id = COALESCE(?, stripe_subscription_id) WHERE id = ?',
-      [customer, sub, accountId]
-    );
+    await query('UPDATE accounts SET stripe_customer_id = COALESCE(stripe_customer_id, ?) WHERE id = ?', [customer, accountId]);
+    // Só registra o id; QUEM ATIVA O PLANO é o invoice.paid (pagamento confirmado).
+    if (userId && sub) await query('UPDATE users SET stripe_subscription_id = ? WHERE id = ? AND account_id = ?', [sub, userId, accountId]);
   },
 
   async 'invoice.paid'(inv) {
@@ -240,17 +291,19 @@ const HANDLERS = {
     if (!subId) return; // cobrança avulsa: não é assinatura
     const account = await _accountByCustomer(inv.customer);
     if (!account) return console.warn('[stripe] invoice.paid de cliente desconhecido:', inv.customer);
+    const user = await _seatBySub(subId, invoiceMeta(inv));
+    if (!user || user.account_id !== account.id) throw new Error(`Fatura ${inv.id}: não achei o usuário da assinatura ${subId}.`);
 
     const line = invoiceLine(inv);
     const planCode = await planFromPrice(linePrice(line));
     if (!planCode) throw new Error(`Preço da fatura ${inv.id} não corresponde a nenhum plano do Foro.`);
 
-    await _activate(account, planCode, { subscriptionId: subId, periodEnd: toDate(line?.period?.end), cancelAtPeriodEnd: false });
+    await _activateSeat(user, planCode, { subscriptionId: subId, periodEnd: toDate(line?.period?.end), cancelAtPeriodEnd: false });
 
     const paid = (inv.amount_paid || 0) / 100;
     if (paid > 0) {
       const [[plan]] = await query('SELECT name FROM plans WHERE id = ? LIMIT 1', [planCode]);
-      const description = `Foro ${plan?.name || planCode} — assinatura mensal`;
+      const description = `Foro ${plan?.name || planCode} — ${user.name} (assinatura mensal)`;
       const pi = typeof inv.payment_intent === 'string' ? inv.payment_intent : inv.payment_intent?.id || null;
       const [ins] = await query(
         `INSERT IGNORE INTO payments (id, account_id, type, status, amount, description, stripe_invoice_id, stripe_payment_intent_id, hosted_invoice_url, invoice_pdf, paid_at)
@@ -265,34 +318,36 @@ const HANDLERS = {
   },
 
   async 'invoice.payment_failed'(inv) {
-    const account = await _accountByCustomer(inv.customer);
-    if (!account || !invoiceSubId(inv)) return;
-    await query("UPDATE accounts SET subscription_status = 'past_due' WHERE id = ? AND stripe_subscription_id = ?", [account.id, invoiceSubId(inv)]);
-    console.warn(`[stripe] pagamento falhou — conta ${account.id} (o Stripe reenvia a cobrança e avisa o cliente por e-mail)`);
+    const subId = invoiceSubId(inv);
+    if (!subId) return;
+    const user = await _seatBySub(subId, invoiceMeta(inv));
+    if (!user) return;
+    await query("UPDATE users SET subscription_status = 'past_due' WHERE id = ? AND stripe_subscription_id = ?", [user.id, subId]);
+    console.warn(`[stripe] pagamento falhou — usuário ${user.id} (o Stripe reenvia a cobrança e avisa o cliente por e-mail)`);
   },
 
   async 'customer.subscription.updated'(sub) {
-    const account = await _accountByCustomer(sub.customer);
-    if (!account) return;
-    if (account.stripe_subscription_id && account.stripe_subscription_id !== sub.id) return; // assinatura antiga
+    const user = await _seatBySub(sub.id, sub.metadata);
+    if (!user) return;
+    if (user.stripe_subscription_id && user.stripe_subscription_id !== sub.id) return; // assinatura antiga
 
-    if (['canceled', 'unpaid', 'incomplete_expired'].includes(sub.status)) return _expire(account);
+    if (['canceled', 'unpaid', 'incomplete_expired'].includes(sub.status)) return _expireSeat(user);
     if (sub.status === 'active') {
       const planCode = await planFromPrice(subItem(sub)?.price);
       if (!planCode) throw new Error(`Assinatura ${sub.id} com preço que não corresponde a nenhum plano do Foro.`);
-      return _activate(account, planCode, { subscriptionId: sub.id, periodEnd: subPeriodEnd(sub), cancelAtPeriodEnd: sub.cancel_at_period_end });
+      return _activateSeat(user, planCode, { subscriptionId: sub.id, periodEnd: subPeriodEnd(sub), cancelAtPeriodEnd: sub.cancel_at_period_end });
     }
     if (sub.status === 'past_due') {
-      await query("UPDATE accounts SET subscription_status = 'past_due', cancel_at_period_end = ? WHERE id = ?", [sub.cancel_at_period_end ? 1 : 0, account.id]);
+      await query("UPDATE users SET subscription_status = 'past_due', cancel_at_period_end = ? WHERE id = ?", [sub.cancel_at_period_end ? 1 : 0, user.id]);
     }
     // 'incomplete' (1º pagamento pendente) e demais: nada a fazer — o plano só sobe no invoice.paid.
   },
 
   async 'customer.subscription.deleted'(sub) {
-    const account = await _accountByCustomer(sub.customer);
-    if (!account) return;
-    if (account.stripe_subscription_id && account.stripe_subscription_id !== sub.id) return; // já reassinou com outra
-    await _expire(account);
+    const user = await _seatBySub(sub.id, sub.metadata);
+    if (!user) return;
+    if (user.stripe_subscription_id && user.stripe_subscription_id !== sub.id) return; // já reassinou com outra
+    await _expireSeat(user);
   },
 };
 

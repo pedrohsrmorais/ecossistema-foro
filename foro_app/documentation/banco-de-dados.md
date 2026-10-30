@@ -422,3 +422,10 @@ O `init.sql` só roda na primeira subida do MySQL (volume vazio). Toda mudança 
 - `office_join_requests (account_id, user_id, status pending|approved|rejected, decided_by)`: pedidos de entrada por código.
 - `user_activity (user_id, day, account_id, seconds, actions, last_seen_at, last_ping_at)`: tempo ativo e ações por usuário/dia.
 - `users.permissions` agora também guarda `access_*` e `view_scope`.
+
+
+## Migração 008 — Log da IA e planos por usuário
+
+- Tabela `ai_actions` (conta, usuário, ferramenta, resumo, entidade, operação insert/update/delete, `before_json`/`after_json`, status done/undone/partial/failed, `undo_note`, datas).
+- `users`: `plan_id`, `plan_started_at`, `stripe_subscription_id`, `subscription_status`, `current_period_end`, `cancel_at_period_end`.
+- Backfill: usuários ativos de contas pagas ganham o plano da conta; o dono recebe os dados da assinatura existente.

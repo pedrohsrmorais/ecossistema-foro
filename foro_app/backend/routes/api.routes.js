@@ -250,6 +250,9 @@ router.post  ('/ai/message',           requireModule('crm'), requireAccess('ai')
 router.get   ('/ai/conversations',     requireModule('crm'), requireAccess('ai'), aiController.listConversations);
 router.get   ('/ai/conversations/:id', requireModule('crm'), requireAccess('ai'), aiController.getConversation);
 router.delete('/ai/conversations/:id', requireModule('crm'), requireAccess('ai'), aiController.clearConversation);
+router.post  ('/ai/diagnose',          requireModule('crm'), requireAdmin, aiController.diagnose);
+router.get   ('/ai/actions',           requireModule('crm'), requireAccess('ai'), aiController.actionsList);
+router.post  ('/ai/actions/:id/undo',  requireModule('crm'), requireAccess('ai'), aiController.actionUndo);
 router.get   ('/ai/credits',           requireModule('crm'), aiController.getCredits);
 router.get   ('/ai/usage',             requireModule('crm'), aiController.getUsage);
 
@@ -257,6 +260,7 @@ router.get   ('/ai/usage',             requireModule('crm'), aiController.getUsa
 router.get   ('/payments',             paymentsController.list);
 router.post  ('/payments/checkout',   requireAdmin, paymentsController.checkout);   // Stripe Checkout (cartão) → { url }
 router.post  ('/payments/portal',     requireAdmin, paymentsController.portal);     // Portal do Cliente do Stripe → { url }
+router.get   ('/billing/seats',        requireAdmin, paymentsController.seats);
 router.get   ('/payments/:id',         paymentsController.getById);
 router.get   ('/payments/:id/nfse',    paymentsController.getNfse);
 

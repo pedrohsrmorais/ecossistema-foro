@@ -141,6 +141,7 @@ export interface AiMessage {
 }
 
 export interface AiAction {
+  id?: string | null
   case_id?: string | null
   tool: string
   write: boolean
@@ -151,7 +152,8 @@ export interface AiAction {
 
 /** Saldo semanal de créditos de IA. Regra: créditos = (tokens de entrada totais + 5 × saída) ÷ 2.500 */
 export interface CreditsStatus {
-  plan_id: string
+  has_plan?: boolean
+  plan_id: string | null
   plan_name: string
   weekly_limit: number
   used: number
@@ -198,7 +200,7 @@ export interface Payment {
 
 /** GET /settings/plan — plano atual + estado da assinatura (Stripe) */
 export interface CurrentPlan {
-  current: string
+  current: string | null
   name: string
   price: number
   max_users: number | null
@@ -645,6 +647,17 @@ export const tasksApi = {
 
 // ─── AI — Chat interno ────────────────────────────────────────────────────────
 
+export interface AiLogRow {
+  id: string; tool: string; summary: string; entity: string | null; entity_id: string | null; op: 'insert' | 'update' | 'delete' | null
+  status: 'done' | 'undone' | 'partial' | 'failed'; undo_note: string | null; created_at: string; undone_at: string | null
+  user_id: string; user_name: string | null; can_undo: boolean
+}
+export const aiLogApi = {
+  list: (params?: { mine?: number; status?: string; page?: number }) => http.get<{ data: AiLogRow[]; total: number }>('/ai/actions', { params }).then(r => r.data),
+  undo: (id: string) => http.post<{ id: string; status: string; undo_note: string | null }>(`/ai/actions/${id}/undo`).then(r => r.data),
+  diagnose: () => http.post<{ ok: boolean; model: string; status?: number | null; diagnosis?: string }>('/ai/diagnose').then(r => r.data),
+}
+
 export const aiApi = {
   /** POST /ai/message */
   sendMessage: (message: string, conversation_id?: string) =>
@@ -673,14 +686,21 @@ export const aiApi = {
 
 // ─── PAYMENTS ─────────────────────────────────────────────────────────────────
 
+export interface Seat {
+  user_id: string; name: string; email: string; role: string; active: boolean; is_owner: boolean
+  plan_id: string | null; plan_name: string | null; plan_price: number | null
+  subscription_status: string | null; current_period_end: string | null; cancel_at_period_end: boolean; on_trial: boolean
+}
+export const billingApi = { seats: () => http.get<Seat[]>('/billing/seats').then(r => r.data) }
+
 export const paymentsApi = {
   /** GET /payments */
   list: (params?: { page?: number; limit?: number }) =>
     http.get<Payment[]>('/payments', { params }).then(r => r.data),
 
   /** POST /payments/checkout — abre o Checkout do Stripe (cartão). Redirecionar o navegador para `url`. */
-  checkout: (plan: string) =>
-    http.post<{ url: string }>('/payments/checkout', { plan }).then(r => r.data),
+  checkout: (plan: string, user_id?: string) =>
+    http.post<{ url?: string; updated?: boolean }>('/payments/checkout', { plan, user_id }).then(r => r.data),
 
   /** POST /payments/portal — Portal do Cliente do Stripe (trocar de plano, cartão, cancelar, faturas). */
   portal: () =>

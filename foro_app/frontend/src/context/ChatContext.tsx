@@ -61,9 +61,11 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         qc.invalidateQueries({ queryKey: ['cases'] })
         qc.invalidateQueries({ queryKey: ['case'] })
         qc.invalidateQueries({ queryKey: ['events'] })
+        qc.invalidateQueries({ queryKey: ['ai-log'] })
       }
     } catch (err: any) {
-      const msg = err?.response?.data?.error || 'Erro ao processar sua mensagem.'
+      const d = err?.response?.data
+      const msg = (d?.error || 'Erro ao processar sua mensagem.') + (d?.diagnosis ? `\n\nDiagnóstico: ${d.diagnosis}` : '')
       setMessages(m => [...m.filter(x => x.id !== 'pending'),
         { id: `e${stamp}`, role: 'assistant', content: msg, error: true }])
       qc.invalidateQueries({ queryKey: ['ai-credits'] })

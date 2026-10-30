@@ -29,6 +29,11 @@ async function sendMessage(req, res) {
   res.json(result);
 }
 
+const aiActions = require('../services/ai-actions.service');
+async function diagnose(req, res) { res.json(await aiService.selfTest()); }
+async function actionsList(req, res) { res.json(await aiActions.list(req.account.id, req.user, { mine: req.query.mine === '1', status: req.query.status, page: req.query.page, limit: req.query.limit })); }
+async function actionUndo(req, res) { res.json(await aiActions.undo(req.params.id, req.account.id, req.user)); }
+
 async function listConversations(req, res) {
   const { page, limit } = paging(req.query.page, req.query.limit, { defaultLimit: 20 });
   const result = await aiService.listConversations(req.account.id, req.user.id, page, limit);
@@ -52,7 +57,7 @@ async function getUsage(req, res) {
 }
 
 async function getCredits(req, res) {
-  res.json(await aiCredits.getStatus(req.account.id));
+  res.json(await aiCredits.getStatus(req.account.id, req.user.id));
 }
 
-module.exports = { getCredits, sendMessage, listConversations, getConversation, clearConversation, getUsage };
+module.exports = { diagnose, actionsList, actionUndo, getCredits, sendMessage, listConversations, getConversation, clearConversation, getUsage };

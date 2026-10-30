@@ -31,15 +31,8 @@ async function _countActive(accountId, conn) {
   return n;
 }
 
-async function _assertUserLimit(accountId, conn) {
-  const run = conn ? conn.execute.bind(conn) : query;
-  if (conn) await conn.execute('SELECT id FROM accounts WHERE id = ? FOR UPDATE', [accountId]); // serializa convites simultâneos
-  const [[plan]] = await run('SELECT p.max_users, p.name FROM accounts a JOIN plans p ON p.id = a.plan_id WHERE a.id = ? LIMIT 1', [accountId]);
-  if (!plan || plan.max_users == null) return;
-  if ((await _countActive(accountId, conn)) >= plan.max_users) {
-    throw new AppError(`Limite de ${plan.max_users} usuário(s) do plano ${plan.name} atingido. Faça upgrade para convidar mais pessoas.`, 403, 'PLAN_LIMIT_USERS');
-  }
-}
+const seats = require('./seats.service');
+const _assertUserLimit = (accountId, conn) => seats.assertCanAddUser(accountId, conn);
 
 async function _activeAdmins(accountId, conn, exceptUserId) {
   const [[{ n }]] = await conn.execute(

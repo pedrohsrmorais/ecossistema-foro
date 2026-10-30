@@ -943,3 +943,14 @@ CREATE TABLE IF NOT EXISTS user_activity (
   actions INT NOT NULL DEFAULT 0, last_seen_at DATETIME NULL, last_ping_at DATETIME NULL,
   PRIMARY KEY (user_id, day), KEY idx_activity_account (account_id, day)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- 008 — Log de ações da IA (com desfazer) e plano por usuário (colunas em users: plan_id, plan_started_at,
+-- stripe_subscription_id, subscription_status, current_period_end, cancel_at_period_end — criadas pela migração 008)
+CREATE TABLE IF NOT EXISTS ai_actions (
+  id VARCHAR(36) NOT NULL DEFAULT (UUID()), account_id VARCHAR(36) NOT NULL, user_id VARCHAR(36) NOT NULL, conversation_id VARCHAR(36) NULL,
+  tool VARCHAR(60) NOT NULL, summary VARCHAR(500) NOT NULL, entity VARCHAR(30) NULL, entity_id VARCHAR(36) NULL,
+  op ENUM('insert','update','delete') NULL, before_json LONGTEXT NULL, after_json LONGTEXT NULL,
+  status ENUM('done','undone','partial','failed') NOT NULL DEFAULT 'done', undo_note VARCHAR(300) NULL,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP, undone_at DATETIME NULL, undone_by VARCHAR(36) NULL,
+  PRIMARY KEY (id), KEY idx_ai_actions_account (account_id, created_at), KEY idx_ai_actions_user (user_id, created_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

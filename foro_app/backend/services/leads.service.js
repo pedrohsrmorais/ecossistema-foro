@@ -271,6 +271,30 @@ async function completeTask(taskId, accountId, userId) {
   return rows[0];
 }
 
+async function updateTask(taskId, accountId, { description, due_date, is_deadline, completed }) {
+  const [cur] = await query('SELECT id FROM tasks WHERE id = ? AND account_id = ? LIMIT 1', [taskId, accountId]);
+  if (!cur.length) throw new AppError('Tarefa não encontrada.', 404);
+  const f = [], v = [];
+  if (description !== undefined) { if (!String(description).trim()) throw new AppError('Descreva a tarefa.', 400); f.push('description = ?'); v.push(String(description).trim()); }
+  if (due_date !== undefined) {
+    let d = null;
+    if (due_date) { d = new Date(due_date); if (Number.isNaN(d.getTime())) throw new AppError('Data inválida.', 400); }
+    f.push('due_date = ?'); v.push(d);
+  }
+  if (is_deadline !== undefined) { f.push('is_deadline = ?'); v.push(is_deadline ? 1 : 0); }
+  if (completed !== undefined) f.push(completed ? 'completed_at = NOW()' : 'completed_at = NULL');
+  if (!f.length) throw new AppError('Nada para atualizar.', 400);
+  await query(`UPDATE tasks SET ${f.join(', ')} WHERE id = ? AND account_id = ?`, [...v, taskId, accountId]);
+  const [rows] = await query('SELECT * FROM tasks WHERE id = ? LIMIT 1', [taskId]);
+  return rows[0];
+}
+
+async function removeTask(taskId, accountId) {
+  const [res] = await query('DELETE FROM tasks WHERE id = ? AND account_id = ?', [taskId, accountId]);
+  if (!res.affectedRows) throw new AppError('Tarefa não encontrada.', 404);
+  return { id: taskId, deleted: true };
+}
+
 async function listAllTasks(accountId, userId, { pendingOnly = false, page = 1, limit = 50 }) {
   const conditions = ['t.account_id = ?'];
   const params = [accountId];
@@ -291,6 +315,7 @@ async function listAllTasks(accountId, userId, { pendingOnly = false, page = 1, 
 }
 
 module.exports = {
+  updateTask, removeTask,
   list, create, getById, update, moveStage, archive, softDelete, getFunnelSummary,
   listNotes, addNote, deleteNote,
   listTasksByLead, createTask, completeTask, listAllTasks,

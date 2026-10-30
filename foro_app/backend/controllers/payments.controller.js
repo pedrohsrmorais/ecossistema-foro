@@ -9,9 +9,9 @@ async function list(req, res) {
 
 /** POST /payments/checkout { plan } → { url } (redirecionar o navegador para o Checkout do Stripe) */
 async function checkout(req, res) {
-  const { plan } = req.body;
+  const { plan, user_id } = req.body;
   if (typeof plan !== 'string' || !plan) return res.status(422).json({ error: 'Informe o plano.' });
-  res.json(await stripeService.createCheckout(req.account.id, req.user.email, plan));
+  res.json(await stripeService.createCheckout(req.account.id, req.user.email, plan, user_id || req.user.id));
 }
 
 /** POST /payments/portal → { url } (Portal do Cliente: trocar de plano, cartão, cancelar, faturas) */
@@ -27,4 +27,7 @@ async function getNfse(req, res) {
   res.json(await paymentsService.getNfse(req.params.id, req.account.id));
 }
 
-module.exports = { list, checkout, portal, getById, getNfse };
+/** GET /billing/seats (admin) — plano de cada pessoa do escritório */
+async function seats(req, res) { res.json(await require('../services/seats.service').list(req.account.id)); }
+
+module.exports = { seats, list, checkout, portal, getById, getNfse };
