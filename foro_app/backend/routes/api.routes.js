@@ -24,7 +24,7 @@ const documentsController   = require('../controllers/documents.controller');
 const officeTemplates       = require('../controllers/office-templates.controller');
 const { requirePermission } = require('../configs/permissions');
 const officeController = require('../controllers/office.controller');
-const { requireOffice, requireAccess, scoped } = require('../middlewares/office.middleware');
+const { requireAccess, scoped } = require('../middlewares/office.middleware');
 const { countActions } = require('../middlewares/activity.middleware');
 const eventsController      = require('../controllers/events.controller');
 const aiController          = require('../controllers/ai.controller');
@@ -122,11 +122,14 @@ router.get  ('/users/me',              usersController.me); // exposto antes do 
 // ─── A partir daqui, exige e-mail confirmado (ver requireVerifiedEmail) ───────
 router.use(requireVerifiedEmail);
 router.use(countActions);   // conta ações de escrita por usuário/dia (nível de atividade)
-router.use(requireOffice);  // CRM bloqueado até criar/entrar em um escritório (403 OFFICE_REQUIRED)
 
 // ─── Escritório (workspace): dados, código, pedidos de entrada, atividade ─────
 router.get   ('/office',                     officeController.get);
-router.post  ('/office',                     requireAdmin, officeController.create);          // criação rápida: só o nome é obrigatório
+router.post  ('/office',                     officeController.create);                        // cria um NOVO escritório (qualquer workspace); só o nome é obrigatório
+router.put   ('/office/governance',          requireAdmin, officeController.setGovernance);
+router.get   ('/workspaces',                 officeController.workspaces.list);
+router.post  ('/workspaces/switch',          officeController.workspaces.switch);
+router.delete('/workspaces/:id',             officeController.workspaces.leave);
 router.put   ('/office',                     requireAdmin, officeController.update);
 router.post  ('/office/code/regenerate',     requireAdmin, officeController.regenerateCode);
 router.post  ('/office/join',                emailFlowLimiter, officeController.requestJoin);   // entrar por código (aprovação do admin)
@@ -160,13 +163,13 @@ router.delete('/fields/:id',           requireModule('crm'), requireAdmin, field
 
 // ─── Leads (módulo "crm") ──────────────────────────────────────────────────────
 router.get   ('/leads',                requireModule('crm'), requireAccess('leads'), scoped('leads'), leadsController.list);
-router.post  ('/leads',                requireModule('crm'), requireAccess('leads'), validate(leadValidations.create), leadsController.create);
+router.post  ('/leads',                requireModule('crm'), requireAccess('leads'), requirePermission('create_leads'), validate(leadValidations.create), leadsController.create);
 router.get   ('/leads/funnel',         requireModule('crm'), requireAccess('leads'), scoped('leads'), leadsController.getFunnelSummary);
 router.get   ('/leads/:id',            requireModule('crm'), requireAccess('leads'), scoped('leads'), leadsController.getById);
 router.put   ('/leads/:id',            requireModule('crm'), requireAccess('leads'), scoped('leads'), leadsController.update);
 router.patch ('/leads/:id/stage',      requireModule('crm'), requireAccess('leads'), scoped('leads'), leadsController.moveStage);
 router.patch ('/leads/:id/archive',    requireModule('crm'), requireAccess('leads'), scoped('leads'), leadsController.archive);
-router.delete('/leads/:id',            requireModule('crm'), requireAccess('leads'), scoped('leads'), leadsController.softDelete);
+router.delete('/leads/:id',            requireModule('crm'), requireAccess('leads'), scoped('leads'), requirePermission('delete_leads'), leadsController.softDelete);
 
 // Notas do lead
 router.get   ('/leads/:id/notes',      requireModule('crm'), requireAccess('leads'), scoped('leads'), leadsController.listNotes);
@@ -180,11 +183,11 @@ router.patch ('/leads/:leadId/tasks/:taskId/complete', requireModule('crm'), req
 
 // ─── Tarefas (visão global, módulo "crm") ──────────────────────────────────────
 router.get('/tasks',                   requireModule('crm'), requireAccess('agenda'), leadsController.listAllTasks);
-router.post('/tasks',                  requireModule('crm'), requireAccess('agenda'), leadsController.createGlobalTask);   // tarefa/prazo com ou sem lead
+router.post('/tasks',                  requireModule('crm'), requireAccess('agenda'), requirePermission('create_events'), leadsController.createGlobalTask);   // tarefa/prazo com ou sem lead
 
 // ─── Processos (módulo "crm") — número CNJ, link do tribunal, andamentos ──────
 router.get   ('/cases',                requireModule('crm'), requireAccess('cases'), scoped('cases'), casesController.list);
-router.post  ('/cases',                requireModule('crm'), requireAccess('cases'), casesController.create);
+router.post  ('/cases',                requireModule('crm'), requireAccess('cases'), requirePermission('create_cases'), casesController.create);
 router.get   ('/cases/analyze',        requireModule('crm'), requireAccess('cases'), casesController.analyze);
 router.get   ('/cases/:id',            requireModule('crm'), requireAccess('cases'), scoped('cases'), casesController.getById);
 router.put   ('/cases/:id',            requireModule('crm'), requireAccess('cases'), scoped('cases'), casesController.update);
@@ -227,7 +230,7 @@ router.delete('/cases/:id/updates/:updateId', requireModule('crm'), requireAcces
 
 // ─── Agenda (módulo "crm") — reuniões/audiências com link ──────────────────────
 router.get   ('/events',               requireModule('crm'), requireAccess('agenda'), eventsController.list);
-router.post  ('/events',               requireModule('crm'), requireAccess('agenda'), eventsController.create);
+router.post  ('/events',               requireModule('crm'), requireAccess('agenda'), requirePermission('create_events'), eventsController.create);
 router.put   ('/events/:id',           requireModule('crm'), requireAccess('agenda'), eventsController.update);
 router.delete('/events/:id',           requireModule('crm'), requireAccess('agenda'), eventsController.remove);
 

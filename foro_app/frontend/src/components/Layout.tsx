@@ -7,7 +7,7 @@ import {
 import { useAuth } from '../context/AuthContext'
 import { modulesApi, settingsApi, officeApi, usersApi } from '../api'
 import { LOCKED_FEATURES } from '../config/featureFlags'
-import OfficeGate from './OfficeGate'
+import WorkspaceSwitcher from './WorkspaceSwitcher'
 import { useEffect, useRef } from 'react'
 import { ChatProvider } from '../context/ChatContext'
 import AiDock from './AiDock'
@@ -80,11 +80,9 @@ export default function Layout() {
     : null
   const { data: office } = useQuery({ queryKey: ['office'], queryFn: officeApi.get, staleTime: 30_000 })
   const { data: meP } = useQuery({ queryKey: ['me-profile'], queryFn: usersApi.me, staleTime: 60_000 })
-  const hasOffice = office?.configured !== false // enquanto carrega, assume que tem (evita piscar o bloqueio)
+  const hasOffice = true // todo workspace (pessoal ou escritório) é utilizável; o seletor troca entre eles
   const canAccess = (item: NavItem) => !item.access || meP?.permissions?.[('access_' + item.access) as keyof NonNullable<typeof meP.permissions>] !== false
   const visible = (item: NavItem) => (!item.module || !disabledModules.has(item.module)) && canAccess(item)
-  const CRM_PATHS = ['/chat', '/leads', '/processos', '/documentos', '/agenda', '/dashboard', '/tasks', '/gerador-documentos']
-  const gated = !hasOffice && CRM_PATHS.some(p => location.pathname === p || location.pathname.startsWith(p + '/'))
 
   // Tempo ativo na aba: um "ping" por minuto enquanto a aba está visível e houve interação recente
   const lastInteraction = useRef(Date.now())
@@ -138,6 +136,8 @@ export default function Layout() {
           <span className="logo-wordmark text-lg text-white flex-1">Foro</span>
           {visible({ module: 'crm' } as NavItem) && hasOffice && <AlertsBell />}
         </div>
+
+        <WorkspaceSwitcher />
 
         {/* Nav */}
         <nav className="flex-1 p-3 space-y-1 overflow-y-auto">
@@ -196,7 +196,7 @@ export default function Layout() {
           </div>
         )}
         <div key={location.pathname} className="animate-fade-in">
-          {gated ? <OfficeGate /> : <Outlet />}
+          <Outlet />
         </div>
       </main>
       {hasOffice && <AiDock />}

@@ -7,11 +7,11 @@ const authService = require('./auth.service');
 
 const permissions = require('../configs/permissions');
 const ROLES = ['admin', 'user'];
-const COLS = 'id, name, email, role, active, oab_number, permissions, email_verified_at, created_at, (SELECT a.owner_user_id FROM accounts a WHERE a.id = users.account_id) AS owner_user_id';
+const COLS = 'id, name, email, role, active, oab_number, permissions, email_verified_at, created_at, (SELECT a.owner_user_id FROM accounts a WHERE a.id = users.account_id) AS owner_user_id, (SELECT a.member_defaults FROM accounts a WHERE a.id = users.account_id) AS member_defaults';
 
 function _shape(u) {
-  const { email_verified_at, permissions: stored, owner_user_id, ...rest } = u;
-  return { ...rest, is_owner: owner_user_id === u.id, permissions: permissions.resolve(u.role, stored), email_verified: Boolean(email_verified_at), pending_invite: !email_verified_at };
+  const { email_verified_at, permissions: stored, owner_user_id, member_defaults, ...rest } = u;
+  return { ...rest, is_owner: owner_user_id === u.id, permissions: permissions.resolve(u.role, stored, member_defaults), email_verified: Boolean(email_verified_at), pending_invite: !email_verified_at };
 }
 
 async function listByAccount(accountId) {
@@ -49,16 +49,39 @@ async function _activeAdmins(accountId, conn, exceptUserId) {
 async function invite(accountId, inviter, { name, email, role = 'user' }) {
   if (!ROLES.includes(role)) throw new AppError('Perfil inválido.', 422);
 
-  const [exists] = await query('SELECT id FROM users WHERE email = ? LIMIT 1', [email]);
-  if (exists.length) throw new AppError('Este e-mail já está cadastrado.', 409);
+  const [[acct]] = await query('SELECT kind FROM accounts WHERE id = ? LIMIT 1', [accountId]);
+  if (acct?.kind !== 'office') throw new AppError('Crie um escritório para convidar pessoas. O espaço pessoal é só seu.', 403, 'PERSONAL_SPACE');
+  const [mine] = await query('SELECT id FROM users WHERE email = ? AND account_id = ? LIMIT 1', [email, accountId]);
+  if (mine.length) throw new AppError('Esta pessoa já faz parte do escritório.', 409);
+
+  // A pessoa já tem conta em outro workspace: ganha também uma participação neste escritório (entra direto, sem novo cadastro).
+  const [known] = await query('SELECT id, person_id, name, phone, password_hash, email_verified_at, oab_number FROM users WHERE email = ? AND email_verified_at IS NOT NULL ORDER BY created_at ASC LIMIT 1', [email]);
+  if (known.length) {
+    const k = known[0];
+    const memberId = uuidv4();
+    await transaction(async (conn) => {
+      await _assertUserLimit(accountId, conn);
+      await conn.execute(
+        'INSERT INTO users (id, account_id, person_id, name, email, phone, password_hash, role, email_verified_at, oab_number) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+        [memberId, accountId, k.person_id || k.id, k.name, email, k.phone, k.password_hash, role, k.email_verified_at, k.oab_number]
+      );
+    });
+    const [[acc2]] = await query('SELECT name FROM accounts WHERE id = ? LIMIT 1', [accountId]);
+    const [[inv2]] = await query('SELECT name FROM users WHERE id = ? LIMIT 1', [inviter.id]);
+    Promise.resolve(require('./email.service').sendAddedToOfficeEmail(email, { inviterName: inv2?.name, accountName: acc2?.name })).catch(() => {});
+    const out = await getById(memberId, accountId);
+    return { ...out, added_existing: true };
+  }
+  const [anyRow] = await query('SELECT id FROM users WHERE email = ? LIMIT 1', [email]);
+  if (anyRow.length) throw new AppError('Este e-mail tem um cadastro ainda não confirmado. Peça para a pessoa confirmar o e-mail e tente de novo.', 409);
 
   const userId = uuidv4();
   const unusable = await bcrypt.hash(crypto.randomBytes(24).toString('hex'), 10);
   await transaction(async (conn) => {
     await _assertUserLimit(accountId, conn);
     await conn.execute(
-      'INSERT INTO users (id, account_id, name, email, password_hash, role) VALUES (?, ?, ?, ?, ?, ?)',
-      [userId, accountId, name, email, unusable, role]
+      'INSERT INTO users (id, account_id, person_id, name, email, password_hash, role) VALUES (?, ?, ?, ?, ?, ?, ?)',
+      [userId, accountId, userId, name, email, unusable, role]
     );
   });
 
@@ -135,7 +158,7 @@ async function changePassword(userId, currentPassword, newPassword) {
   if (!valid) throw new AppError('Senha atual incorreta.', 400);
 
   const newHash = await bcrypt.hash(newPassword, 12);
-  await query('UPDATE users SET password_hash = ? WHERE id = ?', [newHash, userId]);
+  await require('./person.service').syncCredentials(userId, { passwordHash: newHash });
 }
 
 async function deactivate(userId, accountId, actorId) {

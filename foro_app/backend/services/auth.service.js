@@ -27,6 +27,32 @@ function _generateNumericCode(length = 6) {
   return String(crypto.randomInt(0, max)).padStart(length, '0');
 }
 
+/** Cria o espaço pessoal (conta kind='personal' + a linha do usuário como admin) dentro da transação. */
+async function createPersonalSpace(conn, { userId, personId, name, email, phone, passwordHash, emailVerifiedAt = null, oab = null, officeName = null, touch = true }) {
+  const accountId = uuidv4();
+  const trialEndsAt = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000);
+  // officeName (legado da API: cadastro com "accountName") cria já um escritório em vez do espaço pessoal.
+  if (officeName) {
+    await conn.execute(
+      "INSERT INTO accounts (id, name, slug, plan_id, plan_started_at, trial_ends_at, office_configured, office_code, kind) VALUES (?, ?, ?, 'trial', ?, ?, 1, ?, 'office')",
+      [accountId, officeName, `${officeName.toLowerCase().replace(/[^a-z0-9]/g, '-').replace(/-+/g, '-').slice(0, 40)}-${accountId.slice(0, 8)}`, new Date(), trialEndsAt, require('./office.service').genCode()]
+    );
+  } else {
+    await conn.execute(
+      "INSERT INTO accounts (id, name, slug, plan_id, plan_started_at, trial_ends_at, office_configured, kind) VALUES (?, ?, ?, 'trial', ?, ?, 1, 'personal')",
+      [accountId, `Espaço de ${String(name).split(' ')[0]}`, `pessoal-${accountId}`.slice(0, 60), new Date(), trialEndsAt]
+    );
+  }
+  await conn.execute(
+    'INSERT INTO users (id, account_id, person_id, name, email, phone, password_hash, role, email_verified_at, oab_number, last_used_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, IF(?, NOW(3), NULL))',
+    [userId, accountId, personId, name, email, phone || null, passwordHash, 'admin', emailVerifiedAt, oab, touch ? 1 : 0]
+  );
+  await conn.execute('UPDATE accounts SET owner_user_id = ? WHERE id = ?', [userId, accountId]);
+  await _seedDefaultFields(conn, accountId);
+  await caseStages.seedAccount((sql, p) => conn.execute(sql, p), accountId);
+  return accountId;
+}
+
 /**
  * Registra novo usuário + nova conta (tenant).
  * O e-mail já sai com um código de verificação disparado (ver sendVerificationCode).
@@ -39,34 +65,14 @@ async function register({ name, email, password, phone, accountName }) {
   if (existing.length) throw new AppError('E-mail já cadastrado.', 409);
 
   const passwordHash = await bcrypt.hash(password, 12);
-  const configured = Boolean(accountName && String(accountName).trim());
-  accountName = configured ? String(accountName).trim() : `Conta de ${name}`;
-  const slug = accountName.toLowerCase().replace(/[^a-z0-9]/g, '-').replace(/-+/g, '-').slice(0, 60);
 
   const result = await transaction(async (conn) => {
-    // Cria a conta com 14 dias de teste gratuito (status 'trialing' por padrão)
-    const accountId = uuidv4();
-    const trialEndsAt = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000);
-    await conn.execute(
-      'INSERT INTO accounts (id, name, slug, plan_id, plan_started_at, trial_ends_at, office_configured, office_code) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
-      [accountId, accountName, `${slug}-${accountId.slice(0, 8)}`, 'trial', new Date(), trialEndsAt, configured ? 1 : 0, configured ? require('./office.service').genCode() : null]
-    );
-
-    // Cria o usuário admin
+    // Todo cadastro começa no ESPAÇO PESSOAL (workspace privado, 14 dias de teste). Escritórios são criados/entrados depois.
     const userId = uuidv4();
-    await conn.execute(
-      'INSERT INTO users (id, account_id, name, email, phone, password_hash, role) VALUES (?, ?, ?, ?, ?, ?, ?)',
-      [userId, accountId, name, email, phone || null, passwordHash, 'admin']
-    );
-
-    await conn.execute('UPDATE accounts SET owner_user_id = ? WHERE id = ?', [userId, accountId]);
-
-    // Cria campos de sistema padrão
-    await _seedDefaultFields(conn, accountId);
-    await caseStages.seedAccount((sql, p) => conn.execute(sql, p), accountId);
-
+    const officeName = accountName && String(accountName).trim() ? String(accountName).trim() : null;
+    const accountId = await createPersonalSpace(conn, { userId, personId: userId, name, email, phone, passwordHash, officeName });
     const token = generateToken({ id: userId, account_id: accountId, role: 'admin', email });
-    return { token, user: { id: userId, name, email, role: 'admin' }, account: { id: accountId, name: accountName, office_configured: configured } };
+    return { token, user: { id: userId, name, email, role: 'admin' }, account: { id: accountId, name: officeName || 'Espaço pessoal', kind: officeName ? 'office' : 'personal' } };
   });
 
   // Dispara o código de verificação de e-mail (fora da transação, não bloqueia o cadastro se falhar)
@@ -81,10 +87,11 @@ async function register({ name, email, password, phone, accountName }) {
  * Login com e-mail + senha.
  */
 async function login({ email, password }) {
+  // A mesma pessoa pode ter várias linhas (workspaces). Abre o último usado.
   const [rows] = await query(
     `SELECT u.id, u.name, u.email, u.password_hash, u.role, u.active, u.account_id,
             u.email_verified_at, u.phone_verified_at
-     FROM users u WHERE u.email = ? LIMIT 1`,
+     FROM users u WHERE u.email = ? ORDER BY u.active DESC, u.last_used_at IS NULL, u.last_used_at DESC, u.created_at ASC`,
     [email]
   );
 
@@ -95,6 +102,7 @@ async function login({ email, password }) {
   const valid = await bcrypt.compare(password, user.password_hash);
   if (!valid) throw new AppError('Credenciais inválidas.', 401);
 
+  await query('UPDATE users SET last_used_at = NOW(3) WHERE id = ?', [user.id]);
   const token = generateToken({ id: user.id, account_id: user.account_id, role: user.role, email: user.email });
   return {
     token,
@@ -211,6 +219,7 @@ async function verifyCode(userId, channel, code) {
   await transaction(async (conn) => {
     await conn.execute('UPDATE verification_codes SET consumed_at = NOW() WHERE id = ?', [record.id]);
     await conn.execute(`UPDATE users SET ${column} = NOW() WHERE id = ?`, [userId]);
+    await require('./person.service').syncCredentials(userId, channel === 'email' ? { emailVerified: true } : { phoneVerified: true }, conn);
   });
 
   return { verified: true, channel };
@@ -289,6 +298,7 @@ async function resetPassword(token, password) {
       'UPDATE users SET password_hash = ?, email_verified_at = COALESCE(email_verified_at, NOW()) WHERE id = ?',
       [passwordHash, record.user_id]
     );
+    await require('./person.service').syncCredentials(record.user_id, { passwordHash, emailVerified: true }, conn);
     await conn.execute('UPDATE password_reset_tokens SET used_at = NOW() WHERE id = ?', [record.id]);
     // Redefinir a senha invalida os demais links pendentes desse usuário.
     await conn.execute('UPDATE password_reset_tokens SET used_at = NOW() WHERE user_id = ? AND used_at IS NULL', [record.user_id]);
@@ -339,7 +349,7 @@ async function _seedDefaultFields(conn, accountId) {
 }
 
 module.exports = {
-  register, login, refreshToken,
+  register, login, refreshToken, generateToken, createPersonalSpace, seedAccount: async (conn, accountId) => { await _seedDefaultFields(conn, accountId); await caseStages.seedAccount((sql, p) => conn.execute(sql, p), accountId); },
   sendVerificationCode, verifyCode,
   forgotPassword, resetPassword, sendInvite,
   platformLogin,

@@ -1,9 +1,10 @@
 import { useState, useEffect } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { Building2, Copy, RefreshCw, Check, X, ShieldCheck } from 'lucide-react'
+import { Building2, Copy, RefreshCw, Check, X, ShieldCheck, User as UserIcon, Users, Scale, Clock, LogOut, Download, Plus } from 'lucide-react'
 import clsx from 'clsx'
-import { officeApi, settingsApi, type ActivityRow } from '../api'
+import { officeApi, settingsApi, workspacesApi, permissionsApi, type ActivityRow, type Office, type Permissions } from '../api'
+import { useAuth } from '../context/AuthContext'
 import CreateOffice from '../components/CreateOffice'
 import TeamPanel from '../components/TeamPanel'
 
@@ -21,63 +22,255 @@ const ago = (iso: string | null) => {
   return `há ${Math.round(m / 1440)} d`
 }
 
+const AREAS = ['Trabalhista', 'Previdenciário', 'Cível', 'Família e Sucessões', 'Consumidor', 'Tributário', 'Empresarial', 'Criminal', 'Imobiliário', 'Administrativo', 'Digital / LGPD', 'Ambiental']
+function maskCnpj(v: string) {
+  const d = v.replace(/\D/g, '').slice(0, 14)
+  return d.replace(/^(\d{2})(\d)/, '$1.$2').replace(/^(\d{2})\.(\d{3})(\d)/, '$1.$2.$3').replace(/\.(\d{3})(\d)/, '.$1/$2').replace(/(\d{4})(\d)/, '$1-$2')
+}
+const maskCep = (v: string) => v.replace(/\D/g, '').slice(0, 8).replace(/^(\d{5})(\d)/, '$1-$2')
+
+/** Quanto do cadastro do escritório está preenchido (a "ontologia" mínima). */
+function completeness(o: Office) {
+  const checks: [string, boolean][] = [
+    ['Nome', !!o.name], ['CNPJ', !!o.cnpj], ['Razão social', !!o.legal_name], ['Telefone', !!o.phone], ['E-mail', !!o.email],
+    ['Endereço', !!o.address && !!o.city && !!o.state], ['Registro OAB da sociedade', !!o.oab_society], ['Áreas de atuação', o.practice_areas.length > 0],
+    ['Tamanho da equipe', o.headcount_total != null],
+  ]
+  return { pct: Math.round((checks.filter(c => c[1]).length / checks.length) * 100), missing: checks.filter(c => !c[1]).map(c => c[0]) }
+}
+
 function DadosTab({ canEdit }: { canEdit: boolean }) {
   const qc = useQueryClient()
   const { data: o } = useQuery({ queryKey: ['office'], queryFn: officeApi.get })
-  const [f, setF] = useState({ name: '', cnpj: '', address: '', city: '', state: '', office_phone: '' })
+  type F = { name: string; legal_name: string; cnpj: string; oab_society: string; founded_on: string; office_phone: string; office_email: string; website: string; zip_code: string; address: string; address_number: string; address_complement: string; district: string; city: string; state: string; headcount_total: string; headcount_lawyers: string; notes: string }
+  const [f, setF] = useState<F>({ name: '', legal_name: '', cnpj: '', oab_society: '', founded_on: '', office_phone: '', office_email: '', website: '', zip_code: '', address: '', address_number: '', address_complement: '', district: '', city: '', state: '', headcount_total: '', headcount_lawyers: '', notes: '' })
+  const [areas, setAreas] = useState<string[]>([])
+  const [extra, setExtra] = useState('')
   const [msg, setMsg] = useState<{ ok: boolean; t: string } | null>(null)
-  const [copied, setCopied] = useState(false)
-  useEffect(() => { if (o) setF({ name: o.name || '', cnpj: o.cnpj || '', address: o.address || '', city: o.city || '', state: o.state || '', office_phone: o.phone || '' }) }, [o])
+  useEffect(() => {
+    if (!o) return
+    setF({ name: o.name || '', legal_name: o.legal_name || '', cnpj: o.cnpj || '', oab_society: o.oab_society || '', founded_on: o.founded_on || '', office_phone: o.phone || '', office_email: o.email || '', website: o.website || '',
+      zip_code: o.zip_code || '', address: o.address || '', address_number: o.address_number || '', address_complement: o.address_complement || '', district: o.district || '', city: o.city || '', state: o.state || '',
+      headcount_total: o.headcount_total != null ? String(o.headcount_total) : '', headcount_lawyers: o.headcount_lawyers != null ? String(o.headcount_lawyers) : '', notes: o.notes || '' })
+    setAreas(o.practice_areas || [])
+  }, [o])
   const save = useMutation({
-    mutationFn: () => officeApi.update(f),
-    onSuccess: () => { setMsg({ ok: true, t: 'Dados salvos.' }); qc.invalidateQueries({ queryKey: ['office'] }); qc.invalidateQueries({ queryKey: ['settings'] }) },
+    mutationFn: () => officeApi.update({
+      ...f, practice_areas: areas,
+      headcount_total: f.headcount_total === '' ? null : Number(f.headcount_total), headcount_lawyers: f.headcount_lawyers === '' ? null : Number(f.headcount_lawyers),
+    }),
+    onSuccess: () => { setMsg({ ok: true, t: 'Dados salvos.' }); qc.invalidateQueries({ queryKey: ['office'] }); qc.invalidateQueries({ queryKey: ['workspaces'] }) },
     onError: (e: any) => setMsg({ ok: false, t: e?.response?.data?.error || 'Não foi possível salvar.' }),
   })
-  const regen = useMutation({ mutationFn: officeApi.regenerateCode, onSuccess: () => qc.invalidateQueries({ queryKey: ['office'] }) })
-  const set = (k: keyof typeof f) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => setF(x => ({ ...x, [k]: e.target.value }))
+  const set = (k: keyof F, mask?: (v: string) => string) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => setF(x => ({ ...x, [k]: mask ? mask(e.target.value) : e.target.value }))
+  const toggleArea = (a: string) => setAreas(x => x.includes(a) ? x.filter(i => i !== a) : [...x, a])
   if (!o) return null
+  const dis = !canEdit
+  const L = ({ t, children, wide }: { t: string; children: React.ReactNode; wide?: boolean }) => <label className={clsx('text-sm text-slate-700', wide && 'sm:col-span-2')}>{t}{children}</label>
   return (
-    <div className="space-y-5">
-      <form className="card p-5" onSubmit={e => { e.preventDefault(); setMsg(null); save.mutate() }}>
-        <h2 className="font-medium text-slate-900 mb-3">Dados do escritório</h2>
+    <form className="space-y-5" onSubmit={e => { e.preventDefault(); setMsg(null); save.mutate() }}>
+      <div className="card p-5">
+        <h2 className="font-medium text-slate-900 mb-3">Identificação</h2>
         <div className="grid sm:grid-cols-2 gap-3">
-          <label className="sm:col-span-2 text-sm">Nome<input className="input mt-1" value={f.name} onChange={set('name')} disabled={!canEdit} required /></label>
-          <label className="text-sm">CNPJ (opcional)<input className="input mt-1" value={f.cnpj} onChange={set('cnpj')} disabled={!canEdit} placeholder="00.000.000/0000-00" /></label>
-          <label className="text-sm">Telefone<input className="input mt-1" value={f.office_phone} onChange={set('office_phone')} disabled={!canEdit} /></label>
-          <label className="sm:col-span-2 text-sm">Endereço<input className="input mt-1" value={f.address} onChange={set('address')} disabled={!canEdit} /></label>
-          <label className="text-sm">Cidade<input className="input mt-1" value={f.city} onChange={set('city')} disabled={!canEdit} /></label>
-          <label className="text-sm">UF
-            <select className="input mt-1" value={f.state} onChange={set('state')} disabled={!canEdit}><option value="">—</option>{UFS.map(u => <option key={u}>{u}</option>)}</select>
-          </label>
+          <L t="Nome do escritório" wide><input className="input mt-1" value={f.name} onChange={set('name')} disabled={dis} required /></L>
+          <L t="Razão social"><input className="input mt-1" value={f.legal_name} onChange={set('legal_name')} disabled={dis} /></L>
+          <L t="CNPJ"><input className="input mt-1" value={f.cnpj} onChange={set('cnpj', maskCnpj)} disabled={dis} placeholder="00.000.000/0000-00" inputMode="numeric" /></L>
+          <L t="Registro da sociedade na OAB"><input className="input mt-1" value={f.oab_society} onChange={set('oab_society')} disabled={dis} placeholder="OAB/RS 1234" /></L>
+          <L t="Fundado em"><input type="date" className="input mt-1" value={f.founded_on} onChange={set('founded_on')} disabled={dis} /></L>
+        </div>
+      </div>
+      <div className="card p-5">
+        <h2 className="font-medium text-slate-900 mb-3">Contato e endereço</h2>
+        <div className="grid sm:grid-cols-2 gap-3">
+          <L t="Telefone"><input className="input mt-1" value={f.office_phone} onChange={set('office_phone')} disabled={dis} /></L>
+          <L t="E-mail do escritório"><input type="email" className="input mt-1" value={f.office_email} onChange={set('office_email')} disabled={dis} /></L>
+          <L t="Site" wide><input className="input mt-1" value={f.website} onChange={set('website')} disabled={dis} placeholder="https://" /></L>
+          <L t="CEP"><input className="input mt-1" value={f.zip_code} onChange={set('zip_code', maskCep)} disabled={dis} inputMode="numeric" /></L>
+          <L t="Logradouro"><input className="input mt-1" value={f.address} onChange={set('address')} disabled={dis} /></L>
+          <L t="Número"><input className="input mt-1" value={f.address_number} onChange={set('address_number')} disabled={dis} /></L>
+          <L t="Complemento"><input className="input mt-1" value={f.address_complement} onChange={set('address_complement')} disabled={dis} /></L>
+          <L t="Bairro"><input className="input mt-1" value={f.district} onChange={set('district')} disabled={dis} /></L>
+          <L t="Cidade"><input className="input mt-1" value={f.city} onChange={set('city')} disabled={dis} /></L>
+          <L t="UF"><select className="input mt-1" value={f.state} onChange={set('state')} disabled={dis}><option value="">—</option>{UFS.map(u => <option key={u}>{u}</option>)}</select></L>
+        </div>
+      </div>
+      <div className="card p-5">
+        <h2 className="font-medium text-slate-900 mb-1">Atuação e tamanho</h2>
+        <p className="text-xs text-slate-500 mb-3">Áreas em que o escritório atua e quantas pessoas ele tem (declarado por você). Compare com quem já está na plataforma na Visão geral.</p>
+        <div className="flex flex-wrap gap-1.5 mb-2">
+          {[...new Set([...AREAS, ...areas])].map(a => (
+            <button type="button" key={a} disabled={dis} aria-pressed={areas.includes(a)} onClick={() => toggleArea(a)}
+              className={clsx('text-xs px-2.5 py-1 rounded-full border transition-colors', areas.includes(a) ? 'bg-brand-600 border-brand-600 text-white' : 'bg-white text-slate-600 hover:bg-slate-50')}>{a}</button>
+          ))}
         </div>
         {canEdit && (
-          <div className="mt-4 flex items-center gap-3">
-            <button className="btn-primary" disabled={save.isPending}>{save.isPending ? 'Salvando…' : 'Salvar'}</button>
-            {msg && <span className={msg.ok ? 'text-sm text-green-700' : 'text-sm text-red-600'}>{msg.t}</span>}
+          <div className="flex gap-2 mb-4">
+            <input className="input !w-56" value={extra} onChange={e => setExtra(e.target.value)} placeholder="Outra área…" maxLength={60}
+              onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); const v = extra.trim(); if (v && !areas.includes(v)) setAreas(x => [...x, v]); setExtra('') } }} />
+            <button type="button" className="btn-secondary text-sm" onClick={() => { const v = extra.trim(); if (v && !areas.includes(v)) setAreas(x => [...x, v]); setExtra('') }}><Plus className="w-4 h-4" /> Adicionar</button>
           </div>
         )}
-        <p className="text-xs text-slate-400 mt-3">O CNPJ é informado por você, conferido apenas pelo dígito verificador e não dá acesso a nada: ninguém entra no escritório digitando o CNPJ.</p>
-      </form>
-
+        <div className="grid sm:grid-cols-2 gap-3">
+          <L t="Integrantes no total (declarado)"><input type="number" min={0} className="input mt-1" value={f.headcount_total} onChange={set('headcount_total')} disabled={dis} /></L>
+          <L t="Advogados (declarado)"><input type="number" min={0} className="input mt-1" value={f.headcount_lawyers} onChange={set('headcount_lawyers')} disabled={dis} /></L>
+          <L t="Observações" wide><textarea rows={3} className="input mt-1" value={f.notes} onChange={set('notes')} disabled={dis} maxLength={2000} /></L>
+        </div>
+      </div>
       {canEdit && (
+        <div className="flex items-center gap-3">
+          <button className="btn-primary" disabled={save.isPending}>{save.isPending ? 'Salvando…' : 'Salvar dados'}</button>
+          {msg && <span className={msg.ok ? 'text-sm text-green-700' : 'text-sm text-red-600'}>{msg.t}</span>}
+        </div>
+      )}
+      <p className="text-xs text-slate-400">O CNPJ é informado por você, conferido apenas pelo dígito verificador e não dá acesso a nada: ninguém entra no escritório digitando o CNPJ.</p>
+    </form>
+  )
+}
+
+function ConviteCard({ o }: { o: Office }) {
+  const qc = useQueryClient()
+  const [copied, setCopied] = useState(false)
+  const regen = useMutation({ mutationFn: officeApi.regenerateCode, onSuccess: () => qc.invalidateQueries({ queryKey: ['office'] }) })
+  if (!o.code) return null
+  return (
+    <div className="card p-5">
+      <h2 className="font-medium text-slate-900 mb-1">Como convidar pessoas</h2>
+      <p className="text-sm text-slate-500 mb-3">Duas formas: convite por e-mail (abaixo, em Equipe) ou o código. Quem usa o código só entra depois que você aprovar em “Pedidos”. Quem já tem conta no Foro é adicionado direto e passa a ver o escritório no seletor de workspace.</p>
+      <div className="flex items-center gap-2 flex-wrap">
+        <code className="px-3 py-2 rounded-lg bg-slate-100 text-lg font-mono tracking-[0.25em]" data-testid="office-code">{o.code}</code>
+        <button type="button" className="btn-secondary text-sm" onClick={() => { navigator.clipboard?.writeText(o.code || ''); setCopied(true); setTimeout(() => setCopied(false), 1500) }}>
+          <Copy className="w-4 h-4" /> {copied ? 'Copiado' : 'Copiar'}
+        </button>
+        <button type="button" className="btn-secondary text-sm" disabled={regen.isPending} onClick={() => confirm('Gerar um novo código? O código atual deixa de funcionar e os pedidos pendentes são recusados.') && regen.mutate()}>
+          <RefreshCw className="w-4 h-4" /> Gerar novo código
+        </button>
+      </div>
+    </div>
+  )
+}
+
+function Kpi({ icon: Icon, label, value, sub }: { icon: any; label: string; value: React.ReactNode; sub?: React.ReactNode }) {
+  return (
+    <div className="card p-4">
+      <p className="text-xs text-slate-500 flex items-center gap-1.5"><Icon className="w-3.5 h-3.5" /> {label}</p>
+      <p className="text-2xl font-semibold text-slate-900 mt-1">{value}</p>
+      {sub && <p className="text-xs text-slate-500 mt-0.5">{sub}</p>}
+    </div>
+  )
+}
+
+function VisaoTab({ o, setTab }: { o: Office; setTab: (t: any) => void }) {
+  const { enterWorkspace } = useAuth()
+  const { data: act } = useQuery({ queryKey: ['office-activity', 30], queryFn: () => officeApi.activity(30), enabled: o.is_admin })
+  const { data: ws = [] } = useQuery({ queryKey: ['workspaces'], queryFn: workspacesApi.list })
+  const me = ws.find(w => w.is_current)
+  const leave = useMutation({
+    mutationFn: () => workspacesApi.leave(me!.user_id),
+    onSuccess: async r => { if (r.switch_to) { const t = await workspacesApi.switchTo(r.switch_to); enterWorkspace(t.token) } },
+  })
+  const comp = completeness(o)
+  const declared = o.headcount_total
+  const totalSecs = act?.users.reduce((n, u) => n + u.seconds, 0) || 0
+  const totalActions = act?.users.reduce((n, u) => n + u.actions, 0) || 0
+  const totalCredits = act?.users.reduce((n, u) => n + u.ai_credits, 0) || 0
+  const totalDocs = act?.users.reduce((n, u) => n + u.documents_created, 0) || 0
+  return (
+    <div className="space-y-5">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+        <Kpi icon={Users} label="Na plataforma" value={o.members_on_platform} sub={declared != null ? `de ${declared} integrantes declarados${declared > o.members_on_platform ? ` · faltam ${declared - o.members_on_platform}` : ''}` : 'Informe o tamanho em Dados'} />
+        <Kpi icon={Scale} label="Advogados declarados" value={o.headcount_lawyers ?? '—'} />
+        <Kpi icon={Clock} label="Convites aguardando" value={o.pending_invites} sub={o.is_admin ? `${o.pending_requests || 0} pedido(s) por código` : undefined} />
+        <Kpi icon={Building2} label="Cadastro completo" value={`${comp.pct}%`} sub={comp.missing.length ? `Falta: ${comp.missing.slice(0, 3).join(', ')}${comp.missing.length > 3 ? '…' : ''}` : 'Tudo preenchido'} />
+      </div>
+
+      <div className="card p-5">
+        <h2 className="font-medium text-slate-900 mb-2">Perfil</h2>
+        <dl className="text-sm grid sm:grid-cols-[10rem_1fr] gap-y-1.5">
+          <dt className="text-slate-500">Razão social</dt><dd>{o.legal_name || '—'}</dd>
+          <dt className="text-slate-500">CNPJ</dt><dd>{o.cnpj || '—'}</dd>
+          <dt className="text-slate-500">OAB da sociedade</dt><dd>{o.oab_society || '—'}</dd>
+          <dt className="text-slate-500">Localização</dt><dd>{[o.city, o.state].filter(Boolean).join(' / ') || '—'}</dd>
+          <dt className="text-slate-500">Contato</dt><dd>{[o.phone, o.email, o.website].filter(Boolean).join(' · ') || '—'}</dd>
+          <dt className="text-slate-500">Áreas de atuação</dt>
+          <dd className="flex flex-wrap gap-1.5">{o.practice_areas.length ? o.practice_areas.map(a => <span key={a} className="badge bg-brand-50 text-brand-700">{a}</span>) : '—'}</dd>
+        </dl>
+        {o.is_admin && <button className="mt-3 text-sm underline text-brand-700" onClick={() => setTab('dados')}>Editar dados</button>}
+      </div>
+
+      {o.is_admin && act && (
         <div className="card p-5">
-          <h2 className="font-medium text-slate-900 mb-1">Como convidar pessoas</h2>
-          <p className="text-sm text-slate-500 mb-3">Duas formas: convite por e-mail (aba Equipe) ou o código abaixo. Quem usa o código só entra depois que você aprovar em “Pedidos”.</p>
-          <div className="flex items-center gap-2 flex-wrap">
-            <code className="px-3 py-2 rounded-lg bg-slate-100 text-lg font-mono tracking-[0.25em]" data-testid="office-code">{o.code}</code>
-            <button className="btn-secondary text-sm" onClick={() => { navigator.clipboard?.writeText(o.code || ''); setCopied(true); setTimeout(() => setCopied(false), 1500) }}>
-              <Copy className="w-4 h-4" /> {copied ? 'Copiado' : 'Copiar'}
-            </button>
-            <button className="btn-secondary text-sm" disabled={regen.isPending} onClick={() => confirm('Gerar um novo código? O código atual deixa de funcionar e os pedidos pendentes são recusados.') && regen.mutate()}>
-              <RefreshCw className="w-4 h-4" /> Gerar novo código
-            </button>
+          <div className="flex items-center justify-between mb-3">
+            <h2 className="font-medium text-slate-900">Últimos 30 dias</h2>
+            <button className="text-sm underline text-brand-700" onClick={() => setTab('produtividade')}>Ver relatório completo</button>
+          </div>
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 text-sm">
+            <div><p className="text-slate-500 text-xs">Tempo ativo da equipe</p><p className="text-lg font-semibold">{fmtDur(totalSecs)}</p></div>
+            <div><p className="text-slate-500 text-xs">Ações no CRM</p><p className="text-lg font-semibold">{totalActions}</p></div>
+            <div><p className="text-slate-500 text-xs">Créditos de IA usados</p><p className="text-lg font-semibold">{totalCredits.toFixed(1)}</p></div>
+            <div><p className="text-slate-500 text-xs">Documentos criados</p><p className="text-lg font-semibold">{totalDocs}</p></div>
           </div>
         </div>
       )}
-      {!canEdit && (
+
+      {!o.is_admin && (
         <div className="card p-4 text-sm text-slate-600 flex gap-2"><ShieldCheck className="w-4 h-4 text-brand-600 shrink-0 mt-0.5" />
-          O administrador do escritório mede o tempo ativo de uso da plataforma (apenas enquanto a aba está aberta e em uso) e a quantidade de ações. Nenhum conteúdo de tela é gravado.</div>
+          As regras deste escritório (o que você pode fazer e o que a IA pode fazer por você) são definidas pelos administradores. O tempo ativo de uso (apenas com a aba aberta e em uso) e a quantidade de ações são visíveis para eles; nenhum conteúdo de tela é gravado.</div>
       )}
+      {me && !me.is_owner && (
+        <div className="text-right">
+          <button className="text-sm text-slate-500 hover:text-red-600 inline-flex items-center gap-1.5" disabled={leave.isPending}
+            onClick={() => confirm('Sair deste escritório? Você perde o acesso aos dados dele. Seu espaço pessoal e outros escritórios continuam.') && leave.mutate()}>
+            <LogOut className="w-4 h-4" /> Sair deste escritório
+          </button>
+        </div>
+      )}
+    </div>
+  )
+}
+
+function GovernancaTab({ o }: { o: Office }) {
+  const qc = useQueryClient()
+  const { data: defs = [] } = useQuery({ queryKey: ['perm-defs'], queryFn: permissionsApi.defs, staleTime: 10 * 60_000 })
+  const [vals, setVals] = useState<Partial<Permissions>>({})
+  const [msg, setMsg] = useState<{ ok: boolean; t: string } | null>(null)
+  useEffect(() => { if (o.member_defaults) setVals(o.member_defaults) }, [o.member_defaults])
+  const save = useMutation({
+    mutationFn: () => officeApi.setGovernance(vals),
+    onSuccess: () => { setMsg({ ok: true, t: 'Regras salvas. Valem para quem não tem ajuste individual.' }); qc.invalidateQueries({ queryKey: ['office'] }); qc.invalidateQueries({ queryKey: ['team'] }); qc.invalidateQueries({ queryKey: ['me-profile'] }) },
+    onError: (e: any) => setMsg({ ok: false, t: e?.response?.data?.error || 'Não foi possível salvar.' }),
+  })
+  const eff = (d: { key: any; default: boolean }) => (typeof (vals as any)[d.key] === 'boolean' ? (vals as any)[d.key] : d.default)
+  const group = (g: 'module' | 'action', title: string) => (
+    <div>
+      <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 mb-1.5">{title}</p>
+      <div className="space-y-1.5">
+        {defs.filter(d => d.group === g).map(d => (
+          <label key={d.key} className="flex items-start gap-2 text-sm text-slate-700">
+            <input type="checkbox" className="mt-0.5 w-4 h-4" checked={eff(d)} onChange={e => setVals(v => ({ ...v, [d.key]: e.target.checked }))} /> {d.label}
+          </label>
+        ))}
+      </div>
+    </div>
+  )
+  return (
+    <div className="card p-5 space-y-5" data-testid="governanca">
+      <div>
+        <h2 className="font-medium text-slate-900">Regras do escritório</h2>
+        <p className="text-sm text-slate-500">Valem só dentro de <strong>{o.name}</strong>, para a equipe e para a IA (a IA nunca faz mais do que a pessoa pode fazer). Administradores podem tudo. Em Equipe você abre exceções por pessoa — o ajuste individual vence a regra geral.</p>
+      </div>
+      {group('module', 'Módulos liberados para membros')}
+      {group('action', 'Ações permitidas para membros')}
+      <div>
+        <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 mb-1.5">O que membros enxergam</p>
+        <select className="input !w-72" value={vals.view_scope || 'all'} onChange={e => setVals(v => ({ ...v, view_scope: e.target.value as 'all' | 'own' }))}>
+          <option value="all">Tudo do escritório</option>
+          <option value="own">Apenas o que é deles (a IA fica indisponível)</option>
+        </select>
+      </div>
+      <div className="flex items-center gap-3">
+        <button className="btn-primary" disabled={save.isPending} onClick={() => { setMsg(null); save.mutate() }}>{save.isPending ? 'Salvando…' : 'Salvar regras'}</button>
+        {msg && <span className={msg.ok ? 'text-sm text-green-700' : 'text-sm text-red-600'}>{msg.t}</span>}
+      </div>
     </div>
   )
 }
@@ -113,13 +306,21 @@ function PedidosTab() {
 
 function AtividadeTab() {
   const [days, setDays] = useState(30)
-  const { data } = useQuery({ queryKey: ['office-activity', days], queryFn: () => officeApi.activity(days) })
+  const { data } = useQuery({ queryKey: ['office-activity', days], queryFn: () => officeApi.activity(days), refetchOnMount: 'always' })
   const max = Math.max(1, ...(data?.series.map(s => s.seconds) || [1]))
   return (
     <div className="space-y-5">
       <div className="card p-5">
         <div className="flex items-center justify-between gap-3 flex-wrap mb-1">
-          <h2 className="font-medium text-slate-900">Atividade e consumo da equipe</h2>
+          <h2 className="font-medium text-slate-900">Produtividade e consumo da equipe</h2>
+          <button type="button" className="btn-secondary text-sm" disabled={!data} onClick={() => {
+            if (!data) return
+            const head = ['Nome', 'E-mail', 'Perfil', 'Tempo ativo (min)', 'Dias ativos', 'Ações', 'Nível', 'Créditos IA', 'Documentos', 'Processos']
+            const rows = data.users.map(u => [u.name, u.email, u.role, Math.round(u.seconds / 60), u.active_days, u.actions, u.level, u.ai_credits.toFixed(1), u.documents_created, u.cases_responsible])
+            const csv = [head, ...rows].map(r => r.map(c => `"${String(c).replace(/"/g, '""')}"`).join(';')).join('\n')
+            const url = URL.createObjectURL(new Blob(['\ufeff' + csv], { type: 'text/csv;charset=utf-8' }))
+            const a = document.createElement('a'); a.href = url; a.download = `produtividade-${days}d.csv`; a.click(); URL.revokeObjectURL(url)
+          }}><Download className="w-4 h-4" /> Exportar CSV</button>
           <select className="input !w-40" aria-label="Período" value={days} onChange={e => setDays(Number(e.target.value))}>
             <option value={7}>Últimos 7 dias</option><option value={30}>Últimos 30 dias</option><option value={90}>Últimos 90 dias</option>
           </select>
@@ -177,35 +378,60 @@ function PlanoTab() {
   )
 }
 
-const TABS = [['dados', 'Dados'], ['equipe', 'Equipe e permissões'], ['pedidos', 'Pedidos'], ['atividade', 'Atividade'], ['plano', 'Plano']] as const
+const TABS = [['visao', 'Visão geral'], ['dados', 'Dados'], ['equipe', 'Equipe e permissões'], ['governanca', 'Governança'], ['pedidos', 'Pedidos'], ['produtividade', 'Produtividade'], ['plano', 'Plano']] as const
+type TabKey = (typeof TABS)[number][0]
 
 export default function Escritorio() {
   const { data: o, isLoading } = useQuery({ queryKey: ['office'], queryFn: officeApi.get })
   const { data: plan } = useQuery({ queryKey: ['plan'], queryFn: settingsApi.getPlan })
-  const [tab, setTab] = useState<(typeof TABS)[number][0]>('dados')
+  const [params, setParams] = useSearchParams()
+  const novo = params.get('novo') as 'criar' | 'entrar' | null
+  const [tab, setTab] = useState<TabKey>('visao')
   if (isLoading || !o) return <div className="p-6 text-slate-400">Carregando…</div>
-  if (!o.configured) return <div className="p-6 flex justify-center"><CreateOffice /></div>
+
+  const newCard = novo && (
+    <div className="mb-5 relative max-w-md">
+      <button className="absolute right-3 top-3 text-slate-400 hover:text-slate-700" aria-label="Fechar" onClick={() => setParams({}, { replace: true })}><X className="w-4 h-4" /></button>
+      <CreateOffice initialMode={novo === 'entrar' ? 'join' : 'create'} />
+    </div>
+  )
+
+  if (o.kind === 'personal') {
+    return (
+      <div className="p-6 max-w-4xl">
+        <h1 className="text-xl font-semibold text-slate-900 flex items-center gap-2 mb-1"><UserIcon className="w-5 h-5 text-accent-500" /> Seu espaço pessoal</h1>
+        <p className="text-sm text-slate-500 mb-5">Aqui os dados, as regras e a IA valem só para você. Para trabalhar com uma equipe, crie um escritório ou entre em um com o código — você troca entre os workspaces quando quiser, pelo menu no topo, e cada um tem os próprios dados e regras.</p>
+        {novo ? newCard : <CreateOffice initialMode="create" />}
+        <p className="text-xs text-slate-400 mt-4">Seu plano e créditos de IA aqui são seus: <Link to="/planos" className="underline">ver planos</Link>.</p>
+      </div>
+    )
+  }
+
   const admin = o.is_admin
-  const tabs = admin ? TABS : TABS.filter(([k]) => k === 'dados' || k === 'equipe')
+  const tabs = admin ? TABS : TABS.filter(([k]) => k === 'visao' || k === 'dados' || k === 'equipe')
+  const active: TabKey = tabs.some(([k]) => k === tab) ? tab : 'visao'
   return (
-    <div className="p-6 max-w-4xl">
+    <div className="p-6 max-w-5xl">
       <div className="mb-4">
         <h1 className="text-xl font-semibold text-slate-900 flex items-center gap-2"><Building2 className="w-5 h-5 text-accent-500" /> {o.name}</h1>
-        <p className="text-sm text-slate-500">Escritório · {o.seats_used} usuário(s){o.plan.max_users ? ` de ${o.plan.max_users}` : ''}</p>
+        <p className="text-sm text-slate-500">Escritório · {o.members_on_platform} pessoa(s) na plataforma{o.headcount_total != null ? ` de ${o.headcount_total} declaradas` : ''} · você é {admin ? 'administrador' : 'membro'}</p>
       </div>
+      {newCard}
       <div className="flex gap-1 border-b mb-5 overflow-x-auto" role="tablist">
         {tabs.map(([k, l]) => (
-          <button key={k} role="tab" aria-selected={tab === k} onClick={() => setTab(k)}
-            className={clsx('px-3 py-2 text-sm font-medium border-b-2 -mb-px whitespace-nowrap', tab === k ? 'border-brand-600 text-brand-800' : 'border-transparent text-slate-500 hover:text-slate-800')}>
+          <button key={k} role="tab" aria-selected={active === k} onClick={() => setTab(k)}
+            className={clsx('px-3 py-2 text-sm font-medium border-b-2 -mb-px whitespace-nowrap', active === k ? 'border-brand-600 text-brand-800' : 'border-transparent text-slate-500 hover:text-slate-800')}>
             {l}{k === 'pedidos' && (o.pending_requests || 0) > 0 && <span className="ml-1.5 badge bg-accent-100 text-accent-700 !py-0">{o.pending_requests}</span>}
           </button>
         ))}
       </div>
-      {tab === 'dados' && <DadosTab canEdit={admin} />}
-      {tab === 'equipe' && <TeamPanel maxUsers={plan?.max_users ?? undefined} />}
-      {tab === 'pedidos' && admin && <PedidosTab />}
-      {tab === 'atividade' && admin && <AtividadeTab />}
-      {tab === 'plano' && admin && <PlanoTab />}
+      {active === 'visao' && <VisaoTab o={o} setTab={setTab} />}
+      {active === 'dados' && <DadosTab canEdit={admin} />}
+      {active === 'equipe' && <div className="space-y-5">{admin && <ConviteCard o={o} />}<TeamPanel maxUsers={plan?.max_users ?? undefined} /></div>}
+      {active === 'governanca' && admin && <GovernancaTab o={o} />}
+      {active === 'pedidos' && admin && <PedidosTab />}
+      {active === 'produtividade' && admin && <AtividadeTab />}
+      {active === 'plano' && admin && <PlanoTab />}
     </div>
   )
 }

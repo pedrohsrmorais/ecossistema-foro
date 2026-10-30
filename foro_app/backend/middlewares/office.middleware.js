@@ -1,14 +1,5 @@
 const { query } = require('../configs/db.config');
 
-// Rotas liberadas mesmo sem escritório criado (conta, cobrança, suporte, o próprio fluxo de escritório).
-const EXEMPT = [/^\/auth\//, /^\/users\/me/, /^\/office/, /^\/settings/, /^\/support/, /^\/plans/, /^\/payments/, /^\/modules/, /^\/activity/];
-
-/** Bloqueia o CRM até o usuário criar (ou entrar em) um escritório. */
-function requireOffice(req, res, next) {
-  if (req.account?.office_configured || EXEMPT.some(rx => rx.test(req.path))) return next();
-  res.status(403).json({ error: 'Crie ou entre em um escritório para usar o CRM.', code: 'OFFICE_REQUIRED' });
-}
-
 /** Acesso por módulo definido pelo admin (permissions.access_*). Admin sempre passa. */
 function requireAccess(key) {
   return (req, res, next) => {
@@ -47,4 +38,4 @@ function scoped(entity, param = 'id') {
   };
 }
 
-module.exports = { requireOffice, requireAccess, scoped };
+module.exports = { requireAccess, scoped };

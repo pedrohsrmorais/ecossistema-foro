@@ -102,6 +102,19 @@ async function sendInviteEmail(to, inviteUrl, { inviterName, accountName, expire
   });
 }
 
+async function sendAddedToOfficeEmail(to, { inviterName, accountName }) {
+  return _send({
+    to,
+    subject: `Você foi adicionado(a) ao escritório ${accountName || ''} no Foro`,
+    devFallbackText: `${inviterName} adicionou você ao escritório ${accountName}. Entre no Foro e troque de workspace pelo menu.`,
+    html: `
+      <div style="font-family: sans-serif; max-width: 420px; margin: 0 auto;">
+        <h2 style="color:#1e293b;">Novo escritório na sua conta</h2>
+        <p style="color:#475569;"><strong>${esc(inviterName)}</strong> adicionou você ao escritório <strong>${esc(accountName)}</strong>. Entre no Foro e escolha o escritório no seletor de workspace (canto superior do menu). Seus dados pessoais continuam separados.</p>
+      </div>`,
+  });
+}
+
 const KIND_LABEL = { prazo: 'Prazo', tarefa: 'Tarefa', audiencia: 'Audiência', pericia: 'Perícia', reuniao: 'Reunião', evento: 'Compromisso' };
 const fmtWhen = (iso, withTime) => {
   const d = new Date(iso);
@@ -180,4 +193,4 @@ async function sendSupportRequest(to, { fromName, fromEmail, accountName, planNa
   return { sent: true };
 }
 
-module.exports = { sendVerificationEmail, sendPasswordResetEmail, sendInviteEmail, sendDeadlineDigest, sendSupportRequest };
+module.exports = { sendAddedToOfficeEmail, sendVerificationEmail, sendPasswordResetEmail, sendInviteEmail, sendDeadlineDigest, sendSupportRequest };

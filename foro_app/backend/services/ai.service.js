@@ -149,16 +149,34 @@ async function chat(args) {
   }
 }
 
+/** Regras do escritório ativo (governança): o que a IA pode fazer em nome desta pessoa. */
+const TOOL_PERM = { create_lead: 'create_leads', delete_lead: 'delete_leads', create_case: 'create_cases', create_event: 'create_events', create_task: 'create_events', create_document: 'ai_drafts' };
+function _policyDenial(tool, perms) {
+  if (!perms || !WRITE_TOOLS.has(tool)) return null;
+  if (!perms.ai_write) return 'As regras do escritório não permitem que a IA altere dados para o seu usuário (ela só pode consultar).';
+  const need = TOOL_PERM[tool];
+  if (need && !perms[need]) return 'As regras do escritório não permitem esta ação para o seu usuário.';
+  return null;
+}
+async function _loadPerms(accountId, userId) {
+  const [r] = await query('SELECT u.role, u.permissions, a.member_defaults FROM users u JOIN accounts a ON a.id = u.account_id WHERE u.id = ? AND u.account_id = ? LIMIT 1', [userId, accountId]);
+  return r[0] ? require('../configs/permissions').resolve(r[0].role, r[0].permissions, r[0].member_defaults) : null;
+}
+
 async function _chat({ accountId, userId, conversationId, userMessage }) {
+  const perms = await _loadPerms(accountId, userId);
   // Regra de créditos: sem saldo na semana, nem chama o modelo (ver ai-credits.service.js)
   await aiCredits.assertHasCredits(accountId, userId);
 
   const convId = await _getOrCreateConversation(accountId, userId, conversationId);
   const history = await _loadHistory(convId);
   const fieldSchema = await _loadFieldSchema(accountId);
+  const [[ws]] = await query('SELECT name, kind FROM accounts WHERE id = ? LIMIT 1', [accountId]);
+  const wsLine = ws?.kind === 'office' ? `Workspace ativo: escritório "${ws.name}". Você só enxerga e altera dados DESTE escritório e deve respeitar as regras dele.` : 'Workspace ativo: espaço pessoal do usuário (dados privados, só dele).';
 
   const today = new Date().toLocaleDateString('pt-BR', { weekday: 'long', day: '2-digit', month: '2-digit', year: 'numeric', timeZone: 'America/Sao_Paulo' });
   const systemPrompt = `Você é o assistente interno do CRM Foro, um sistema de gestão de leads para escritórios de advocacia.
+${wsLine}
 
 Seu papel é ajudar o usuário a gerenciar contatos (leads), processos, partes, andamentos, prazos, tarefas, notas, agenda e documentos do escritório usando linguagem natural.
 Você tem ferramentas para criar, atualizar e buscar tudo isso. Hoje é ${today} (fuso America/Sao_Paulo, -03:00); resolva datas relativas ("amanhã", "sexta") a partir dela.
@@ -266,6 +284,13 @@ INSIGHTS TÉCNICOS SOBRE PROCESSOS (permitidos, com disciplina):
 
         let result;
         let token = null;
+        const denied = _policyDenial(toolUse.name, perms);
+        if (denied) {
+          result = { error: denied };
+          actions.push({ id: null, tool: toolUse.name, write: WRITE_TOOLS.has(toolUse.name), ok: false, summary: denied });
+          toolResults.push({ type: 'tool_result', tool_use_id: toolUse.id, content: JSON.stringify(result) });
+          continue;
+        }
         try { token = await aiActions.begin(toolUse.name, toolUse.input, accountId); } catch (e) { console.error('[ai] snapshot:', e.message); }
         try {
           result = await executeTool(toolUse.name, toolUse.input, { accountId, userId });

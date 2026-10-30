@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Building2, KeyRound, Clock } from 'lucide-react'
 import clsx from 'clsx'
 import { officeApi } from '../api'
+import { useAuth } from '../context/AuthContext'
 
 function maskCnpj(v: string) {
   const d = v.replace(/\D/g, '').slice(0, 14)
@@ -10,21 +11,21 @@ function maskCnpj(v: string) {
 }
 
 /** Criação rápida do escritório (só o nome é obrigatório) ou pedido de entrada por código. */
-export default function CreateOffice() {
+export default function CreateOffice({ initialMode = 'create' }: { initialMode?: 'create' | 'join' }) {
   const qc = useQueryClient()
+  const { enterWorkspace } = useAuth()
   const { data: office } = useQuery({ queryKey: ['office'], queryFn: officeApi.get, refetchInterval: q => (q.state.data?.my_join_request ? 15_000 : false) })
-  const [mode, setMode] = useState<'create' | 'join'>('create')
+  const [mode, setMode] = useState<'create' | 'join'>(initialMode)
   const [name, setName] = useState('')
   const [cnpj, setCnpj] = useState('')
   const [code, setCode] = useState('')
   const [error, setError] = useState('')
   const [info, setInfo] = useState('')
-  const refreshAll = () => qc.invalidateQueries()
   const fail = (e: any) => setError(e?.response?.data?.error || 'Não foi possível concluir. Tente de novo.')
 
   const create = useMutation({
     mutationFn: () => officeApi.create({ name: name.trim(), ...(cnpj ? { cnpj } : {}) }),
-    onSuccess: refreshAll, onError: fail,
+    onSuccess: r => enterWorkspace(r.token), onError: fail,
   })
   const join = useMutation({
     mutationFn: () => officeApi.join(code.trim()),
@@ -35,10 +36,10 @@ export default function CreateOffice() {
   const pending = office?.my_join_request
 
   return (
-    <div className="card p-6 w-full max-w-md shadow-xl bg-white">
+    <div className="card p-6 w-full max-w-md bg-white">
       <div className="w-11 h-11 rounded-full bg-accent-100 text-accent-600 flex items-center justify-center mx-auto mb-3"><Building2 className="w-5 h-5" /></div>
-      <h2 className="text-lg font-semibold text-slate-900 text-center">Monte o seu escritório</h2>
-      <p className="text-sm text-slate-500 text-center mt-1 mb-4">Processos, leads, agenda e documentos ficam dentro do escritório. Leva 10 segundos.</p>
+      <h2 className="text-lg font-semibold text-slate-900 text-center">Crie ou entre em um escritório</h2>
+      <p className="text-sm text-slate-500 text-center mt-1 mb-4">Cada escritório tem os próprios dados, equipe e regras. Seu espaço pessoal continua separado — troque quando quiser pelo menu.</p>
 
       <div className="grid grid-cols-2 gap-1 p-1 bg-slate-100 rounded-lg mb-4" role="tablist">
         {([['create', 'Criar escritório'], ['join', 'Entrar com código']] as const).map(([k, l]) => (
@@ -65,7 +66,7 @@ export default function CreateOffice() {
       ) : pending ? (
         <div className="text-center space-y-3">
           <div className="inline-flex items-center gap-2 text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 text-sm"><Clock className="w-4 h-4" /> Aguardando aprovação de <strong>{pending.office_name}</strong></div>
-          <p className="text-xs text-slate-500">Assim que o administrador aprovar, esta tela libera sozinha.</p>
+          <p className="text-xs text-slate-500">Quando o administrador aprovar, o escritório aparece no seletor de workspace (menu, no topo).</p>
           <button className="text-sm text-slate-500 hover:underline" onClick={() => cancel.mutate()}>Cancelar pedido</button>
         </div>
       ) : (

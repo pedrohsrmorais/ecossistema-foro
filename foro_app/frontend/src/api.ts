@@ -234,6 +234,7 @@ export interface User {
 }
 export type Permissions = {
   templates_manage: boolean; ai_drafts: boolean; delete_records: boolean
+  create_leads: boolean; delete_leads: boolean; create_cases: boolean; create_events: boolean; ai_write: boolean
   access_leads: boolean; access_cases: boolean; access_documents: boolean; access_agenda: boolean; access_ai: boolean
   view_scope: 'all' | 'own'
 }
@@ -572,13 +573,25 @@ export interface OfficeTemplateRow { id: string; key: string; title: string; are
 export interface ConvertResult { title: string; description: string | null; area_key: string; body: string; legal_basis: string[]; modified_fragments: string[]; unknown_placeholders: string[]; ai_slots: number; credits_used: number }
 export interface TemplateInput { title: string; area_key: string; description?: string | null; body: string; reviewed?: boolean; legal_basis?: string[] }
 export interface Office {
-  configured: boolean; id: string; name: string; cnpj: string | null; address: string | null; city: string | null; state: string | null; phone: string | null
-  owner_user_id: string | null; created_at: string; seats_used: number; is_admin: boolean
+  configured: boolean; kind: 'personal' | 'office'; id: string; name: string; cnpj: string | null; address: string | null; city: string | null; state: string | null; phone: string | null
+  legal_name: string | null; website: string | null; email: string | null; zip_code: string | null; address_number: string | null; address_complement: string | null
+  district: string | null; oab_society: string | null; founded_on: string | null; practice_areas: string[]; headcount_total: number | null; headcount_lawyers: number | null; notes: string | null
+  owner_user_id: string | null; created_at: string; seats_used: number; members_on_platform: number; pending_invites: number; is_admin: boolean
   plan: { id: string; name: string; max_users: number | null; status: string; trial_ends_at: string | null }
-  code?: string; pending_requests?: number
+  code?: string; pending_requests?: number; member_defaults?: Partial<Permissions>
   my_join_request?: { id: string; office_name: string; created_at: string } | null
 }
-export interface OfficeData { name?: string; cnpj?: string; address?: string; city?: string; state?: string; office_phone?: string }
+export interface OfficeData {
+  name?: string; cnpj?: string; address?: string; city?: string; state?: string; office_phone?: string
+  legal_name?: string; website?: string; office_email?: string; zip_code?: string; address_number?: string; address_complement?: string; district?: string
+  oab_society?: string; founded_on?: string; practice_areas?: string[]; headcount_total?: number | null; headcount_lawyers?: number | null; notes?: string
+}
+export interface Workspace { user_id: string; account_id: string; kind: 'personal' | 'office'; name: string; role: 'admin' | 'user'; is_owner: boolean; members: number; is_current: boolean }
+export const workspacesApi = {
+  list: () => http.get<Workspace[]>('/workspaces').then(r => r.data),
+  switchTo: (user_id: string) => http.post<{ token: string; user_id: string }>('/workspaces/switch', { user_id }).then(r => r.data),
+  leave: (user_id: string) => http.delete<{ switch_to: string | null }>(`/workspaces/${user_id}`).then(r => r.data),
+}
 export interface JoinRequest { id: string; name: string; email: string; created_at: string }
 export interface ActivityRow {
   user_id: string; name: string; email: string; role: string; active: boolean; seconds: number; active_days: number; actions: number
@@ -587,7 +600,8 @@ export interface ActivityRow {
 export interface ActivityReport { days: number; users: ActivityRow[]; series: { day: string; seconds: number }[] }
 export const officeApi = {
   get: () => http.get<Office>('/office').then(r => r.data),
-  create: (d: OfficeData) => http.post<Office>('/office', d).then(r => r.data),
+  create: (d: OfficeData) => http.post<{ token: string; user_id: string }>('/office', d).then(r => r.data),
+  setGovernance: (member_defaults: Partial<Permissions>) => http.put<Office>('/office/governance', { member_defaults }).then(r => r.data),
   update: (d: OfficeData) => http.put<Office>('/office', d).then(r => r.data),
   regenerateCode: () => http.post<Office>('/office/code/regenerate').then(r => r.data),
   join: (code: string) => http.post<{ office_name: string }>('/office/join', { code }).then(r => r.data),

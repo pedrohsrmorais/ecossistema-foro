@@ -33,6 +33,7 @@ export default function Cases() {
   const { user } = useAuth()
   const { data: meP } = useQuery({ queryKey: ['me-profile'], queryFn: usersApi.me })
   const canDelete = meP?.permissions?.delete_records !== false
+  const canCreateCase = meP?.permissions?.create_cases !== false
   const [view, setView] = useState<'lista' | 'quadro'>(() => { try { return localStorage.getItem('foro.cases.view') === 'lista' ? 'lista' : 'quadro' } catch { return 'quadro' } })
   const pickView = (v: 'lista' | 'quadro') => { setView(v); try { localStorage.setItem('foro.cases.view', v) } catch { /* ignore */ } }
   const { data: areaList } = useQuery({ queryKey: ['areas'], queryFn: areasApi.list, staleTime: 5 * 60_000 })
@@ -84,7 +85,7 @@ export default function Cases() {
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
           <input className="input pl-9" placeholder="Buscar por número, cliente, parte contrária…" value={search} onChange={e => setSearch(e.target.value)} />
         </div>
-        <form className="flex gap-2 flex-1 min-w-[300px]" onSubmit={e => { e.preventDefault(); if (newNumber.trim()) create.mutate(newNumber.trim()) }}>
+        {canCreateCase && <form className="flex gap-2 flex-1 min-w-[300px]" onSubmit={e => { e.preventDefault(); if (newNumber.trim()) create.mutate(newNumber.trim()) }}>
           <input className="input" placeholder="Novo processo: cole o número CNJ (0000000-00.0000.0.00.0000) ou um título" value={newNumber} onChange={e => setNewNumber(e.target.value)} />
           <select className="input max-w-[170px]" value={newArea} onChange={e => setNewArea(e.target.value)} aria-label="Área do processo">
             {areaList?.map(a => <option key={a.key} value={a.key}>{a.short}</option>) ?? <option value="geral">Geral</option>}
@@ -94,7 +95,7 @@ export default function Cases() {
             {leadsList?.data.map(l => <option key={l.id} value={l.id}>{l.name || 'Sem nome'}</option>)}
           </select>
           <button className="btn-primary shrink-0" disabled={!newNumber.trim() || create.isPending}><Plus className="w-4 h-4" /> Adicionar</button>
-        </form>
+        </form>}
       </div>
       {error && <p className="mb-3 text-sm text-red-600 flex items-center gap-1.5"><AlertTriangle className="w-4 h-4" />{error}</p>}
 

@@ -454,17 +454,23 @@ Além das 10 originais de leads/notas/tarefas, o chat opera: `create_case`, `sea
 | Método | Rota | Descrição |
 |---|---|---|
 | GET | `/permissions` | Catálogo de permissões (`group: module|action`) |
-| GET | `/office` | Dados do escritório + vagas; admin recebe `code` e `pending_requests`; usuário sem escritório recebe `configured:false` e `my_join_request` |
-| POST | `/office` | **Admin.** Cria o escritório da conta rascunho: `{ name, cnpj?, address?, city?, state?, office_phone? }` → gera código e reinicia o teste de 14 dias. `409 OFFICE_EXISTS` se já existe |
-| PUT | `/office` | **Admin.** Atualiza dados (CNPJ validado, UF válida) |
+| GET | `/office` | Workspace ativo: `kind` (`personal`/`office`), perfil (razão social, CNPJ, OAB da sociedade, endereço completo, áreas, integrantes declarados × `members_on_platform`, `pending_invites`), `my_join_request`; admin de escritório recebe também `code`, `pending_requests` e `member_defaults` |
+| POST | `/office` | Cria um **NOVO escritório** a partir de qualquer workspace (a pessoa vira admin/dona; teste de 14 dias): `{ name, cnpj?, ... }` → `{ token, user_id, account_id }` (use o token para entrar no escritório). Máx. 3 escritórios por pessoa (`403 OFFICE_LIMIT`) |
+| PUT | `/office` | **Admin de escritório.** Atualiza o perfil (CNPJ e UF validados; `office_email`, `zip_code`, `founded_on`, `headcount_*`, `practice_areas[]`...). No espaço pessoal: `400 PERSONAL_SPACE` |
+| PUT | `/office/governance` | **Admin.** `{ member_defaults: { create_leads: false, ai_write: false, view_scope: 'own', ... } }` — regras padrão dos membros deste escritório (só chaves do catálogo) |
 | POST | `/office/code/regenerate` | **Admin.** Novo código (recusa pedidos pendentes) |
-| POST | `/office/join` · DELETE `/office/join` | Usuário sem escritório pede entrada `{ code }` / cancela o pedido |
-| GET | `/office/requests` · POST `/office/requests/:id` | **Admin.** Lista pedidos / `{ approve: boolean }` (respeita `PLAN_LIMIT_USERS`) |
+| POST | `/office/join` · DELETE `/office/join` | Pede entrada em um escritório `{ code }` a partir de qualquer workspace / cancela o pedido. `409 ALREADY_MEMBER` |
+| GET | `/office/requests` · POST `/office/requests/:id` | **Admin.** Lista pedidos / `{ approve: boolean }` — aprovar cria a participação da pessoa no escritório (o espaço pessoal e outros escritórios dela não mudam); `TRIAL_USER_LIMIT` no teste |
+| GET | `/workspaces` | Workspaces da pessoa: espaço pessoal + escritórios (`user_id`, `kind`, `name`, `role`, `is_owner`, `members`, `is_current`) |
+| POST | `/workspaces/switch` | `{ user_id }` → `{ token }` do workspace escolhido (só participações da própria pessoa; senão 404) |
+| DELETE | `/workspaces/:user_id` | Sair de um escritório (não vale para o espaço pessoal nem para o dono: `OWNER_CANNOT_LEAVE`) → `{ switch_to }` |
 | GET | `/office/activity?days=30` | **Admin.** Tempo ativo, dias ativos, ações, última atividade, nível, créditos de IA, documentos e processos por usuário + série diária |
 | POST | `/activity/ping` | Heartbeat do front (1/min com aba visível e interação recente) |
 
-Sem escritório criado, todas as rotas do CRM devolvem `403 { code: "OFFICE_REQUIRED" }` (liberadas: `/auth`, `/users/me`, `/office*`, `/settings*`, `/support*`, `/plans`, `/payments*`, `/modules`, `/activity`).
-| PUT | `/users/:id` | **Admin.** Aceita `permissions: { chave: boolean }` (mescla; chaves desconhecidas ignoradas). Dono do escritório: `400 OWNER_PROTECTED` ao rebaixar/desativar. `GET /users*` traz `permissions` e `is_owner` |
+**Workspaces.** Cada pessoa tem um *espaço pessoal* (conta `kind='personal'`, só dela) e quantos escritórios entrar/criar. Cada workspace é uma linha em `users` (mesmo `person_id`) com papel, permissões e plano próprios; trocar de workspace só emite outro token — por isso dados, regras, IA, créditos e plano seguem sempre o workspace ativo, e um escritório nunca enxerga o outro. `POST /auth/register` cai no espaço pessoal (o campo legado `accountName` cria já um escritório). Convidar por e-mail (`POST /users/invite`) alguém que já tem conta confirmada adiciona a pessoa direto (`added_existing: true`); o espaço pessoal não convida (`403 PERSONAL_SPACE`). Senha e e-mail confirmado valem para a pessoa toda.
+
+**Governança.** Precedência das permissões de um membro: ajuste individual (`users.permissions`) > padrão do escritório (`accounts.member_defaults`) > padrão da plataforma. Novas ações: `create_leads`, `delete_leads`, `create_cases`, `create_events`, `ai_write` (desmarcado: a IA só consulta). As rotas devolvem `403 PERMISSION_DENIED` e a IA recusa a ação com a mesma regra da pessoa.
+
 | GET | `/office-templates` · `/office-templates/:id` | Modelos do escritório (qualquer usuário da conta) |
 | POST | `/office-templates` | **Permissão `templates_manage`.** `{ title, area_key, description?, body, legal_basis? }` (sem `legal_basis`, usa os dispositivos citados no texto). Nasce não revisado |
 | PUT | `/office-templates/:id` | Edita (usuário comum só os seus). `reviewed` só admin; mudar o texto zera `reviewed` |

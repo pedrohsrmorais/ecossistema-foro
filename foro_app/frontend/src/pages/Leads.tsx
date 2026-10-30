@@ -7,6 +7,7 @@ import { leadsApi, type Lead, type PaginatedResult } from '../api'
 import { useChat } from '../context/ChatContext'
 import { STAGES, stageOf } from '../lib/stages'
 import { EditableCell, StagePill } from '../components/crm'
+import { useCan } from '../hooks/useCan'
 
 const COLS = 'grid-cols-[28px_minmax(180px,2fr)_minmax(120px,1fr)_minmax(160px,1.4fr)_130px_minmax(100px,1fr)_100px_56px]'
 
@@ -35,6 +36,8 @@ function useBoardMutations() {
 }
 
 function AddRow({ stage, onCreate }: { stage: string; onCreate: (name: string) => void }) {
+  const canCreate = useCan('create_leads')
+  if (!canCreate) return null
   const [name, setName] = useState('')
   function submit() { if (name.trim()) { onCreate(name.trim()); setName('') } }
   return (
@@ -48,6 +51,8 @@ function AddRow({ stage, onCreate }: { stage: string; onCreate: (name: string) =
 }
 
 export default function Leads() {
+  const canCreate = useCan('create_leads')
+  const canDelete = useCan('delete_leads')
   const [search, setSearch] = useState('')
   const [view, setView] = useState<'board' | 'kanban'>(() => (localStorage.getItem('foro_leads_view') as any) || 'board')
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({})
@@ -84,7 +89,7 @@ export default function Leads() {
             ))}
           </div>
           <button className="btn-secondary text-sm" onClick={() => setOpen(true)}><Sparkles className="w-4 h-4 text-accent-500" /> Pedir à IA</button>
-          <button className="btn-primary text-sm" onClick={() => create.mutate({ name: 'Novo lead', stage: 'novo' })}><Plus className="w-4 h-4" /> Novo lead</button>
+          {canCreate && <button className="btn-primary text-sm" onClick={() => create.mutate({ name: 'Novo lead', stage: 'novo' })}><Plus className="w-4 h-4" /> Novo lead</button>}
         </div>
       </div>
 
@@ -125,7 +130,7 @@ export default function Leads() {
                         <span className="text-sm text-slate-500 px-1.5">{new Date(l.created_at).toLocaleDateString('pt-BR')}</span>
                         <span className="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                           <Link to={`/leads/${l.id}`} title="Abrir" className="p-1 text-slate-400 hover:text-brand-600"><ExternalLink className="w-4 h-4" /></Link>
-                          <button onClick={() => del(l)} title="Excluir" className="p-1 text-slate-400 hover:text-red-600"><Trash2 className="w-4 h-4" /></button>
+                          {canDelete && <button onClick={() => del(l)} title="Excluir" className="p-1 text-slate-400 hover:text-red-600"><Trash2 className="w-4 h-4" /></button>}
                         </span>
                       </div>
                     ))}

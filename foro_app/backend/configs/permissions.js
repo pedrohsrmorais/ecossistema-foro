@@ -11,6 +11,11 @@ const DEFS = [
   { key: 'access_documents', group: 'module', label: 'Acessar Documentos e o Gerador', default: true },
   { key: 'access_agenda', group: 'module', label: 'Acessar Agenda e Tarefas', default: true },
   { key: 'access_ai', group: 'module', label: 'Usar o Assistente de IA (gasta créditos)', default: true },
+  { key: 'create_leads', group: 'action', label: 'Cadastrar leads', default: true },
+  { key: 'delete_leads', group: 'action', label: 'Excluir leads', default: true },
+  { key: 'create_cases', group: 'action', label: 'Cadastrar processos', default: true },
+  { key: 'create_events', group: 'action', label: 'Criar compromissos, prazos e tarefas na agenda', default: true },
+  { key: 'ai_write', group: 'action', label: 'A IA pode criar, alterar e excluir dados em nome da pessoa (desmarcado: só consulta)', default: true },
   { key: 'templates_manage', group: 'action', label: 'Criar e editar modelos de documento do escritório', default: false },
   { key: 'ai_drafts', group: 'action', label: 'Gerar rascunhos de documentos com IA (gasta créditos)', default: true },
   { key: 'delete_records', group: 'action', label: 'Excluir processos e documentos', default: true },
@@ -18,11 +23,22 @@ const DEFS = [
 const KEYS = DEFS.map(d => d.key);
 const SCOPES = ['all', 'own'];
 
-function resolve(role, stored) {
+/**
+ * Ordem de precedência para membros: ajuste individual (users.permissions) > padrão do escritório
+ * (accounts.member_defaults, definido pelo admin) > padrão da plataforma (DEFS). Admin sempre pode tudo.
+ */
+function resolve(role, stored, officeDefaults) {
   const s = (typeof stored === 'string' ? safeParse(stored) : stored) || {};
+  const o = (typeof officeDefaults === 'string' ? safeParse(officeDefaults) : officeDefaults) || {};
   const out = {};
-  for (const d of DEFS) out[d.key] = role === 'admin' ? true : (typeof s[d.key] === 'boolean' ? s[d.key] : d.default);
-  out.view_scope = role === 'admin' ? 'all' : (SCOPES.includes(s.view_scope) ? s.view_scope : 'all');
+  for (const d of DEFS) {
+    out[d.key] = role === 'admin' ? true
+      : typeof s[d.key] === 'boolean' ? s[d.key]
+      : typeof o[d.key] === 'boolean' ? o[d.key] : d.default;
+  }
+  out.view_scope = role === 'admin' ? 'all'
+    : SCOPES.includes(s.view_scope) ? s.view_scope
+    : SCOPES.includes(o.view_scope) ? o.view_scope : 'all';
   return out;
 }
 function safeParse(v) { try { return JSON.parse(v); } catch { return {}; } }

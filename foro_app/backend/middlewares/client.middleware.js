@@ -10,7 +10,7 @@ const { query } = require('../configs/db.config');
  */
 // Rotas liberadas mesmo com o teste expirado: o usuário precisa conseguir ver os
 // planos, assinar e sair — todo o resto fica bloqueado até assinar um plano.
-const TRIAL_EXPIRED_ALLOWED = [/^\/plans/, /^\/payments/, /^\/settings\/plan/, /^\/users\/me/, /^\/auth\//, /^\/ai\/credits/, /^\/modules/, /^\/support/];
+const TRIAL_EXPIRED_ALLOWED = [/^\/workspaces/, /^\/office/, /^\/plans/, /^\/payments/, /^\/settings\/plan/, /^\/users\/me/, /^\/auth\//, /^\/ai\/credits/, /^\/modules/, /^\/support/];
 
 async function loadClientContext(req, res, next) {
   try {

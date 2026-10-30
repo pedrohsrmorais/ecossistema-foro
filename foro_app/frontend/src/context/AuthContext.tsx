@@ -1,5 +1,5 @@
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react'
-import { authApi, type AuthResponse } from '../api'
+import { authApi, usersApi, type AuthResponse } from '../api'
 
 interface User {
   id: string
@@ -18,6 +18,8 @@ interface AuthContextType {
   register: (data: { name: string; email: string; password: string; phone?: string; accountName?: string }) => Promise<AuthResponse>
   logout: () => void
   markEmailVerified: () => void
+  /** Entra num workspace (espaço pessoal ou escritório) com o token devolvido pela API e recarrega o app nele. */
+  enterWorkspace: (token: string) => Promise<void>
 }
 
 const AuthContext = createContext<AuthContextType | null>(null)
@@ -56,6 +58,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return res
   }
 
+  async function enterWorkspace(newToken: string) {
+    localStorage.setItem('foro_token', newToken)
+    try {
+      const me = await usersApi.me()
+      localStorage.setItem('foro_user', JSON.stringify({ id: me.id, name: me.name, email: me.email, role: me.role, email_verified: me.email_verified, phone_verified: user?.phone_verified }))
+    } catch { /* o app recarrega e busca de novo */ }
+    window.location.assign('/chat') // recarrega: zera cache, conversa da IA e tudo o que era do workspace anterior
+  }
+
   function logout() {
     localStorage.removeItem('foro_token')
     localStorage.removeItem('foro_user')
@@ -77,7 +88,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   return (
-    <AuthContext.Provider value={{ user, token, isLoading, login, register, logout, markEmailVerified }}>
+    <AuthContext.Provider value={{ user, token, isLoading, login, register, logout, markEmailVerified, enterWorkspace }}>
       {children}
     </AuthContext.Provider>
   )

@@ -429,3 +429,12 @@ O `init.sql` só roda na primeira subida do MySQL (volume vazio). Toda mudança 
 - Tabela `ai_actions` (conta, usuário, ferramenta, resumo, entidade, operação insert/update/delete, `before_json`/`after_json`, status done/undone/partial/failed, `undo_note`, datas).
 - `users`: `plan_id`, `plan_started_at`, `stripe_subscription_id`, `subscription_status`, `current_period_end`, `cancel_at_period_end`.
 - Backfill: usuários ativos de contas pagas ganham o plano da conta; o dono recebe os dados da assinatura existente.
+
+
+## Migração 009 — Workspaces (espaço pessoal + escritórios)
+
+- `users.person_id` (liga as linhas da mesma pessoa), `users.last_used_at` (DATETIME(3); o login abre o último workspace usado).
+- `users`: e-mail e telefone deixam de ser únicos globais → único `(account_id, email)`; `idx_users_email`/`idx_users_phone` comuns.
+- `accounts.kind` (`personal`|`office`); contas rascunho antigas (`office_configured = 0`) viram espaços pessoais utilizáveis.
+- Perfil do escritório: `legal_name`, `website`, `office_email`, `zip_code`, `address_number`, `address_complement`, `district`, `oab_society`, `founded_on`, `practice_areas` (JSON), `headcount_total`, `headcount_lawyers`, `notes`; governança em `member_defaults` (JSON).
+- Idempotente (testada duas vezes sobre um banco legado).

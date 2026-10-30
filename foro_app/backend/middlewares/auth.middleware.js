@@ -26,14 +26,14 @@ async function authenticate(req, res, next) {
 
   try {
     const [rows] = await query(
-      'SELECT id, account_id, email, role, active, permissions, email_verified_at FROM users WHERE id = ? LIMIT 1',
+      'SELECT u.id, u.account_id, u.email, u.role, u.active, u.permissions, u.email_verified_at, a.member_defaults FROM users u JOIN accounts a ON a.id = u.account_id WHERE u.id = ? LIMIT 1',
       [decoded.id]
     );
     const u = rows[0];
     if (!u || !u.active) {
       return res.status(401).json({ error: 'Sessão inválida. Entre novamente.' });
     }
-    req.user = { id: u.id, account_id: u.account_id, role: u.role, email: u.email, email_verified: Boolean(u.email_verified_at), permissions: permissions.resolve(u.role, u.permissions) };
+    req.user = { id: u.id, account_id: u.account_id, role: u.role, email: u.email, email_verified: Boolean(u.email_verified_at), permissions: permissions.resolve(u.role, u.permissions, u.member_defaults) };
     next();
   } catch (err) {
     next(err);

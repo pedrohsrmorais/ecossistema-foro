@@ -16,7 +16,7 @@ export default function Plans() {
   const isAdmin = user?.role === 'admin'
   const [params, setParams] = useSearchParams()
   const returned = params.get('checkout') // 'ok' | 'cancelado' (volta do Stripe)
-  const returnedUser = params.get('user')
+  const returnedUser = params.get('user') || user?.id
   const expiredParam = params.get('expirado') === '1'
 
   const [waiting, setWaiting] = useState(returned === 'ok')
@@ -86,7 +86,7 @@ export default function Plans() {
       )}
       {expired && (
         <div className="flex items-start gap-2 p-3 mb-5 rounded-lg bg-amber-50 border border-amber-200 text-sm text-amber-800">
-          <AlertTriangle className="w-4 h-4 mt-0.5 shrink-0" /><span>Nenhum plano está ativo no escritório. Contrate novamente para voltar a usar o CRM e a IA — seus dados continuam guardados.</span>
+          <AlertTriangle className="w-4 h-4 mt-0.5 shrink-0" /><span>Sua assinatura terminou: nenhum plano está ativo neste workspace. Contrate novamente para voltar a usar o CRM e a IA — seus dados continuam guardados.</span>
         </div>
       )}
       {sub?.status === 'past_due' && (
@@ -94,7 +94,7 @@ export default function Plans() {
           <AlertTriangle className="w-4 h-4 mt-0.5 shrink-0" /><span>Não conseguimos cobrar o cartão do seu plano. {isAdmin ? <>Para evitar a suspensão <button className="underline font-medium" onClick={openPortal}>atualize a forma de pagamento</button>.</> : 'Avise o administrador do escritório.'}</span>
         </div>
       )}
-      {waiting && <div className="flex items-center gap-2 p-3 mb-5 rounded-lg bg-blue-50 border border-blue-200 text-sm text-blue-800"><Loader2 className="w-4 h-4 animate-spin shrink-0" /> Pagamento recebido! Estamos ativando o plano — leva alguns segundos.</div>}
+      {waiting && <div className="flex items-center gap-2 p-3 mb-5 rounded-lg bg-blue-50 border border-blue-200 text-sm text-blue-800"><Loader2 className="w-4 h-4 animate-spin shrink-0" /> Pagamento recebido! Estamos ativando o seu plano — leva alguns segundos.</div>}
       {activated && <div className="p-3 mb-5 rounded-lg bg-green-50 border border-green-200 text-sm text-green-700">Plano ativado. Obrigado! 🎉</div>}
       {returned === 'ok' && !waiting && !activated && <div className="p-3 mb-5 rounded-lg bg-amber-50 border border-amber-200 text-sm text-amber-800">Recebemos o pagamento, mas a ativação está demorando mais que o normal. Atualize a página em instantes; se continuar assim, fale com o suporte.</div>}
       {returned === 'cancelado' && <div className="p-3 mb-5 rounded-lg bg-slate-50 border border-slate-200 text-sm text-slate-600">Pagamento cancelado — nada foi cobrado.</div>}

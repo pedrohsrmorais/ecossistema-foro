@@ -277,8 +277,10 @@ const HANDLERS = {
   async 'checkout.session.completed'(session) {
     if (session.mode !== 'subscription') return;
     const accountId = session.client_reference_id || session.metadata?.account_id;
-    const userId = session.metadata?.user_id;
+    let userId = session.metadata?.user_id;
     if (!accountId) return;
+    // Checkout aberto antes do plano por usuário (sem user_id nos metadados): pertence ao dono do workspace.
+    if (!userId) { const [[o]] = await query('SELECT owner_user_id FROM accounts WHERE id = ? LIMIT 1', [accountId]); userId = o?.owner_user_id || null; }
     const customer = typeof session.customer === 'string' ? session.customer : session.customer?.id;
     const sub = typeof session.subscription === 'string' ? session.subscription : session.subscription?.id;
     await query('UPDATE accounts SET stripe_customer_id = COALESCE(stripe_customer_id, ?) WHERE id = ?', [customer, accountId]);
