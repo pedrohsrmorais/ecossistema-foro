@@ -664,7 +664,8 @@ Detalhes, variáveis e migração para AWS em `armazenamento-s3.md`.
 POST   /process-search            Body: { q }  → { provider, query, results[{ref, numero_cnj, tribunal, classe, assunto, partes, ...}] }
 GET    /process-search/preview?ref=   → application/pdf (não grava)
 POST   /process-search/save       Body: { ref } (permissão create_cases) → 201 metadados | 200 { already_saved:true }
-GET    /saved-processes?q=&page=&limit=
+GET    /saved-processes?q=&tribunal=&from=&to=&sort=&page=&limit=
+GET    /saved-processes/summary   → { total, bytes, pages, last_saved, bucket, tribunais[] }
 GET    /saved-processes/:id
 GET    /saved-processes/:id/file[?download=1]   → PDF vindo do S3
 DELETE /saved-processes/:id       (permissão delete_records; exclusão lógica)

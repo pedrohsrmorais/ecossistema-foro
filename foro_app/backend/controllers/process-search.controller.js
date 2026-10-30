@@ -23,7 +23,8 @@ module.exports = {
     const r = await svc.save(req.account.id, req.user.id, req.body?.ref);
     res.status(r.already_saved ? 200 : 201).json(r);
   },
-  list: async (req, res) => res.json(await svc.list(req.account.id, { q: req.query.q, page: req.query.page, limit: req.query.limit, viewerId: viewer(req) })),
+  list: async (req, res) => res.json(await svc.list(req.account.id, { ...req.query, viewerId: viewer(req) })),
+  summary: async (req, res) => res.json(await svc.summary(req.account.id, { viewerId: viewer(req) })),
   get: async (req, res) => res.json(await svc.get(req.account.id, req.params.id, viewer(req))),
   file: async (req, res) => {
     const f = await svc.file(req.account.id, req.params.id, viewer(req));

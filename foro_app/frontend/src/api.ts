@@ -829,6 +829,11 @@ export interface SavedProcess {
   already_saved?: boolean
 }
 
+export interface SavedProcessesSummary {
+  total: number; bytes: number; pages: number; last_saved: string | null; bucket: string
+  tribunais: { tribunal: string; total: number }[]
+}
+
 export const processSearchApi = {
   /** POST /process-search */
   search: (q: string) =>
@@ -841,7 +846,8 @@ export const processSearchApi = {
 }
 
 export const savedProcessesApi = {
-  list: (params?: { q?: string; page?: number; limit?: number }) =>
+  summary: () => http.get<SavedProcessesSummary>('/saved-processes/summary').then(r => r.data),
+  list: (params?: { q?: string; page?: number; limit?: number; tribunal?: string; from?: string; to?: string; sort?: string }) =>
     http.get<{ data: SavedProcess[]; total: number; page: number; limit: number }>('/saved-processes', { params }).then(r => r.data),
   get: (id: string) => http.get<SavedProcess>(`/saved-processes/${id}`).then(r => r.data),
   file: (id: string) => http.get<Blob>(`/saved-processes/${id}/file`, { responseType: 'blob' }).then(r => r.data),

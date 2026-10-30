@@ -284,6 +284,7 @@ router.post  ('/process-search',               requireModule('crm'), requireAcce
 router.get   ('/process-search/preview',       requireModule('crm'), requireAccess('cases'), processSearch.preview);
 router.post  ('/process-search/save',          requireModule('crm'), requireAccess('cases'), requirePermission('create_cases'), processSearch.save);
 router.get   ('/saved-processes',              requireModule('crm'), requireAccess('cases'), processSearch.list);
+router.get   ('/saved-processes/summary',         requireModule('crm'), requireAccess('cases'), processSearch.summary);
 router.get   ('/saved-processes/:id',          requireModule('crm'), requireAccess('cases'), processSearch.get);
 router.get   ('/saved-processes/:id/file',     requireModule('crm'), requireAccess('cases'), processSearch.file);
 router.delete('/saved-processes/:id',          requireModule('crm'), requireAccess('cases'), requirePermission('delete_records'), processSearch.remove);

@@ -12,6 +12,14 @@ Na fase de teste o S3 é um **MinIO** no próprio `docker compose`. Para a AWS, 
 
 Segurança: o bucket é privado; o arquivo sempre passa pela API (login + conta + `view_scope`). Salvar exige a permissão `create_cases`; remover, `delete_records`. O `ref` impede adulterar os metadados. Chave do objeto: `accounts/<account_id>/processos/<id>/<arquivo>.pdf`. A exclusão é lógica (`deleted_at`) e **mantém o objeto no S3**.
 
+## Ver os processos salvos
+
+- **No app:** menu *Aplicativos → Processos salvos* (`/processos-salvos`): resumo (total, páginas, espaço, último salvo), busca (número, parte, classe, assunto, caminho), filtros (tribunal, datas), ordenação, paginação, detalhe com bucket, **caminho no S3**, SHA-256 e botão de copiar, abrir/baixar/remover.
+- **No MinIO:** abra o console por túnel (`ssh -L 9001:127.0.0.1:9001 usuario@servidor`) → http://localhost:9001 → login com `MINIO_ROOT_USER`/`MINIO_ROOT_PASSWORD` → *Object Browser* → bucket `foro-arquivos` → `accounts/<id da conta>/processos/<id>/<arquivo>.pdf`. O caminho exato de cada arquivo aparece na tela de Processos salvos.
+- **No MySQL:** `SELECT numero_cnj, s3_bucket, s3_key, size_bytes FROM saved_processes WHERE deleted_at IS NULL;`
+
+Busca: tudo sai do MySQL (nunca lista o S3). Colunas `numero_digits` (CNJ só dígitos, busca por prefixo indexada) e `parties_text` (nomes das partes) + índices por conta/data, tribunal e quem salvou (migração 011). `GET /api/saved-processes` aceita `q`, `tribunal`, `from`, `to` (AAAA-MM-DD), `sort` (`recent|oldest|number|tribunal|size`), `page`, `limit`; `GET /api/saved-processes/summary` devolve totais e tribunais.
+
 ## Variáveis
 
 | Variável | Teste (MinIO) | AWS |
@@ -37,4 +45,4 @@ Console web só em `127.0.0.1:9001` (túnel: `ssh -L 9001:127.0.0.1:9001 usuario
 
 ## Banco
 
-Migração `010_processos_salvos`: tabela `saved_processes` (conta, quem salvou, número CNJ, tribunal, classe, assunto, partes JSON, última movimentação, `s3_bucket`, `s3_key`, `file_name`, `size_bytes`, `sha256`, `pages`, `case_id` opcional, `created_at`, `deleted_at`).
+Migrações `010_processos_salvos` e `011_processos_salvos_busca` (colunas/índices de busca): tabela `saved_processes` (conta, quem salvou, número CNJ, tribunal, classe, assunto, partes JSON, última movimentação, `s3_bucket`, `s3_key`, `file_name`, `size_bytes`, `sha256`, `pages`, `case_id` opcional, `created_at`, `deleted_at`).

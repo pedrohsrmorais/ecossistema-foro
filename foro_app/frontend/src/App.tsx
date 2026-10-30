@@ -28,6 +28,7 @@ import ModuloDesativado from './pages/ModuloDesativado'
 import ConsultaCnpj from './pages/aplicativos/ConsultaCnpj'
 import ConsultaCpf from './pages/aplicativos/ConsultaCpf'
 import ConsultaProcessual from './pages/aplicativos/ConsultaProcessual'
+import ProcessosSalvos from './pages/aplicativos/ProcessosSalvos'
 import PesquisaInteligente from './pages/aplicativos/PesquisaInteligente'
 import ProvasDeConceito from './pages/inteligencia/ProvasDeConceito'
 import QuizTake from './pages/inteligencia/QuizTake'
@@ -96,6 +97,7 @@ export default function App() {
                 <Route path="/consulta-cnpj"        element={<ConsultaCnpj />} />
                 <Route path="/consulta-cpf"         element={<ConsultaCpf />} />
                 <Route path="/consulta-processual"  element={<ConsultaProcessual />} />
+                <Route path="/processos-salvos"     element={<ProcessosSalvos />} />
 
                 {/* Inteligência — Provas de conceito, Desafios semanais, Comunidade */}
                 <Route path="/provas-de-conceito"          element={LOCKED_FEATURES.provasConceito ? <ComingSoon title="Provas de conceito" description="Quizzes ligados às aulas chegam em breve." /> : <ProvasDeConceito />} />

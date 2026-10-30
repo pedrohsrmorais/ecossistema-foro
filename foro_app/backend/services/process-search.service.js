@@ -129,11 +129,12 @@ async function save(accountId, userId, ref) {
   try {
     await query(
       `INSERT INTO saved_processes (id, account_id, saved_by, source, search_query, numero_cnj, tribunal, classe, assunto, parties, distributed_at,
-         last_movement, last_movement_at, s3_bucket, s3_key, file_name, content_type, size_bytes, sha256, pages)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+         last_movement, last_movement_at, s3_bucket, s3_key, file_name, content_type, size_bytes, sha256, pages, numero_digits, parties_text)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [id, accountId, userId, provider().name, meta.query || null, meta.numero_cnj, meta.tribunal, meta.classe, meta.assunto, JSON.stringify(meta.partes || []),
         meta.data_distribuicao || null, meta.ultima_movimentacao || null, meta.data_ultima_movimentacao || null,
-        storage.config().bucket, key, doc.fileName, doc.contentType, doc.buffer.length, sha256, doc.pages || null]
+        storage.config().bucket, key, doc.fileName, doc.contentType, doc.buffer.length, sha256, doc.pages || null,
+        String(meta.numero_cnj).replace(/\D/g, ''), (meta.partes || []).map(p => p.nome).join(' | ').slice(0, 500)]
     );
   } catch (err) {
     // metadados falharam: remove o objeto para não deixar arquivo órfão
@@ -159,20 +160,46 @@ async function get(accountId, id, viewerId) {
   return _shape(rows[0]);
 }
 
-async function list(accountId, { q, page = 1, limit = 20, viewerId } = {}) {
-  limit = Math.min(Math.max(parseInt(limit, 10) || 20, 1), 100);
-  const offset = (Math.max(parseInt(page, 10) || 1, 1) - 1) * limit;
+const SORTS = {
+  recent: 's.created_at DESC', oldest: 's.created_at ASC', number: 's.numero_cnj ASC',
+  tribunal: 's.tribunal ASC, s.created_at DESC', size: 's.size_bytes DESC',
+};
+
+function _filters(accountId, { q, tribunal, from, to, viewerId } = {}) {
   const where = ['s.account_id = ?', 's.deleted_at IS NULL'];
   const params = [accountId];
   if (viewerId) { where.push('s.saved_by = ?'); params.push(viewerId); }
-  if (q && String(q).trim()) {
-    where.push('(s.numero_cnj LIKE ? OR s.tribunal LIKE ? OR s.classe LIKE ? OR s.assunto LIKE ? OR s.parties LIKE ?)');
-    const like = `%${String(q).trim()}%`; params.push(like, like, like, like, like);
+  if (tribunal) { where.push('s.tribunal = ?'); params.push(String(tribunal)); }
+  if (from && /^\d{4}-\d{2}-\d{2}$/.test(from)) { where.push('s.created_at >= ?'); params.push(`${from} 00:00:00`); }
+  if (to && /^\d{4}-\d{2}-\d{2}$/.test(to)) { where.push('s.created_at <= ?'); params.push(`${to} 23:59:59`); }
+  const term = q && String(q).trim();
+  if (term) {
+    const digits = term.replace(/\D/g, '');
+    const like = `%${term}%`;
+    const parts = ['s.numero_cnj LIKE ?', 's.classe LIKE ?', 's.assunto LIKE ?', 's.parties_text LIKE ?', 's.s3_key LIKE ?', 's.file_name LIKE ?'];
+    const ps = [like, like, like, like, like, like];
+    if (digits.length >= 4) { parts.unshift('s.numero_digits LIKE ?'); ps.unshift(`${digits}%`); }
+    where.push(`(${parts.join(' OR ')})`); params.push(...ps);
   }
-  const [[{ total }]] = await query(`SELECT COUNT(*) AS total FROM saved_processes s WHERE ${where.join(' AND ')}`, params);
+  return { where: where.join(' AND '), params };
+}
+
+async function list(accountId, { q, page = 1, limit = 20, viewerId, tribunal, from, to, sort } = {}) {
+  limit = Math.min(Math.max(parseInt(limit, 10) || 20, 1), 100);
+  const offset = (Math.max(parseInt(page, 10) || 1, 1) - 1) * limit;
+  const { where, params } = _filters(accountId, { q, tribunal, from, to, viewerId });
+  const [[{ total }]] = await query(`SELECT COUNT(*) AS total FROM saved_processes s WHERE ${where}`, params);
   const [rows] = await query(
-    `SELECT ${COLS} FROM saved_processes s LEFT JOIN users u ON u.id = s.saved_by WHERE ${where.join(' AND ')} ORDER BY s.created_at DESC LIMIT ${limit} OFFSET ${offset}`, params);
+    `SELECT ${COLS} FROM saved_processes s LEFT JOIN users u ON u.id = s.saved_by WHERE ${where} ORDER BY ${SORTS[sort] || SORTS.recent} LIMIT ${limit} OFFSET ${offset}`, params);
   return { data: rows.map(_shape), total, page: Math.floor(offset / limit) + 1, limit };
+}
+
+/** Painel: totais e tribunais (para filtros) — tudo do MySQL. */
+async function summary(accountId, { viewerId } = {}) {
+  const { where, params } = _filters(accountId, { viewerId });
+  const [[t]] = await query(`SELECT COUNT(*) AS total, COALESCE(SUM(s.size_bytes),0) AS bytes, COALESCE(SUM(s.pages),0) AS pages, MAX(s.created_at) AS last_saved FROM saved_processes s WHERE ${where}`, params);
+  const [tribunais] = await query(`SELECT s.tribunal, COUNT(*) AS total FROM saved_processes s WHERE ${where} GROUP BY s.tribunal ORDER BY total DESC, s.tribunal`, params);
+  return { total: t.total, bytes: Number(t.bytes), pages: Number(t.pages), last_saved: t.last_saved, bucket: storage.config().bucket, tribunais };
 }
 
 /** Arquivo salvo (stream do S3) — confere a conta antes. */
@@ -188,4 +215,5 @@ async function remove(accountId, id, viewerId) {
   await query('UPDATE saved_processes SET deleted_at = NOW() WHERE id = ? AND account_id = ?', [id, accountId]);
 }
 
-module.exports = { search, preview, save, get, list, file, remove };
+module.exports = {
+  summary, search, preview, save, get, list, file, remove };

@@ -2,7 +2,7 @@ import { Outlet, NavLink, useNavigate, useLocation } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import {
   MessageSquare, Users, LayoutDashboard, CheckSquare, Settings, LogOut, Scale,
-  GraduationCap, FileText, Sparkles, Wand2, Landmark, CreditCard, LifeBuoy, Clock, Briefcase, CalendarDays, Building2, UserSearch, Gavel, FlaskConical, Trophy, Users2,
+  GraduationCap, FileText, Sparkles, Wand2, Landmark, CreditCard, LifeBuoy, Clock, Briefcase, CalendarDays, Building2, UserSearch, Gavel, FlaskConical, Trophy, Users2, Archive,
 } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
 import { modulesApi, settingsApi, officeApi, usersApi } from '../api'
@@ -46,6 +46,7 @@ const NAV_SECTIONS: { label: string; items: NavItem[] }[] = [
       { to: '/consulta-cnpj',        label: 'Consulta CNPJ',         icon: Building2,   module: 'pesquisa_cpf_cnpj', soon: LOCKED_FEATURES.pesquisaCnpj },
       { to: '/consulta-cpf',         label: 'Consulta CPF',          icon: UserSearch,  module: 'pesquisa_cpf_cnpj', soon: LOCKED_FEATURES.pesquisaCpf },
       { to: '/consulta-processual',  label: 'Consulta processual',   icon: Gavel,       module: 'pesquisa_processual', soon: LOCKED_FEATURES.pesquisaProcessual },
+      { to: '/processos-salvos',     label: 'Processos salvos',      icon: Archive,     module: 'crm', access: 'cases', crm: true },
     ],
   },
   {
