@@ -1,10 +1,10 @@
 # ════════════════════════════════════════════════════════════════════════════
 # Foro — imagem única (frontend React + API Node) — contexto de build: foro_app/
-#   docker compose up -d --build     →  sobe MySQL + aplicação em http://localhost:3040
+#   docker compose up -d --build     →  sobe MySQL + aplicação em 127.0.0.1:3040 (nginx faz o HTTPS público)
 # ════════════════════════════════════════════════════════════════════════════
 
 # ── Estágio 1: build do frontend (Vite gera em ../backend/dist) ──────────────
-FROM node:20-alpine AS frontend
+FROM node:22-alpine AS frontend
 WORKDIR /build/frontend
 COPY frontend/package*.json ./
 RUN npm ci
@@ -12,7 +12,7 @@ COPY frontend/ ./
 RUN npm run build
 
 # ── Estágio 2: API + frontend estático ───────────────────────────────────────
-FROM node:20-alpine
+FROM node:22-alpine
 ENV NODE_ENV=production
 WORKDIR /app
 COPY backend/package*.json ./

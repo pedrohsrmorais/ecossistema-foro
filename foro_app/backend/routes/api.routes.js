@@ -34,21 +34,22 @@ const quizzesController     = require('../controllers/quizzes.controller');
 const challengesController  = require('../controllers/challenges.controller');
 const communityController   = require('../controllers/community.controller');
 
-const { authenticate, requireVerifiedEmail } = require('../middlewares/auth.middleware');
+const { authenticate, requireAdmin, requireVerifiedEmail } = require('../middlewares/auth.middleware');
+const { loginLimiter, registerLimiter, emailFlowLimiter, verifyLimiter, aiLimiter } = require('../middlewares/rateLimits');
 const { loadClientContext }   = require('../middlewares/client.middleware');
 const { authenticatePlatform } = require('../middlewares/platform.middleware');
 const { requireModule }       = require('../middlewares/modules.middleware');
 const { requireLookupsEnabled } = require('../middlewares/features.middleware');
 const { validate }            = require('../middlewares/validation.middleware');
-const { authValidations, leadValidations, fieldValidations } = require('../middlewares/validators');
+const { authValidations, leadValidations, fieldValidations, userValidations } = require('../middlewares/validators');
 
 // ─── Auth (público) ───────────────────────────────────────────────────────────
-router.post('/auth/register',      validate(authValidations.register), authController.register);
-router.post('/auth/login',         validate(authValidations.login),    authController.login);
-router.post('/auth/refresh-token',                                     authController.refreshToken);
-router.post('/auth/forgot-password',                                   authController.forgotPassword);
-router.post('/auth/reset-password',                                    authController.resetPassword);
-router.post('/auth/platform-login',                                    authController.platformLogin);
+router.post('/auth/register',      registerLimiter,  validate(authValidations.register),       authController.register);
+router.post('/auth/login',         loginLimiter,     validate(authValidations.login),          authController.login);
+router.post('/auth/refresh-token', emailFlowLimiter, validate(authValidations.refresh),        authController.refreshToken);
+router.post('/auth/forgot-password', emailFlowLimiter, validate(authValidations.forgotPassword), authController.forgotPassword);
+router.post('/auth/reset-password',  emailFlowLimiter, validate(authValidations.resetPassword),  authController.resetPassword);
+router.post('/auth/platform-login', loginLimiter,                                              authController.platformLogin);
 
 // ─── Admin da plataforma (equipe intellsn) — autenticação própria, sem tenant ─
 // IMPORTANTE: fica ANTES de router.use(authenticate)/loadClientContext porque
@@ -106,8 +107,8 @@ router.use(authenticate);
 router.use(loadClientContext);
 
 // ─── Verificação de e-mail/celular (OTP) — acessível mesmo sem verificar ──────
-router.post('/auth/send-verification', validate(authValidations.sendVerification), authController.sendVerification);
-router.post('/auth/verify-code',       validate(authValidations.verifyCode),       authController.verifyCode);
+router.post('/auth/send-verification', emailFlowLimiter, validate(authValidations.sendVerification), authController.sendVerification);
+router.post('/auth/verify-code',       verifyLimiter,    validate(authValidations.verifyCode),       authController.verifyCode);
 router.get  ('/users/me',              usersController.me); // exposto antes do gate p/ a tela "Confirme seu e-mail" exibir o e-mail
 
 // ─── A partir daqui, exige e-mail confirmado (ver requireVerifiedEmail) ───────
@@ -120,18 +121,20 @@ router.get   ('/modules',              modulesController.listForMyAccount);
 
 // ─── Usuários ─────────────────────────────────────────────────────────────────
 router.get   ('/users',                usersController.list);
+router.post  ('/users/invite',         requireAdmin, validate(userValidations.invite), usersController.invite);   // convida por e-mail (respeita max_users do plano)
 router.put   ('/users/me',             usersController.updateMe);
-router.put   ('/users/me/password',    usersController.changePassword);
+router.put   ('/users/me/password',    validate(authValidations.changePassword), usersController.changePassword);
 router.get   ('/users/:id',            usersController.getById);
-router.put   ('/users/:id',            usersController.update);       // admin only
-router.delete('/users/:id',            usersController.deactivate);   // admin only
+router.post  ('/users/:id/resend-invite', requireAdmin, usersController.resendInvite);
+router.put   ('/users/:id',            requireAdmin, validate(userValidations.update), usersController.update);
+router.delete('/users/:id',            requireAdmin, usersController.deactivate);
 
 // ─── Campos customizáveis (módulo "crm") ──────────────────────────────────────
 router.get   ('/fields',               requireModule('crm'), fieldsController.list);
-router.post  ('/fields',               requireModule('crm'), validate(fieldValidations.create), fieldsController.create);
-router.put   ('/fields/:id',           requireModule('crm'), validate(fieldValidations.update), fieldsController.update);
-router.delete('/fields/:id',           requireModule('crm'), fieldsController.remove);
-router.put   ('/fields/reorder',       requireModule('crm'), fieldsController.reorder);
+router.post  ('/fields',               requireModule('crm'), requireAdmin, validate(fieldValidations.create), fieldsController.create);
+router.put   ('/fields/reorder',       requireModule('crm'), requireAdmin, fieldsController.reorder);   // ANTES de /fields/:id, senão "reorder" vira um :id
+router.put   ('/fields/:id',           requireModule('crm'), requireAdmin, validate(fieldValidations.update), fieldsController.update);
+router.delete('/fields/:id',           requireModule('crm'), requireAdmin, fieldsController.remove);
 
 // ─── Leads (módulo "crm") ──────────────────────────────────────────────────────
 router.get   ('/leads',                requireModule('crm'), leadsController.list);
@@ -174,7 +177,7 @@ router.put   ('/events/:id',           requireModule('crm'), eventsController.up
 router.delete('/events/:id',           requireModule('crm'), eventsController.remove);
 
 // ─── IA — Chat interno (módulo "crm") ──────────────────────────────────────────
-router.post  ('/ai/message',           requireModule('crm'), aiController.sendMessage);
+router.post  ('/ai/message',           requireModule('crm'), aiLimiter, aiController.sendMessage);
 router.get   ('/ai/conversations',     requireModule('crm'), aiController.listConversations);
 router.get   ('/ai/conversations/:id', requireModule('crm'), aiController.getConversation);
 router.delete('/ai/conversations/:id', requireModule('crm'), aiController.clearConversation);
@@ -183,15 +186,15 @@ router.get   ('/ai/usage',             requireModule('crm'), aiController.getUsa
 
 // ─── Pagamentos ───────────────────────────────────────────────────────────────
 router.get   ('/payments',             paymentsController.list);
-router.post  ('/payments/pix',         paymentsController.createPix);
-router.post  ('/payments/card',        paymentsController.createCard);
-router.post  ('/payments/subscription',paymentsController.createSubscription);
+router.post  ('/payments/pix',         requireAdmin, paymentsController.createPix);
+router.post  ('/payments/card',        requireAdmin, paymentsController.createCard);
+router.post  ('/payments/subscription',requireAdmin, paymentsController.createSubscription);
 router.get   ('/payments/:id',         paymentsController.getById);
 router.get   ('/payments/:id/nfse',    paymentsController.getNfse);
 
 // ─── Configurações da conta ───────────────────────────────────────────────────
 router.get   ('/settings',             settingsController.get);
-router.put   ('/settings',             settingsController.update);
+router.put   ('/settings',             requireAdmin, settingsController.update);
 router.get   ('/settings/plan',        settingsController.getPlan);
 router.get   ('/plans',                settingsController.listPlans);
 
@@ -199,8 +202,8 @@ router.get   ('/plans',                settingsController.listPlans);
 router.get   ('/credits/balance',          creditsController.getBalance);
 router.get   ('/credits/prices',           creditsController.listPrices);
 router.get   ('/credits/transactions',     creditsController.listTransactions);
-router.post  ('/credits/purchase/pix',     creditsController.purchasePix);
-router.post  ('/credits/purchase/card',    creditsController.purchaseCard);
+router.post  ('/credits/purchase/pix',     requireAdmin, creditsController.purchasePix);
+router.post  ('/credits/purchase/card',    requireAdmin, creditsController.purchaseCard);
 
 // ─── Consultas pagas (CPF/CNPJ/processual) e resumo por IA ────────────────────
 // Cada chamada debita créditos automaticamente (ver external-lookup.service.js).

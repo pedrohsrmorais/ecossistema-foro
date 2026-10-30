@@ -1,11 +1,13 @@
 import { useState, FormEvent } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { Scale } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
 
 export default function Login() {
   const { login } = useAuth()
   const navigate = useNavigate()
+  const [params] = useSearchParams()
+  const justReset = params.get('senha') === 'ok'
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
@@ -37,6 +39,12 @@ export default function Login() {
         <div className="card p-6">
           <h1 className="text-xl font-semibold text-slate-900 mb-6">Entrar</h1>
 
+          {justReset && !error && (
+            <div className="mb-4 p-3 bg-green-50 border border-green-200 rounded-lg text-sm text-green-700">
+              Senha definida com sucesso. Entre com a nova senha.
+            </div>
+          )}
+
           {error && (
             <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">
               {error}
@@ -56,7 +64,10 @@ export default function Login() {
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">Senha</label>
+              <div className="flex items-center justify-between mb-1">
+                <label className="block text-sm font-medium text-slate-700">Senha</label>
+                <Link to="/forgot-password" className="text-xs text-brand-600 hover:underline">Esqueci a senha</Link>
+              </div>
               <input
                 type="password"
                 className="input"

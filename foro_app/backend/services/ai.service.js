@@ -23,6 +23,8 @@ const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 const TOOLS_CACHED = TOOL_DEFINITIONS.map((t, i) => (i === TOOL_DEFINITIONS.length - 1 ? { ...t, cache_control: { type: 'ephemeral' } } : t));
 const MAX_HISTORY = 20;          // mensagens do histórico enviadas ao modelo
 const MAX_TOOL_CALLS_PER_TURN = 8; // evita loops
+const MAX_MODEL_CALLS_PER_TURN = MAX_TOOL_CALLS_PER_TURN + 2; // teto de chamadas ao modelo por mensagem (limita custo)
+const inFlight = new Set(); // 1 mensagem por vez por usuário (evita rajadas paralelas furarem o saldo de créditos)
 const MODEL = process.env.ANTHROPIC_MODEL || 'claude-sonnet-4-6';
 const MAX_OUTPUT_TOKENS = 1500; // teto por chamada: limita o custo de um turno
 
@@ -45,10 +47,12 @@ async function _loadHistory(conversationId, limit = MAX_HISTORY) {
   const [rows] = await query(
     `SELECT role, content FROM ai_messages
      WHERE conversation_id = ? AND role IN ('user','assistant')
-     ORDER BY created_at DESC LIMIT ${Number(limit) | 0}`,
+     ORDER BY created_at DESC, id DESC LIMIT ${Number(limit) | 0}`,
     [conversationId]
   );
-  return rows.reverse();
+  const hist = rows.reverse();
+  while (hist.length && hist[0].role !== 'user') hist.shift(); // a API exige começar por "user"
+  return hist;
 }
 
 async function _loadFieldSchema(accountId) {
@@ -61,7 +65,10 @@ async function _loadFieldSchema(accountId) {
   return fields.map(f => {
     let desc = `- ${f.name} (${f.label}, tipo: ${f.field_type}${f.required ? ', obrigatório' : ''})`;
     if (f.options) {
-      try { desc += ` — opções: ${JSON.parse(f.options).join(', ')}`; } catch {}
+      try {
+        const opts = typeof f.options === 'string' ? JSON.parse(f.options) : f.options; // coluna JSON já vem como array
+        if (Array.isArray(opts) && opts.length) desc += ` — opções: ${opts.join(', ')}`;
+      } catch {}
     }
     if (f.ai_question_hint) desc += ` — dica: "${f.ai_question_hint}"`;
     return desc;
@@ -69,12 +76,14 @@ async function _loadFieldSchema(accountId) {
 }
 
 async function _saveMessage(conversationId, accountId, role, content, usage = null) {
+  const id = uuidv4();
   await query(
     `INSERT INTO ai_messages (id, conversation_id, account_id, role, content, input_tokens, output_tokens, model)
-     VALUES (UUID(), ?, ?, ?, ?, ?, ?, ?)`,
-    [conversationId, accountId, role, typeof content === 'string' ? content : JSON.stringify(content),
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+    [id, conversationId, accountId, role, typeof content === 'string' ? content : JSON.stringify(content),
       usage?.input_tokens || null, usage?.output_tokens || null, usage ? MODEL : null]
   );
+  return id;
 }
 
 async function _recordUsage(accountId, userId, conversationId, u) {
@@ -117,7 +126,21 @@ const WRITE_TOOLS = new Set(['create_lead','update_lead','move_lead_stage','add_
 
 // ─── Chat principal ────────────────────────────────────────────────────────────
 
-async function chat({ accountId, userId, conversationId, userMessage }) {
+async function chat(args) {
+  if (!process.env.ANTHROPIC_API_KEY) {
+    throw new AppError('O assistente de IA está indisponível no momento.', 503, 'AI_UNAVAILABLE');
+  }
+  const key = args.userId;
+  if (inFlight.has(key)) throw new AppError('Aguarde a resposta anterior terminar antes de enviar outra mensagem.', 429, 'AI_BUSY');
+  inFlight.add(key);
+  try {
+    return await _chat(args);
+  } finally {
+    inFlight.delete(key);
+  }
+}
+
+async function _chat({ accountId, userId, conversationId, userMessage }) {
   // Regra de créditos: sem saldo na semana, nem chama o modelo (ver ai-credits.service.js)
   await aiCredits.assertHasCredits(accountId);
 
@@ -152,14 +175,27 @@ REGRAS IMPORTANTES:
     { role: 'user', content: userMessage },
   ];
 
-  await _saveMessage(convId, accountId, 'user', userMessage);
+  const userMsgId = await _saveMessage(convId, accountId, 'user', userMessage);
 
   // ─── Agentic loop ──────────────────────────────────────────────────────────
   let toolCallCount = 0;
+  let modelCalls = 0;
   const totals = { input: 0, cacheCreation: 0, cacheRead: 0, output: 0 };
   const actions = [];
 
+  try {
   while (true) {
+    if (++modelCalls > MAX_MODEL_CALLS_PER_TURN) {
+      // Trava de segurança: o modelo insistiu em chamar ferramentas. Encerra o turno com o que já foi feito.
+      const text = 'Fiz o que consegui neste turno, mas atingi o limite de ações por mensagem. Confira o resultado e me diga se devo continuar.';
+      await _saveMessage(convId, accountId, 'assistant', text, { input_tokens: totals.input + totals.cacheCreation + totals.cacheRead, output_tokens: totals.output });
+      const creditsUsed = await _recordUsage(accountId, userId, convId, totals);
+      return {
+        conversation_id: convId, message: text, actions,
+        usage: { input_tokens: totals.input + totals.cacheCreation + totals.cacheRead, output_tokens: totals.output, credits_used: creditsUsed },
+        credits: await aiCredits.getStatus(accountId),
+      };
+    }
     const response = await client.messages.create({
       model: MODEL,
       max_tokens: MAX_OUTPUT_TOKENS,
@@ -240,8 +276,25 @@ REGRAS IMPORTANTES:
 
     break;
   }
-
-  throw new AppError('A IA não retornou uma resposta válida.', 500);
+  throw new AppError('A IA não retornou uma resposta válida.', 502, 'AI_BAD_RESPONSE');
+  } catch (err) {
+    // Falha no meio do turno (API fora do ar, limite de taxa...). Tokens já consumidos em chamadas
+    // anteriores do mesmo turno AINDA custaram dinheiro e ações de escrita podem ter sido executadas:
+    // registra o uso e remove a mensagem do usuário sem resposta para não sujar o histórico.
+    if (totals.input + totals.cacheCreation + totals.cacheRead + totals.output > 0) {
+      await _recordUsage(accountId, userId, convId, totals).catch(e => console.error('[ai] falha ao registrar uso:', e.message));
+    }
+    if (actions.length === 0) {
+      await query('DELETE FROM ai_messages WHERE id = ?', [userMsgId]).catch(() => {});
+    }
+    if (err.statusCode) throw err;
+    console.error('[ai] erro na chamada ao modelo:', err.status || '', err.message);
+    const overloaded = err.status === 429 || err.status === 529 || err.status >= 500;
+    throw new AppError(
+      overloaded ? 'A IA está sobrecarregada no momento. Tente de novo em instantes.' : 'Não foi possível falar com a IA agora. Tente novamente.',
+      503, 'AI_UPSTREAM_ERROR'
+    );
+  }
 }
 
 // ─── Histórico e uso ──────────────────────────────────────────────────────────

@@ -1,6 +1,6 @@
 import { useState, FormEvent } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Mail } from 'lucide-react'
+import { Mail, Inbox } from 'lucide-react'
 import { authApi } from '../api'
 import { useAuth } from '../context/AuthContext'
 
@@ -57,6 +57,14 @@ export default function VerifyEmail() {
             Enviamos um código de 6 dígitos para{' '}
             <strong className="text-slate-700">{user?.email}</strong>. Informe-o abaixo para liberar o acesso.
           </p>
+
+          <div className="mb-4 p-3 bg-amber-50 border border-amber-200 rounded-lg text-sm text-amber-800 flex gap-2" role="note">
+            <Inbox className="w-4 h-4 mt-0.5 shrink-0" />
+            <span>
+              <strong>Não chegou? Confira também a caixa de spam, o lixo eletrônico e a lixeira!</strong>{' '}
+              Às vezes o e-mail cai lá. O código vale por 10 minutos.
+            </span>
+          </div>
 
           {error && (
             <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">

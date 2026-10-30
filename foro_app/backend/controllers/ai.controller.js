@@ -1,3 +1,5 @@
+const { paging } = require('../utils/paging');
+const MAX_MESSAGE_CHARS = 4000; // evita uma única mensagem gigante consumir os créditos da semana
 const aiService = require('../services/ai.service');
 const aiCredits = require('../services/ai-credits.service');
 
@@ -10,8 +12,11 @@ const aiCredits = require('../services/ai-credits.service');
 async function sendMessage(req, res) {
   const { message, conversation_id } = req.body;
 
-  if (!message || !message.trim()) {
+  if (typeof message !== 'string' || !message.trim()) {
     return res.status(422).json({ error: 'Mensagem não pode estar vazia.' });
+  }
+  if (message.length > MAX_MESSAGE_CHARS) {
+    return res.status(422).json({ error: `Mensagem muito longa (máximo ${MAX_MESSAGE_CHARS} caracteres).`, code: 'MESSAGE_TOO_LONG' });
   }
 
   const result = await aiService.chat({
@@ -25,8 +30,8 @@ async function sendMessage(req, res) {
 }
 
 async function listConversations(req, res) {
-  const { page = 1, limit = 20 } = req.query;
-  const result = await aiService.listConversations(req.account.id, req.user.id, +page, +limit);
+  const { page, limit } = paging(req.query.page, req.query.limit, { defaultLimit: 20 });
+  const result = await aiService.listConversations(req.account.id, req.user.id, page, limit);
   res.json(result);
 }
 

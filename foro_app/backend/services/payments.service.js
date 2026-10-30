@@ -6,7 +6,7 @@
  */
 
 const axios = require('axios');
-const { query } = require('../configs/db.config');
+const { query, transaction } = require('../configs/db.config');
 const { AppError } = require('../middlewares/error.middleware');
 const nfseService = require('./nfse.service');
 const creditsService = require('./credits.service');
@@ -21,6 +21,14 @@ const asaas = axios.create({
 });
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
+
+// O Asaas está sendo SUBSTITUÍDO pelo Stripe (só cartão). Sem ASAAS_API_KEY nenhuma cobrança Asaas é criada
+// — evita 500 genérico e, principalmente, evita liberar plano sem cobrança de verdade.
+function _requireAsaas() {
+  if (!process.env.ASAAS_API_KEY) {
+    throw new AppError('Pagamentos indisponíveis no momento. Tente novamente em breve.', 503, 'PAYMENTS_UNAVAILABLE');
+  }
+}
 
 async function _getOrCreateAsaasCustomer(accountId) {
   const [accounts] = await query('SELECT asaas_id, name FROM accounts WHERE id = ? LIMIT 1', [accountId]);
@@ -42,6 +50,7 @@ async function _getOrCreateAsaasCustomer(accountId) {
 // ─── PIX ──────────────────────────────────────────────────────────────────────
 
 async function createPix(accountId, { amount, description }) {
+  _requireAsaas();
   const customerId = await _getOrCreateAsaasCustomer(accountId);
 
   const { data } = await asaas.post('/payments', {
@@ -68,6 +77,7 @@ async function createPix(accountId, { amount, description }) {
 // ─── Cartão ───────────────────────────────────────────────────────────────────
 
 async function createCard(accountId, { amount, description, card }) {
+  _requireAsaas();
   const customerId = await _getOrCreateAsaasCustomer(accountId);
 
   const { data } = await asaas.post('/payments', {
@@ -110,6 +120,7 @@ async function createCard(accountId, { amount, description, card }) {
 // (handleAsaasWebhook abaixo), nunca na criação da cobrança.
 
 async function createCreditsPix(accountId, { amount, description }) {
+  _requireAsaas();
   const customerId = await _getOrCreateAsaasCustomer(accountId);
   const amountCents = Math.round(Number(amount) * 100);
   if (amountCents <= 0) throw new AppError('Valor inválido.', 400);
@@ -135,6 +146,7 @@ async function createCreditsPix(accountId, { amount, description }) {
 }
 
 async function createCreditsCard(accountId, { amount, description, card }) {
+  _requireAsaas();
   const customerId = await _getOrCreateAsaasCustomer(accountId);
   const amountCents = Math.round(Number(amount) * 100);
   if (amountCents <= 0) throw new AppError('Valor inválido.', 400);
@@ -162,6 +174,7 @@ async function createCreditsCard(accountId, { amount, description, card }) {
 // ─── Assinatura ───────────────────────────────────────────────────────────────
 
 async function createSubscription(accountId, { plan, billingType = 'PIX', card }) {
+  _requireAsaas();
   const customerId = await _getOrCreateAsaasCustomer(accountId);
 
   const [plans] = await query('SELECT id, name, price FROM plans WHERE id = ? AND active = 1 AND purchasable = 1 LIMIT 1', [plan]);
@@ -185,6 +198,8 @@ async function createSubscription(accountId, { plan, billingType = 'PIX', card }
 
   const { data } = await asaas.post('/subscriptions', payload);
 
+  // ATENÇÃO (legado Asaas): isto libera o plano antes da 1ª cobrança ser confirmada. Será substituído
+  // pela ativação no webhook de fatura paga do Stripe — não reative este caminho em produção.
   await query("UPDATE accounts SET plan_id = ?, status = 'active', plan_started_at = ? WHERE id = ?", [plan, new Date(), accountId]);
 
   return { subscription_id: data.id, status: data.status, plan, billingType };
@@ -230,9 +245,10 @@ async function handleAsaasWebhook(event) {
   const localPayment = rows[0];
   const isConfirmed = newStatus === 'CONFIRMED' || newStatus === 'RECEIVED';
 
-  await query('UPDATE payments SET status = ?, paid_at = ? WHERE asaas_id = ?', [
+  await query('UPDATE payments SET status = ?, paid_at = CASE WHEN ? THEN COALESCE(paid_at, ?) ELSE paid_at END WHERE asaas_id = ?', [
     newStatus,
-    isConfirmed ? new Date() : null,
+    isConfirmed ? 1 : 0,
+    new Date(),
     payment.id,
   ]);
 
@@ -245,27 +261,28 @@ async function handleAsaasWebhook(event) {
     // — nunca na criação da cobrança, só na confirmação de pagamento de verdade.
     // Idempotente: Asaas pode reenviar o mesmo evento, então checa antes de creditar de novo.
     if (localPayment.credits_amount_cents) {
-      _creditWalletOnce(localPayment).catch(err =>
-        console.error('[Créditos] Falha ao creditar carteira:', err.message)
-      );
+      await _creditWalletOnce(localPayment);
     }
   }
 }
 
 async function _creditWalletOnce(payment) {
-  const [existing] = await query(
-    "SELECT id FROM credit_transactions WHERE reference_type = 'payment' AND reference_id = ? AND type = 'purchase' LIMIT 1",
-    [payment.id]
-  );
-  if (existing.length) {
-    console.info('[Créditos] Pagamento já creditado anteriormente, ignorando:', payment.id);
-    return;
-  }
-
-  await creditsService.addCredits(payment.account_id, payment.credits_amount_cents, {
-    referenceType: 'payment',
-    referenceId: payment.id,
-    note: `Recarga via Asaas (${payment.type})`,
+  // Trava a linha do pagamento: dois webhooks simultâneos do mesmo evento não creditam duas vezes.
+  await transaction(async (conn) => {
+    await conn.execute('SELECT id FROM payments WHERE id = ? FOR UPDATE', [payment.id]);
+    const [existing] = await conn.execute(
+      "SELECT id FROM credit_transactions WHERE reference_type = 'payment' AND reference_id = ? AND type = 'purchase' LIMIT 1",
+      [payment.id]
+    );
+    if (existing.length) {
+      console.info('[Créditos] Pagamento já creditado anteriormente, ignorando:', payment.id);
+      return;
+    }
+    await creditsService.addCredits(payment.account_id, payment.credits_amount_cents, {
+      referenceType: 'payment',
+      referenceId: payment.id,
+      note: `Recarga via Asaas (${payment.type})`,
+    });
   });
 }
 

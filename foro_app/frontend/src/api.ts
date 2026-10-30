@@ -28,7 +28,8 @@ http.interceptors.request.use((config) => {
 http.interceptors.response.use(
   (res) => res,
   (err) => {
-    if (err.response?.status === 401) {
+    // 401 em /auth/* (ex.: senha errada no login) NÃO é sessão expirada: o erro tem que aparecer na tela.
+    if (err.response?.status === 401 && !String(err.config?.url || '').startsWith('/auth/')) {
       localStorage.removeItem('foro_token')
       localStorage.removeItem('foro_user')
       window.location.href = '/login'
@@ -201,6 +202,9 @@ export interface User {
   role: string
   active: boolean
   created_at: string
+  /** true enquanto a pessoa não confirmou o e-mail / aceitou o convite */
+  pending_invite?: boolean
+  email_verified?: boolean
 }
 
 export interface ServicePrice {
@@ -312,6 +316,14 @@ export const usersApi = {
   /** DELETE /users/:id */
   deactivate: (id: string) =>
     http.delete(`/users/${id}`).then(r => r.data),
+
+  /** POST /users/invite — admin convida por e-mail (respeita o limite de usuários do plano) */
+  invite: (data: { name: string; email: string; role?: 'admin' | 'user' }) =>
+    http.post<User>('/users/invite', data).then(r => r.data),
+
+  /** POST /users/:id/resend-invite */
+  resendInvite: (id: string) =>
+    http.post(`/users/${id}/resend-invite`).then(r => r.data),
 }
 
 // ─── FIELDS (campos customizáveis) ───────────────────────────────────────────

@@ -1,0 +1,33 @@
+# Foro — nginx (proxy reverso) → container da aplicação em 127.0.0.1:3040.
+# Copie para /etc/nginx/sites-available/foro, ajuste o domínio e habilite:
+#   ln -s /etc/nginx/sites-available/foro /etc/nginx/sites-enabled/ && nginx -t && systemctl reload nginx
+# Certificado:  certbot --nginx -d app.seudominio.com.br
+# Firewall: libere só 80/443 (e SSH). As portas 3040 e 3306 NÃO devem ficar públicas.
+
+server {
+    listen 80;
+    server_name app.seudominio.com.br;
+    return 301 https://$host$request_uri;
+}
+
+server {
+    listen 443 ssl http2;
+    server_name app.seudominio.com.br;
+
+    ssl_certificate     /etc/letsencrypt/live/app.seudominio.com.br/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/app.seudominio.com.br/privkey.pem;
+    add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
+
+    client_max_body_size 2m;          # a API limita o corpo a 1 MB
+
+    location / {
+        proxy_pass http://127.0.0.1:3040;
+        proxy_http_version 1.1;
+        proxy_set_header Host              $host;
+        proxy_set_header X-Real-IP         $remote_addr;
+        proxy_set_header X-Forwarded-For   $proxy_add_x_forwarded_for;   # a API usa isso (TRUST_PROXY=1) p/ rate limit por IP
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_read_timeout 120s;          # respostas da IA podem levar até ~1 min
+        proxy_request_buffering on;       # webhooks (Stripe) chegam inteiros; a API guarda o corpo bruto p/ validar a assinatura
+    }
+}

@@ -127,6 +127,7 @@ CREATE TABLE IF NOT EXISTS password_reset_tokens (
   token_hash  VARCHAR(255) NOT NULL COMMENT 'SHA-256 do token enviado por e-mail',
   expires_at  DATETIME     NOT NULL,
   used_at     DATETIME     NULL,
+  purpose     ENUM('reset','invite') NOT NULL DEFAULT 'reset' COMMENT 'reset = esqueci a senha; invite = convite de equipe',
   created_at  DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (id),
   UNIQUE KEY uk_reset_token (token_hash),
@@ -345,7 +346,7 @@ CREATE TABLE IF NOT EXISTS ai_messages (
   input_tokens    INT          NULL,
   output_tokens   INT          NULL,
   model           VARCHAR(100) NULL,
-  created_at      DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  created_at      DATETIME(3)  NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
   PRIMARY KEY (id),
   KEY idx_msg_conv (conversation_id),
   CONSTRAINT fk_msg_conv FOREIGN KEY (conversation_id) REFERENCES ai_conversations(id) ON DELETE CASCADE

@@ -1,19 +1,16 @@
 const usersService = require('../services/users.service');
 
 async function list(req, res) {
-  const users = await usersService.listByAccount(req.account.id);
-  res.json(users);
+  res.json(await usersService.listByAccount(req.account.id));
 }
 
 async function me(req, res) {
-  const user = await usersService.getById(req.user.id, req.account.id);
-  res.json(user);
+  res.json(await usersService.getById(req.user.id, req.account.id));
 }
 
 async function updateMe(req, res) {
   const { name } = req.body;
-  const user = await usersService.update(req.user.id, req.account.id, { name });
-  res.json(user);
+  res.json(await usersService.update(req.user.id, req.account.id, { name }, req.user.id));
 }
 
 async function changePassword(req, res) {
@@ -23,22 +20,28 @@ async function changePassword(req, res) {
 }
 
 async function getById(req, res) {
-  const user = await usersService.getById(req.params.id, req.account.id);
-  res.json(user);
+  res.json(await usersService.getById(req.params.id, req.account.id));
+}
+
+// As rotas abaixo usam requireAdmin (api.routes.js).
+async function invite(req, res) {
+  const { name, email, role } = req.body;
+  res.status(201).json(await usersService.invite(req.account.id, req.user, { name, email, role }));
+}
+
+async function resendInvite(req, res) {
+  await usersService.resendInvite(req.params.id, req.account.id, req.user);
+  res.json({ message: 'Convite reenviado.' });
 }
 
 async function update(req, res) {
-  // Admin only
-  if (req.user.role !== 'admin') return res.status(403).json({ error: 'Acesso negado.' });
   const { name, role, active } = req.body;
-  const user = await usersService.update(req.params.id, req.account.id, { name, role, active });
-  res.json(user);
+  res.json(await usersService.update(req.params.id, req.account.id, { name, role, active }, req.user.id));
 }
 
 async function deactivate(req, res) {
-  if (req.user.role !== 'admin') return res.status(403).json({ error: 'Acesso negado.' });
-  await usersService.deactivate(req.params.id, req.account.id);
+  await usersService.deactivate(req.params.id, req.account.id, req.user.id);
   res.json({ message: 'Usuário desativado.' });
 }
 
-module.exports = { list, me, updateMe, changePassword, getById, update, deactivate };
+module.exports = { list, me, updateMe, changePassword, getById, invite, resendInvite, update, deactivate };

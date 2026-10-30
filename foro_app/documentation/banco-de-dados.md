@@ -383,3 +383,10 @@ Duas coisas **deliberadamente separadas**:
 - `case_updates`: andamentos (`update_date`, `text`, `source` = manual | ai_chat | datajud | djen).
 - `events`: `type` (reuniao/audiencia/pericia/outro), `starts_at`, `ends_at`, `location`, `meeting_url`, `status` (agendado/realizado/cancelado), vínculo opcional com lead e processo.
 - `tasks`: ganhou `case_id` e `is_deadline`.
+
+## Migrações de schema
+
+O `init.sql` só roda na primeira subida do MySQL (volume vazio). Toda mudança posterior vai em `backend/migrations/NNN_nome.js` (exporta `up(db)` com helpers idempotentes `addColumn`, `addIndex`, `tableExists`...). O runner (`backend/configs/migrate.js`) roda no boot da API, com lock do MySQL, e registra o que já foi aplicado em `schema_migrations`. Uma migração aplicada nunca é editada — crie outra. Atualizar produção = `git pull && docker compose up -d --build`.
+
+- `001_baseline_crm_juridico`: leva bancos antigos ao schema atual (cotas semanais nos planos, `plan_started_at`, `tasks.case_id/is_deadline`, `ai_usage` com cache/créditos, `cases`, `case_updates`, `events`, catálogo de planos).
+- `002_auth_hardening`: `ai_messages.created_at` com milissegundos; `password_reset_tokens.purpose` (`reset` | `invite`).

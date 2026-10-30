@@ -9,6 +9,9 @@ const emailService = require('./email.service');
 const VERIFICATION_CODE_TTL_MIN = 10;   // validade do código de e-mail/celular
 const RESET_TOKEN_TTL_MIN = 60;         // validade do link de redefinição de senha
 const MAX_VERIFICATION_ATTEMPTS = 5;    // tentativas antes de exigir novo código
+const RESEND_COOLDOWN_SEC = 60;         // intervalo mínimo entre dois envios de código
+const MAX_CODES_PER_HOUR = 5;           // envios de código por usuário/canal por hora
+const INVITE_TTL_MIN = 72 * 60;         // validade do link de convite de equipe (72h)
 
 function generateToken(payload, expiresIn = process.env.JWT_EXPIRES_IN || '7d') {
   return jwt.sign(payload, process.env.JWT_SECRET, { expiresIn });
@@ -100,16 +103,21 @@ async function login({ email, password }) {
   };
 }
 
+/**
+ * Renova o token. Só aceita um token AINDA VÁLIDO (nunca expirado) de um usuário ativo.
+ * (Antes aceitava tokens expirados para sempre, o que tornava qualquer token vazado eterno.)
+ */
 async function refreshToken(token) {
+  let decoded;
   try {
-    const decoded = jwt.verify(token, process.env.JWT_SECRET, { ignoreExpiration: true });
-    const newToken = generateToken({
-      id: decoded.id, account_id: decoded.account_id, role: decoded.role, email: decoded.email,
-    });
-    return { token: newToken };
+    decoded = jwt.verify(String(token || ''), process.env.JWT_SECRET);
   } catch {
-    throw new AppError('Token inválido.', 401);
+    throw new AppError('Token inválido ou expirado. Entre novamente.', 401);
   }
+  const [rows] = await query('SELECT id, account_id, role, email, active FROM users WHERE id = ? LIMIT 1', [decoded.id]);
+  const u = rows[0];
+  if (!u || !u.active || u.account_id !== decoded.account_id) throw new AppError('Sessão inválida. Entre novamente.', 401);
+  return { token: generateToken({ id: u.id, account_id: u.account_id, role: u.role, email: u.email }) };
 }
 
 // ─── Verificação de e-mail / celular (OTP) ────────────────────────────────────
@@ -132,6 +140,19 @@ async function sendVerificationCode(userId, channel) {
 
   if (channel === 'phone' && !user.phone) {
     throw new AppError('Usuário não possui celular cadastrado.', 400);
+  }
+
+  // Anti-abuso: intervalo mínimo entre envios e teto por hora (evita spam de e-mail e força bruta via "pedir novo código").
+  const [[recent]] = await query(
+    `SELECT COUNT(*) AS hour_count, MAX(created_at) AS last_at FROM verification_codes
+     WHERE user_id = ? AND channel = ? AND created_at > (NOW() - INTERVAL 1 HOUR)`,
+    [userId, channel]
+  );
+  if (recent.last_at && Date.now() - new Date(recent.last_at).getTime() < RESEND_COOLDOWN_SEC * 1000) {
+    throw new AppError(`Aguarde ${RESEND_COOLDOWN_SEC} segundos para pedir um novo código.`, 429, 'RESEND_COOLDOWN');
+  }
+  if (recent.hour_count >= MAX_CODES_PER_HOUR) {
+    throw new AppError('Limite de envios por hora atingido. Tente novamente mais tarde.', 429, 'RESEND_LIMIT');
   }
 
   const code = _generateNumericCode(6);
@@ -192,43 +213,79 @@ async function verifyCode(userId, channel, code) {
 // ─── Redefinição de senha ─────────────────────────────────────────────────────
 
 /**
- * Gera um token de redefinição de senha e "envia" o link por e-mail.
+ * Cria um token de uso único (guardado como hash) e devolve o valor em claro p/ ir no link do e-mail.
+ * purpose: 'reset' (esqueci a senha) | 'invite' (convite de equipe).
+ */
+async function issueEmailToken(userId, purpose, ttlMin) {
+  const token = crypto.randomBytes(32).toString('hex');
+  await query(
+    "UPDATE password_reset_tokens SET used_at = NOW() WHERE user_id = ? AND purpose = ? AND used_at IS NULL",
+    [userId, purpose]
+  ); // invalida links anteriores do mesmo tipo
+  await query(
+    'INSERT INTO password_reset_tokens (id, user_id, token_hash, expires_at, purpose) VALUES (UUID(), ?, ?, ?, ?)',
+    [userId, _hashToken(token), new Date(Date.now() + ttlMin * 60 * 1000), purpose]
+  );
+  return token;
+}
+
+function _frontendUrl() {
+  return (process.env.FRONTEND_URL || 'http://localhost:5173').replace(/\/+$/, '');
+}
+
+/**
+ * Gera um token de redefinição de senha e envia o link por e-mail.
  * Nunca revela se o e-mail existe ou não na base (evita enumeração de contas).
  */
 async function forgotPassword(email) {
-  const [rows] = await query('SELECT id, name FROM users WHERE email = ? LIMIT 1', [email]);
-  if (!rows.length) return; // silencioso — não revela se o e-mail existe
+  const [rows] = await query('SELECT id, name, active FROM users WHERE email = ? LIMIT 1', [email]);
+  if (!rows.length || !rows[0].active) return; // silencioso — não revela se o e-mail existe
 
   const user = rows[0];
-  const token = crypto.randomBytes(32).toString('hex');
-  const tokenHash = _hashToken(token);
-  const expiresAt = new Date(Date.now() + RESET_TOKEN_TTL_MIN * 60 * 1000);
-
-  await query(
-    'INSERT INTO password_reset_tokens (id, user_id, token_hash, expires_at) VALUES (UUID(), ?, ?, ?)',
-    [user.id, tokenHash, expiresAt]
+  // Um pedido por minuto por usuário (silencioso, para não virar canal de spam nem de enumeração).
+  const [[last]] = await query(
+    "SELECT MAX(created_at) AS last_at FROM password_reset_tokens WHERE user_id = ? AND purpose = 'reset'", [user.id]
   );
+  if (last.last_at && Date.now() - new Date(last.last_at).getTime() < RESEND_COOLDOWN_SEC * 1000) return;
 
-  const resetUrl = `${process.env.FRONTEND_URL || 'http://localhost:5173'}/reset-password?token=${token}`;
-  await emailService.sendPasswordResetEmail(email, resetUrl, RESET_TOKEN_TTL_MIN);
+  const token = await issueEmailToken(user.id, 'reset', RESET_TOKEN_TTL_MIN);
+  await emailService.sendPasswordResetEmail(email, `${_frontendUrl()}/reset-password?token=${token}`, RESET_TOKEN_TTL_MIN);
 }
 
+/** Envia o e-mail de convite de equipe (usado por users.service.invite / resendInvite). */
+async function sendInvite({ userId, email, inviterName, accountName }) {
+  const token = await issueEmailToken(userId, 'invite', INVITE_TTL_MIN);
+  await emailService.sendInviteEmail(email, `${_frontendUrl()}/reset-password?token=${token}&convite=1`, { inviterName, accountName, expiresInHours: INVITE_TTL_MIN / 60 });
+}
+
+/**
+ * Define a nova senha a partir do link enviado por e-mail (redefinição OU convite).
+ * Chegar aqui prova que a pessoa controla o e-mail, então o e-mail passa a contar como confirmado.
+ */
 async function resetPassword(token, password) {
-  const tokenHash = _hashToken(token);
+  const tokenHash = _hashToken(String(token || ''));
   const [rows] = await query(
-    'SELECT id, user_id, expires_at, used_at FROM password_reset_tokens WHERE token_hash = ? LIMIT 1',
+    `SELECT t.id, t.user_id, t.expires_at, t.used_at, u.active
+     FROM password_reset_tokens t JOIN users u ON u.id = t.user_id
+     WHERE t.token_hash = ? LIMIT 1`,
     [tokenHash]
   );
-  if (!rows.length) throw new AppError('Token inválido.', 400);
+  if (!rows.length) throw new AppError('Link inválido.', 400);
 
   const record = rows[0];
   if (record.used_at) throw new AppError('Este link já foi utilizado.', 400);
   if (new Date(record.expires_at) < new Date()) throw new AppError('Link expirado. Solicite um novo.', 400);
+  if (!record.active) throw new AppError('Usuário inativo.', 403);
 
   const passwordHash = await bcrypt.hash(password, 12);
   await transaction(async (conn) => {
-    await conn.execute('UPDATE users SET password_hash = ? WHERE id = ?', [passwordHash, record.user_id]);
+    await conn.execute(
+      'UPDATE users SET password_hash = ?, email_verified_at = COALESCE(email_verified_at, NOW()) WHERE id = ?',
+      [passwordHash, record.user_id]
+    );
     await conn.execute('UPDATE password_reset_tokens SET used_at = NOW() WHERE id = ?', [record.id]);
+    // Redefinir a senha invalida os demais links pendentes desse usuário.
+    await conn.execute('UPDATE password_reset_tokens SET used_at = NOW() WHERE user_id = ? AND used_at IS NULL', [record.user_id]);
   });
 }
 
@@ -278,6 +335,6 @@ async function _seedDefaultFields(conn, accountId) {
 module.exports = {
   register, login, refreshToken,
   sendVerificationCode, verifyCode,
-  forgotPassword, resetPassword,
+  forgotPassword, resetPassword, sendInvite,
   platformLogin,
 };

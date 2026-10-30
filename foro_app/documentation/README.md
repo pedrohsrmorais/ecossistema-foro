@@ -165,11 +165,13 @@ npm run dev            # Vite na porta 5173 (proxy /api → 3040)
 
 ```bash
 cd foro_app
-cp .env.example .env            # opcional — preencha ANTHROPIC_API_KEY para o chat de IA
+cp .env.example .env            # preencha os OBRIGATÓRIOS: JWT_SECRET, DB_PASSWORD, DB_ROOT_PASSWORD, FRONTEND_URL
+                                # (local: NODE_ENV=development e FRONTEND_URL=http://localhost:3040)
 docker compose up -d --build    # MySQL 8 + API + frontend (build multi-etapas no Dockerfile)
 
-# Aplicação: http://localhost:3040   ·   Health: http://localhost:3040/health
-# O schema (backend/configs/init.sql) é aplicado sozinho na 1ª subida do banco.
+# Aplicação: http://127.0.0.1:3040   ·   Health: http://127.0.0.1:3040/health
+# O schema base (init.sql) é aplicado na 1ª subida; mudanças posteriores vêm de backend/migrations/ e rodam sozinhas no boot.
+# O MySQL não é publicado no host. Produção (nginx + HTTPS + backup): ver deploy.md
 # Recriar do zero (apaga os dados):  docker compose down -v
 ```
 
@@ -181,8 +183,10 @@ O `Dockerfile` (na raiz de `foro_app/`) compila o frontend e embute o resultado 
 
 | Variável           | Descrição                                        |
 |--------------------|--------------------------------------------------|
-| `JWT_SECRET`       | Segredo para assinar tokens JWT (min. 32 chars)  |
-| `DB_PASSWORD`      | Senha do MySQL                                   |
+| `JWT_SECRET`       | Segredo para assinar tokens JWT (mín. 32 chars; a API recusa iniciar em produção com valor fraco)  |
+| `DB_PASSWORD`, `DB_ROOT_PASSWORD` | Senhas do MySQL (sem padrão; a API recusa a senha padrão do repo em produção) |
+| `FRONTEND_URL`     | URL pública do app (links dos e-mails e CORS)    |
+| `RESEND_API_KEY`   | Envio dos e-mails de confirmação/convite (sem ele ninguém confirma a conta em produção) |
 | `ANTHROPIC_API_KEY`| Chave da API da Anthropic (IA interna do CRM)    |
 | `ASAAS_API_KEY`    | Chave do Asaas (pagamentos)                      |
 | `NFEIO_API_KEY`    | Chave do NFE.io (notas fiscais)                  |

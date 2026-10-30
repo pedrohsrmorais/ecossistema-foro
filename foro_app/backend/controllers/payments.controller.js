@@ -1,8 +1,9 @@
+const { paging } = require('../utils/paging');
 const paymentsService = require('../services/payments.service');
 
 async function list(req, res) {
-  const { page = 1, limit = 20 } = req.query;
-  const result = await paymentsService.list(req.account.id, +page, +limit);
+  const { page, limit } = paging(req.query.page, req.query.limit, { defaultLimit: 20 });
+  const result = await paymentsService.list(req.account.id, page, limit);
   res.json(result);
 }
 

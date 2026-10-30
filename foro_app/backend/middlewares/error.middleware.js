@@ -19,6 +19,10 @@ function errorMiddleware(err, req, res, next) { // eslint-disable-line no-unused
     return res.status(422).json({ error: 'Dados inválidos.', details: err.errors });
   }
 
+  // Corpo da requisição malformado / grande demais (body-parser)
+  if (err.type === 'entity.parse.failed') return res.status(400).json({ error: 'JSON inválido.' });
+  if (err.type === 'entity.too.large') return res.status(413).json({ error: 'Requisição grande demais.' });
+
   // Erros esperados da aplicação
   if (err.statusCode) {
     return res.status(err.statusCode).json({ error: err.message, ...(err.code ? { code: err.code } : {}), ...(err.extra || {}) });
@@ -40,9 +44,10 @@ function errorMiddleware(err, req, res, next) { // eslint-disable-line no-unused
  * Erro com status HTTP controlado.
  */
 class AppError extends Error {
-  constructor(message, statusCode = 400) {
+  constructor(message, statusCode = 400, code) {
     super(message);
     this.statusCode = statusCode;
+    if (code) this.code = code;
   }
 }
 

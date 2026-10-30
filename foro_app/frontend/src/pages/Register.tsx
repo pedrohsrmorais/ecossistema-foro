@@ -60,12 +60,15 @@ export default function Register() {
             </div>
             <div>
               <label className="block text-sm font-medium text-slate-700 mb-1">Senha</label>
-              <input type="password" className="input" value={form.password} onChange={setField('password')} placeholder="Mínimo 8 caracteres" minLength={8} required />
+              <input type="password" className="input" value={form.password} onChange={setField('password')} placeholder="8 a 72 caracteres" minLength={8} maxLength={72} required />
             </div>
             <div>
               <label className="block text-sm font-medium text-slate-700 mb-1">Celular (opcional)</label>
               <input type="tel" className="input" value={form.phone} onChange={setField('phone')} placeholder="+55 51 99999-9999" />
             </div>
+            <p className="text-xs text-slate-500 bg-slate-50 border border-slate-200 rounded-lg p-2.5">
+              📬 Vamos enviar um código para confirmar seu e-mail. Se não chegar, <strong>confira o spam, o lixo eletrônico e a lixeira</strong>.
+            </p>
             <button type="submit" className="btn-primary w-full justify-center" disabled={loading}>
               {loading ? 'Criando conta...' : 'Criar conta'}
             </button>

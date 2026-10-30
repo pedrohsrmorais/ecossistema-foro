@@ -1,11 +1,13 @@
 # Foro — sobe TUDO (MySQL + API + frontend) com um comando:
 #
-#   cp .env.example .env        # (opcional) preencha ANTHROPIC_API_KEY etc.
+#   cp .env.example .env        # preencha os segredos (obrigatórios: JWT_SECRET, DB_PASSWORD, DB_ROOT_PASSWORD, FRONTEND_URL)
 #   docker compose up -d --build
 #
-# Aplicação:  http://localhost:3040      Health: http://localhost:3040/health
-# O schema (backend/configs/init.sql) é aplicado automaticamente na PRIMEIRA
-# subida do MySQL (volume vazio). Para recriar do zero:  docker compose down -v
+# A aplicação escuta só em 127.0.0.1:3040 — o acesso público é pelo nginx (HTTPS), ver deploy/nginx.conf.example.
+# O MySQL NÃO é publicado no host: só a API o alcança, pela rede interna do Docker.
+# O schema base (backend/configs/init.sql) é aplicado na PRIMEIRA subida do MySQL (volume vazio); toda
+# mudança posterior vem de backend/migrations/, aplicada sozinha no boot da API (git pull + up -d --build).
+# Para recriar do zero (APAGA OS DADOS):  docker compose down -v
 
 services:
   db:
@@ -16,12 +18,12 @@ services:
     # senão CURRENT_TIMESTAMP (UTC) e datas enviadas pela API ficariam 3h defasados.
     command: ["--default-time-zone=-03:00", "--character-set-server=utf8mb4", "--collation-server=utf8mb4_unicode_ci"]
     environment:
-      MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD:-root_secret}
+      MYSQL_ROOT_PASSWORD: "${DB_ROOT_PASSWORD:?defina DB_ROOT_PASSWORD no .env}"
       MYSQL_DATABASE: ${DB_NAME:-foro_db}
       MYSQL_USER: ${DB_USER:-foro_user}
-      MYSQL_PASSWORD: ${DB_PASSWORD:-foro_secret}
-    ports:
-      - "${DB_PORT_HOST:-3306}:3306"
+      MYSQL_PASSWORD: "${DB_PASSWORD:?defina DB_PASSWORD no .env}"
+    # (sem "ports": o banco não fica exposto na internet)
+    logging: { driver: json-file, options: { max-size: "10m", max-file: "3" } }
     volumes:
       - foro_db_data:/var/lib/mysql
       - ./backend/configs/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
@@ -39,25 +41,31 @@ services:
     container_name: foro_app
     restart: unless-stopped
     ports:
-      - "${APP_PORT:-3040}:3040"
+      - "127.0.0.1:${APP_PORT:-3040}:3040"   # só o nginx do host acessa; nada de 0.0.0.0
+    logging: { driver: json-file, options: { max-size: "10m", max-file: "3" } }
     environment:
       NODE_ENV: ${NODE_ENV:-production}
       PORT: 3040
-      CORS_ORIGIN: ${CORS_ORIGIN:-*}
-      FRONTEND_URL: ${FRONTEND_URL:-http://localhost:3040}
+      TRUST_PROXY: ${TRUST_PROXY:-1}           # 1 = confia no X-Forwarded-For do nginx
+      CORS_ORIGIN: ${CORS_ORIGIN:-${FRONTEND_URL}}
+      FRONTEND_URL: "${FRONTEND_URL:?defina FRONTEND_URL no .env - ex https://app.seudominio.com.br}"
       DB_HOST: db
       DB_PORT: 3306
       DB_NAME: ${DB_NAME:-foro_db}
       DB_USER: ${DB_USER:-foro_user}
-      DB_PASSWORD: ${DB_PASSWORD:-foro_secret}
-      JWT_SECRET: ${JWT_SECRET:-change_this_jwt_secret_in_production}
+      DB_PASSWORD: "${DB_PASSWORD:?defina DB_PASSWORD no .env}"
+      JWT_SECRET: "${JWT_SECRET:?defina JWT_SECRET no .env - gere com openssl rand -hex 32}"
       JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-7d}
       RESEND_API_KEY: ${RESEND_API_KEY:-}
       EMAIL_FROM: ${EMAIL_FROM:-Foro <onboarding@resend.dev>}
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
       ANTHROPIC_MODEL: ${ANTHROPIC_MODEL:-claude-sonnet-4-6}
       FEATURE_LOOKUPS_ENABLED: ${FEATURE_LOOKUPS_ENABLED:-false}
+      STRIPE_SECRET_KEY: ${STRIPE_SECRET_KEY:-}
+      STRIPE_WEBHOOK_SECRET: ${STRIPE_WEBHOOK_SECRET:-}
       ASAAS_API_KEY: ${ASAAS_API_KEY:-}
+      ASAAS_WEBHOOK_TOKEN: ${ASAAS_WEBHOOK_TOKEN:-}
+      NFEIO_WEBHOOK_TOKEN: ${NFEIO_WEBHOOK_TOKEN:-}
       ASAAS_BASE_URL: ${ASAAS_BASE_URL:-https://www.asaas.com/api/v3}
       NFEIO_API_KEY: ${NFEIO_API_KEY:-}
       NFEIO_COMPANY_ID: ${NFEIO_COMPANY_ID:-}

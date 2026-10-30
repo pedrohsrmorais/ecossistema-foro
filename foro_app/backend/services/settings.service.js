@@ -1,4 +1,4 @@
-const { query } = require('../configs/db.config');
+const { query, transaction } = require('../configs/db.config');
 const { AppError } = require('../middlewares/error.middleware');
 
 async function get(accountId) {
@@ -36,6 +36,13 @@ async function getPlan(accountId) {
   };
 }
 
+/** Colunas JSON do MySQL já chegam como objeto via mysql2; strings (legado/TEXT) ainda precisam de parse. */
+function parseJsonCol(v) {
+  if (v == null) return null;
+  if (typeof v !== 'string') return v;
+  try { return JSON.parse(v); } catch { return null; }
+}
+
 // ─── Campos customizáveis ─────────────────────────────────────────────────────
 
 async function listFields(accountId) {
@@ -45,7 +52,7 @@ async function listFields(accountId) {
      FROM field_definitions WHERE account_id = ? ORDER BY display_order`,
     [accountId]
   );
-  return rows.map(r => ({ ...r, options: r.options ? JSON.parse(r.options) : null }));
+  return rows.map(r => ({ ...r, options: parseJsonCol(r.options) }));
 }
 
 async function createField(accountId, { name, label, field_type, options, required, collect_via_ai, ai_question_hint, display_order }) {
@@ -55,7 +62,7 @@ async function createField(accountId, { name, label, field_type, options, requir
     [accountId, name, label, field_type, options ? JSON.stringify(options) : null,
       required ? 1 : 0, collect_via_ai !== false ? 1 : 0, ai_question_hint || null, display_order || 0]
   );
-  const [rows] = await query('SELECT * FROM field_definitions WHERE account_id = ? ORDER BY created_at DESC LIMIT 1', [accountId]);
+  const [rows] = await query('SELECT * FROM field_definitions WHERE account_id = ? AND name = ? LIMIT 1', [accountId, name]);
   return rows[0];
 }
 
@@ -71,8 +78,9 @@ async function updateField(fieldId, accountId, data) {
   }
   if (!fields.length) throw new AppError('Nenhum campo para atualizar.', 400);
   values.push(fieldId, accountId);
-  await query(`UPDATE field_definitions SET ${fields.join(', ')} WHERE id = ? AND account_id = ?`, values);
-  const [rows] = await query('SELECT * FROM field_definitions WHERE id = ? LIMIT 1', [fieldId]);
+  const [result] = await query(`UPDATE field_definitions SET ${fields.join(', ')} WHERE id = ? AND account_id = ?`, values);
+  const [rows] = await query('SELECT * FROM field_definitions WHERE id = ? AND account_id = ? LIMIT 1', [fieldId, accountId]);
+  if (!rows.length) throw new AppError('Campo não encontrado.', 404);
   return rows[0];
 }
 
@@ -84,9 +92,14 @@ async function deleteField(fieldId, accountId) {
 }
 
 async function reorderFields(accountId, order) {
-  for (const { id, display_order } of order) {
-    await query('UPDATE field_definitions SET display_order = ? WHERE id = ? AND account_id = ?', [display_order, id, accountId]);
+  if (!Array.isArray(order) || !order.length || order.some(o => !o || typeof o.id !== 'string' || !Number.isInteger(o.display_order) || o.display_order < 0)) {
+    throw new AppError('Envie "order" como lista de { id, display_order }.', 422);
   }
+  await transaction(async (conn) => {
+    for (const { id, display_order } of order) {
+      await conn.execute('UPDATE field_definitions SET display_order = ? WHERE id = ? AND account_id = ?', [display_order, id, accountId]);
+    }
+  });
 }
 
 async function listPlans() {

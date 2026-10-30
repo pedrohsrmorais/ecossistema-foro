@@ -1,6 +1,6 @@
 # Referência da API
 
-Base URL: `http://sua-vps:3040/api`
+Base URL: `https://app.seudominio.com.br/api` (em produção, via nginx; local: `http://localhost:3040/api`)
 
 Todas as rotas protegidas exigem o header:
 ```
@@ -10,6 +10,9 @@ Authorization: Bearer <jwt_token>
 ---
 
 ## Autenticação
+
+Limites (por IP, `429 RATE_LIMITED`): login 10 falhas/15 min · cadastro e fluxos de e-mail 10/hora · confirmação de código 20/15 min. Reenvio de código de verificação: 1 a cada 60 s e no máximo 5/hora (`429 RESEND_COOLDOWN` / `RESEND_LIMIT`).
+`POST /auth/refresh-token` só aceita um token ainda válido de usuário ativo. `POST /auth/reset-password` (e o convite) exigem senha de 8 a 72 caracteres e também marcam o e-mail como confirmado. Todos os e-mails trazem o aviso para conferir spam/lixeira.
 
 ### Registrar conta
 ```
@@ -89,27 +92,36 @@ Response 200: { user }
 ### Alterar senha
 ```
 PUT /users/me/password
-Body: { current_password, new_password }
+Body: { currentPassword, newPassword }   # newPassword: 8 a 72 caracteres
 Response 200: { message }
 ```
 
-### Listar usuários (admin)
+### Listar equipe
 ```
 GET /users
-Response 200: { users: [...] }
+Response 200: [ { id, name, email, role, active, email_verified, pending_invite, created_at } ]
 ```
+`pending_invite: true` = ainda não confirmou o e-mail / não aceitou o convite.
 
-### Buscar usuário por ID (admin)
+### Convidar usuário (admin)
 ```
-GET /users/:id
-Response 200: { user }
+POST /users/invite
+Body: { name, email, role?: "admin" | "user" }
+Response 201: { user }
+Erros: 403 PLAN_LIMIT_USERS (limite de usuários do plano) · 409 (e-mail já cadastrado) · 502 INVITE_EMAIL_FAILED (usuário criado, e-mail falhou → reenviar)
+```
+Cria o usuário com senha inutilizável e envia por e-mail um link de 72h (`/reset-password?token=…&convite=1`). Quem aceita já fica com o e-mail confirmado.
+
+### Reenviar convite (admin)
+```
+POST /users/:id/resend-invite
 ```
 
 ### Atualizar usuário (admin)
 ```
 PUT /users/:id
-Body: { name?, email?, role? }
-Response 200: { user }
+Body: { name?, role?: "admin" | "user", active?: boolean }
+Erros: 400 LAST_ADMIN (a conta precisa de ao menos 1 administrador ativo) · 403 PLAN_LIMIT_USERS (ao reativar)
 ```
 
 ### Desativar usuário (admin)
@@ -117,6 +129,7 @@ Response 200: { user }
 DELETE /users/:id
 Response 200: { message }
 ```
+O acesso é cortado imediatamente: o token de um usuário inativo passa a retornar 401 (o papel e o status são lidos do banco a cada requisição).
 
 ---
 

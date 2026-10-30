@@ -1,8 +1,10 @@
+const { paging } = require('../utils/paging');
 const leadsService = require('../services/leads.service');
 
 async function list(req, res) {
-  const { stage, search, assigned, page = 1, limit = 50 } = req.query;
-  const result = await leadsService.list(req.account.id, { stage, search, assigned, page: +page, limit: +limit });
+  const { stage, search, assigned } = req.query;
+  const { page, limit } = paging(req.query.page, req.query.limit, { maxLimit: 500 });
+  const result = await leadsService.list(req.account.id, { stage, search, assigned, page, limit });
   res.json(result);
 }
 
@@ -81,11 +83,12 @@ async function completeTask(req, res) {
 }
 
 async function listAllTasks(req, res) {
-  const { pending_only, page = 1, limit = 50 } = req.query;
+  const { pending_only } = req.query;
+  const { page, limit } = paging(req.query.page, req.query.limit, { maxLimit: 500 });
   const tasks = await leadsService.listAllTasks(req.account.id, req.user.id, {
     pendingOnly: pending_only === 'true',
-    page: +page,
-    limit: +limit,
+    page,
+    limit,
   });
   res.json(tasks);
 }
