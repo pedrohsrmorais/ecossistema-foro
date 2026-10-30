@@ -3,7 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { Link } from 'react-router-dom'
 import { Search, Plus, ChevronDown, ChevronRight, ExternalLink, Copy, Check, Trash2, Link2Off, Sparkles, AlertTriangle, LayoutGrid, List } from 'lucide-react'
 import clsx from 'clsx'
-import { casesApi, leadsApi, areasApi, type Case } from '../api'
+import { casesApi, leadsApi, areasApi, usersApi, type Case } from '../api'
 import CaseBoard from '../components/CaseBoard'
 import { useAuth } from '../context/AuthContext'
 import { EditableCell } from '../components/crm'
@@ -31,6 +31,8 @@ export default function Cases() {
   const [newLead, setNewLead] = useState('')
   const [newArea, setNewArea] = useState('geral')
   const { user } = useAuth()
+  const { data: meP } = useQuery({ queryKey: ['me-profile'], queryFn: usersApi.me })
+  const canDelete = meP?.permissions?.delete_records !== false
   const [view, setView] = useState<'lista' | 'quadro'>(() => { try { return localStorage.getItem('foro.cases.view') === 'lista' ? 'lista' : 'quadro' } catch { return 'quadro' } })
   const pickView = (v: 'lista' | 'quadro') => { setView(v); try { localStorage.setItem('foro.cases.view', v) } catch { /* ignore */ } }
   const { data: areaList } = useQuery({ queryKey: ['areas'], queryFn: areasApi.list, staleTime: 5 * 60_000 })
@@ -140,7 +142,7 @@ export default function Cases() {
                           {c.court_url
                             ? <a href={c.court_url} target="_blank" rel="noreferrer" title="Abrir processo no tribunal" className="p-1 text-brand-600 hover:text-brand-800"><ExternalLink className="w-4 h-4" /></a>
                             : <Link to={`/processos/${c.id}`} title="Sem link do tribunal — clique para adicionar" className="p-1 text-slate-300 hover:text-amber-600"><Link2Off className="w-4 h-4" /></Link>}
-                          <button onClick={() => confirm('Excluir este processo?') && remove.mutate(c.id)} title="Excluir" className="p-1 text-slate-300 hover:text-red-600 opacity-0 group-hover:opacity-100"><Trash2 className="w-4 h-4" /></button>
+                          {canDelete && <button onClick={() => confirm('Excluir este processo?') && remove.mutate(c.id)} title="Excluir" className="p-1 text-slate-300 hover:text-red-600 opacity-0 group-hover:opacity-100"><Trash2 className="w-4 h-4" /></button>}
                         </span>
                       </div>
                     ))}

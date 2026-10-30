@@ -1,5 +1,6 @@
 const jwt = require('jsonwebtoken');
 const { query } = require('../configs/db.config');
+const permissions = require('../configs/permissions');
 
 /**
  * Verifica o JWT (Authorization: Bearer <token>) e confere no banco que o usuário
@@ -25,14 +26,14 @@ async function authenticate(req, res, next) {
 
   try {
     const [rows] = await query(
-      'SELECT id, account_id, email, role, active, email_verified_at FROM users WHERE id = ? LIMIT 1',
+      'SELECT id, account_id, email, role, active, permissions, email_verified_at FROM users WHERE id = ? LIMIT 1',
       [decoded.id]
     );
     const u = rows[0];
     if (!u || !u.active || u.account_id !== decoded.account_id) {
       return res.status(401).json({ error: 'Sessão inválida. Entre novamente.' });
     }
-    req.user = { id: u.id, account_id: u.account_id, role: u.role, email: u.email, email_verified: Boolean(u.email_verified_at) };
+    req.user = { id: u.id, account_id: u.account_id, role: u.role, email: u.email, email_verified: Boolean(u.email_verified_at), permissions: permissions.resolve(u.role, u.permissions) };
     next();
   } catch (err) {
     next(err);

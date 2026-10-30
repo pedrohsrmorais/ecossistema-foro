@@ -409,3 +409,9 @@ O `init.sql` só roda na primeira subida do MySQL (volume vazio). Toda mudança 
 - `case_members (case_id, user_id UNIQUE, role responsavel|colaborador)`: equipe do processo; alimenta os alertas de prazo.
 - `documents` (`template_key`, `template_version`, `area_key`, `title`, `content` LONGTEXT, `status`, `ai_generated`, `open_flags`, `deleted_at`) e `document_versions (document_id, version_no UNIQUE)`.
 - A migração é idempotente (rodada 2× em banco legado: backfill de área/etapa/equipe correto, sem duplicar).
+
+## Modelos do escritório e permissões (migração 006)
+
+- `office_templates (account_id, title, area_key, description, body MEDIUMTEXT, legal_basis JSON, reviewed, version, created_by, deleted_at)`: biblioteca de modelos de cada escritório.
+- `users.permissions` JSON: permissões definidas pelo admin (`templates_manage`, `ai_drafts`, `delete_records`).
+- `accounts.owner_user_id`: administrador principal (backfill: admin mais antigo da conta).

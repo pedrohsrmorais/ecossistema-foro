@@ -1,7 +1,7 @@
 const docs = require('../services/documents.service');
 const templates = require('../services/document-templates.service');
 
-async function listTemplates(req, res) { res.json({ templates: templates.list(req.query.area_key), problems: templates.load().problems.length }); }
+async function listTemplates(req, res) { res.json({ templates: await templates.list(req.query.area_key, req.account.id), problems: templates.load().problems.length }); }
 async function list(req, res) { res.json(await docs.list(req.account.id, req.query)); }
 async function getById(req, res) { res.json(await docs.getById(req.params.id, req.account.id)); }
 async function create(req, res) {

@@ -95,6 +95,26 @@ legal_basis:                     # ÚNICOS dispositivos que a IA pode citar nest
 
 **Dica:** para peças que o tribunal já aceita "como está", deixe o texto fixo no modelo e use `[[IA]]` só onde o caso concreto exige redação (fatos, pedidos).
 
+## 6.1 Modelos do escritório (feitos pelos próprios usuários)
+
+Além dos modelos-base do Foro (arquivo) e dos da VPS, **cada escritório (conta) tem a sua biblioteca**, visível só para ele (`office_templates`). Tela: **Documentos → Modelos do escritório**.
+
+- **Quem cria:** administradores sempre; usuários comuns só se o admin marcar a permissão *Criar e editar modelos* (Configurações → Equipe → Permissões). Quem não tem a permissão **usa** os modelos, mas não cria. Usuário comum só edita/exclui os que ele criou; só o admin marca **revisado** (e qualquer alteração de texto remove a marca).
+- **Importar peça pronta (pré-molde):** cole o texto ou envie `.docx/.txt/.md`. A IA mantém o texto original, troca dados do caso por campos (`{{cliente.qualificacao}}`…) e marca com `[[IA: …]]` só o que depende do caso. Salvaguardas: (1) a IA é proibida de reescrever/acrescentar fundamentos; (2) o sistema compara o resultado com o original e **lista as frases que a IA alterou** para você conferir antes de salvar; (3) campos fora da lista viram `[PREENCHER]`; (4) os dispositivos que **o seu próprio texto já cita** viram a base legal liberada para a IA naquele modelo — nada além disso.
+- **Edição manual:** editor com botões para inserir campos automáticos e trechos de IA, e aviso de campos desconhecidos.
+- Limites: 60 mil caracteres por modelo, 200 modelos por escritório, importação até 20 mil caracteres (arquivo ≤ 3 MB).
+- Documentos já criados guardam o próprio texto; apagar/alterar o modelo não os afeta.
+
+### Modelos oficiais da AGU (licitações e contratos)
+
+A AGU publica modelos de editais, TR, contratos, contratação direta e listas de verificação em `.docx` (portal: <https://www.gov.br/compras/pt-br/nllc/modelos-de-licitacoes-e-contratos>). **O Foro não traz esses textos embutidos**: o ambiente de desenvolvimento não consegue baixar os `.docx` e não é correto reproduzi-los de memória. Para usá-los: baixe o arquivo da AGU e **importe em Modelos do escritório** (ou coloque na pasta `modelos/` da VPS). Depois de conferir, o admin marca como *revisado*. Para petições, não existe biblioteca oficial única — use as peças aprovadas do próprio escritório.
+
+## 6.2 Escritório, administrador principal e permissões
+
+- Escritório = **conta**. Todos os dados (clientes, processos, documentos, modelos, equipe, créditos) são isolados por conta. Quem se cadastra cria o escritório e vira o **administrador principal** (`accounts.owner_user_id`), que **não pode ser rebaixado nem desativado**; novos usuários entram por convite do admin.
+- Permissões por usuário comum (`users.permissions`, mescladas ao salvar): `templates_manage` (padrão **não**), `ai_drafts` (padrão sim — gerar rascunho com IA, gasta créditos) e `delete_records` (padrão sim — excluir processos/documentos). Administradores sempre podem tudo. Bloqueio devolve `403 PERMISSION_DENIED` com a permissão faltante; a tela esconde/desabilita as ações.
+- **Ainda não feito (próxima rodada):** painel do admin com consumo de IA por usuário e tempo de uso na plataforma; mais permissões (ex.: ver só os próprios processos).
+
 ## 7. IA do chat (insights técnicos)
 
 O assistente passou a poder analisar processos: `get_case` devolve um contexto compacto (dados, campos da área e o que falta, partes, equipe, andamentos, prazos, documentos, orientação da área e **`legal_refs_allowed`**). O prompt exige: basear-se só nesses dados; citar apenas as referências permitidas; tratar prazos calculados como **estimativa** a confirmar no tribunal; não escrever peças inteiras no chat (criar o documento a partir de um modelo). Novas tools: `add_party`, `list_document_templates`, `create_document`; `create_case`/`update_case` aceitam `area_key`, `comarca`, `vara`, `magistrate`, `details`.
@@ -104,4 +124,4 @@ O assistente passou a poder analisar processos: `get_case` devolve um contexto c
 - Modelos e referências legais curadas **não foram revisados por advogado** (ver §5); a lista `refs` por área é pequena de propósito.
 - A trava só reconhece citações no formato textual usual; paráfrases sem número de artigo não são detectáveis. **A revisão humana continua obrigatória.**
 - Não há upload de arquivos/provas, movimentações automáticas (DataJud), publicações/intimações, honorários/despesas nem histórico de comunicação — ver `mercado-requisitos.md`.
-- Os modelos embutidos são lidos na subida do app (reiniciar para recarregar).
+- Os modelos embutidos e da VPS são lidos na subida do app (reiniciar para recarregar); os do escritório valem na hora.

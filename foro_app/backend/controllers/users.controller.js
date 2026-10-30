@@ -35,8 +35,8 @@ async function resendInvite(req, res) {
 }
 
 async function update(req, res) {
-  const { name, role, active } = req.body;
-  res.json(await usersService.update(req.params.id, req.account.id, { name, role, active }, req.user.id));
+  const { name, role, active, permissions } = req.body;
+  res.json(await usersService.update(req.params.id, req.account.id, { name, role, active, permissions }, req.user.id));
 }
 
 async function deactivate(req, res) {

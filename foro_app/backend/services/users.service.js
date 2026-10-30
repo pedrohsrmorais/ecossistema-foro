@@ -5,12 +5,13 @@ const { query, transaction } = require('../configs/db.config');
 const { AppError } = require('../middlewares/error.middleware');
 const authService = require('./auth.service');
 
+const permissions = require('../configs/permissions');
 const ROLES = ['admin', 'user'];
-const COLS = 'id, name, email, role, active, oab_number, email_verified_at, created_at';
+const COLS = 'id, name, email, role, active, oab_number, permissions, email_verified_at, created_at, (SELECT a.owner_user_id FROM accounts a WHERE a.id = users.account_id) AS owner_user_id';
 
 function _shape(u) {
-  const { email_verified_at, ...rest } = u;
-  return { ...rest, email_verified: Boolean(email_verified_at), pending_invite: !email_verified_at };
+  const { email_verified_at, permissions: stored, owner_user_id, ...rest } = u;
+  return { ...rest, is_owner: owner_user_id === u.id, permissions: permissions.resolve(u.role, stored), email_verified: Boolean(email_verified_at), pending_invite: !email_verified_at };
 }
 
 async function listByAccount(accountId) {
@@ -105,6 +106,9 @@ async function update(userId, accountId, data, actorId) {
     const o = String(data.oab_number || '').trim().slice(0, 30);
     fields.push('oab_number = ?'); values.push(o || null);
   }
+  if (data.permissions !== undefined) {
+    fields.push("permissions = JSON_MERGE_PATCH(COALESCE(permissions, JSON_OBJECT()), CAST(? AS JSON))"); values.push(JSON.stringify(permissions.sanitize(data.permissions))); // mescla: só muda as chaves enviadas
+  }
   if (data.role !== undefined && !ROLES.includes(data.role)) throw new AppError('Perfil inválido.', 422);
   if (data.role !== undefined) { fields.push('role = ?'); values.push(data.role); }
   if (data.active !== undefined) { fields.push('active = ?'); values.push(data.active ? 1 : 0); }
@@ -118,6 +122,10 @@ async function update(userId, accountId, data, actorId) {
       ((data.role !== undefined && data.role !== 'admin') || (data.active !== undefined && !data.active));
     if (losesAdmin && (await _activeAdmins(accountId, conn, userId)) === 0) {
       throw new AppError('A conta precisa de pelo menos um administrador ativo.', 400, 'LAST_ADMIN');
+    }
+    const [[acc]] = await conn.execute('SELECT owner_user_id FROM accounts WHERE id = ? LIMIT 1', [accountId]);
+    if (acc?.owner_user_id === userId && ((data.role !== undefined && data.role !== 'admin') || (data.active !== undefined && !data.active))) {
+      throw new AppError('O administrador principal do escritório não pode ser rebaixado nem desativado.', 400, 'OWNER_PROTECTED');
     }
     if (actorId === userId && data.active === false) throw new AppError('Você não pode desativar a si mesmo.', 400);
     if (data.active && !cur.active) await _assertUserLimit(accountId, conn); // reativar também conta no limite

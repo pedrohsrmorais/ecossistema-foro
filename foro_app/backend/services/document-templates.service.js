@@ -55,16 +55,43 @@ function load(force = false) {
   if (cache && !force) return cache;
   const map = new Map(); const problems = [];
   _scan(BUILTIN_DIR, 'embutido', map, problems);
-  _scan(process.env.DOCUMENT_TEMPLATES_DIR, 'escritório', map, problems);
+  _scan(process.env.DOCUMENT_TEMPLATES_DIR, 'servidor', map, problems);
   problems.forEach(p => console.warn('[templates] ignorado —', p));
   cache = { map, problems };
   return cache;
 }
 
-function list(areaKey) {
-  return [...load().map.values()].filter(t => !areaKey || t.area === areaKey || t.area === 'geral')
-    .map(({ body, ...meta }) => meta).sort((a, b) => a.area.localeCompare(b.area) || a.title.localeCompare(b.title));
+/** Modelo do escritório (tabela office_templates) no mesmo formato dos de arquivo. */
+function fromOffice(r) {
+  const legal = typeof r.legal_basis === 'string' ? JSON.parse(r.legal_basis || '[]') : (r.legal_basis || []);
+  return {
+    id: r.id, key: `o_${r.id}`, title: r.title, area: r.area_key, version: String(r.version), reviewed: !!r.reviewed, source: 'Modelo do escritório',
+    description: r.description || null, legal_basis: legal, origin: 'escritório', body: r.body,
+    ai_slots: (r.body.match(new RegExp(require('./document-guard').SLOT_SRC, 'g')) || []).length, office_id: r.id, created_by: r.created_by,
+  };
 }
-function get(key) { return load().map.get(key) || null; }
 
-module.exports = { load, list, get, BUILTIN_DIR };
+async function _office(accountId) {
+  if (!accountId) return [];
+  const { query } = require('../configs/db.config');
+  const [rows] = await query('SELECT * FROM office_templates WHERE account_id = ? AND deleted_at IS NULL ORDER BY title', [accountId]);
+  return rows.map(fromOffice);
+}
+
+/** Modelos visíveis para o escritório: os da plataforma + os próprios do escritório. */
+async function list(areaKey, accountId) {
+  const all = [...load().map.values(), ...(await _office(accountId))];
+  return all.filter(t => !areaKey || t.area === areaKey || t.area === 'geral')
+    .map(({ body, ...meta }) => meta).sort((a, b) => (a.origin === 'escritório') - (b.origin === 'escritório') || a.area.localeCompare(b.area) || a.title.localeCompare(b.title));
+}
+async function get(key, accountId) {
+  if (String(key).startsWith('o_')) {
+    if (!accountId) return null;
+    const { query } = require('../configs/db.config');
+    const [rows] = await query('SELECT * FROM office_templates WHERE id = ? AND account_id = ? AND deleted_at IS NULL LIMIT 1', [String(key).slice(2), accountId]);
+    return rows[0] ? fromOffice(rows[0]) : null;
+  }
+  return load().map.get(key) || null;
+}
+
+module.exports = { load, list, get, fromOffice, BUILTIN_DIR };

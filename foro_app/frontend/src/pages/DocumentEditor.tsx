@@ -3,7 +3,7 @@ import { useParams, useNavigate, Link } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { ArrowLeft, Save, Sparkles, Download, Printer, AlertTriangle, History, ShieldCheck, Eye, Pencil } from 'lucide-react'
 import clsx from 'clsx'
-import { documentsApi } from '../api'
+import { documentsApi, usersApi } from '../api'
 import { MdLite } from '../lib/mdLite'
 import { DOC_STATUS } from './Documents'
 import { fmtDate } from '../lib/cases'
@@ -13,6 +13,8 @@ export default function DocumentEditor() {
   const navigate = useNavigate()
   const qc = useQueryClient()
   const { data: doc, isLoading } = useQuery({ queryKey: ['document', id], queryFn: () => documentsApi.get(id!), enabled: !!id })
+  const { data: me } = useQuery({ queryKey: ['me-profile'], queryFn: usersApi.me })
+  const canAi = me?.permissions?.ai_drafts !== false
   const [content, setContent] = useState('')
   const [title, setTitle] = useState('')
   const [mode, setMode] = useState<'editar' | 'ver'>('ver')
@@ -73,7 +75,8 @@ export default function DocumentEditor() {
               <>
                 <p className="text-xs text-slate-500 mb-2">{slots} trecho(s) em roxo serão redigidos com os dados do processo e só com as referências legais liberadas para este modelo.</p>
                 <textarea className="input !text-sm min-h-[70px] mb-2" placeholder="Instruções extras (opcional): ex.: destacar o dano moral…" value={instr} onChange={e => setInstr(e.target.value)} maxLength={2000} />
-                <button className="btn-primary w-full justify-center" onClick={() => draft.mutate()} disabled={draft.isPending}>{draft.isPending ? 'Redigindo…' : 'Gerar rascunho'}</button>
+                {!canAi && <p className="text-xs text-amber-700 mb-2">O administrador não liberou a redação com IA para o seu usuário.</p>}
+                <button className="btn-primary w-full justify-center" onClick={() => draft.mutate()} disabled={draft.isPending || !canAi}>{draft.isPending ? 'Redigindo…' : 'Gerar rascunho'}</button>
               </>
             ) : <p className="text-xs text-slate-500">Nenhum trecho pendente para a IA neste documento.</p>}
           </section>
@@ -85,8 +88,8 @@ export default function DocumentEditor() {
             </p>
             {doc.template && (
               <div className="mt-2 text-xs text-slate-500 space-y-1">
-                <p>Modelo: <b>{doc.template.title}</b> ({doc.template.origin})</p>
-                {!doc.template.reviewed && <p className="text-amber-700">Modelo-base ainda não revisado por advogado. Revise antes de protocolar.</p>}
+                <p>Modelo: <b>{doc.template.title}</b> ({doc.template.origin === 'escritório' ? 'do escritório' : doc.template.origin === 'servidor' ? 'da plataforma' : 'modelo-base Foro'})</p>
+                {!doc.template.reviewed && <p className="text-amber-700">Modelo ainda não marcado como revisado. Revise antes de protocolar.</p>}
                 {doc.template.source && <p>Fonte: {doc.template.source}</p>}
                 {doc.template.legal_basis.length > 0 && <p>Base legal permitida à IA: {doc.template.legal_basis.join('; ')}</p>}
               </div>

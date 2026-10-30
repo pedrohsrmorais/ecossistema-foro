@@ -53,6 +53,7 @@ const corsOrigin = process.env.CORS_ORIGIN || (isProd && process.env.FRONTEND_UR
 app.use(cors({ origin: corsOrigin === '*' ? '*' : corsOrigin.split(',').map(s => s.trim()), credentials: corsOrigin !== '*' }));
 app.use(compression());
 // rawBody fica disponível p/ validar assinatura de webhooks (ex.: Stripe-Signature) sobre os bytes originais.
+app.use('/api/office-templates/extract', express.json({ limit: '5mb' })); // upload .docx em base64 (3 MB de arquivo)
 app.use(express.json({ limit: '1mb', verify: (req, res, buf) => { req.rawBody = buf; } }));
 app.use(express.urlencoded({ extended: true, limit: '1mb' }));
 

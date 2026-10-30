@@ -23,6 +23,7 @@
     "helmet": "^7.1.0",
     "js-yaml": "^4.1.0",
     "jsonwebtoken": "^9.0.2",
+    "mammoth": "^1.13.0",
     "morgan": "^1.10.0",
     "mysql2": "^3.6.5",
     "resend": "^6.34.1",

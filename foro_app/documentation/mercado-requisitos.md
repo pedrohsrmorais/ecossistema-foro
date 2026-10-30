@@ -67,6 +67,8 @@ Centerbase (EUA) e na documentação pública do DataJud/CNJ. Onde a fonte não 
 | Campos técnicos por área para a IA | ✅ |
 | Prazos, audiências, compromissos, tarefas | ✅ (rodada anterior; agora alerta toda a equipe do processo) |
 | **Elaboração de documentos** (petição, ETP, TR…) | ✅ MVP: modelos + IA nos trechos marcados + Word/PDF (modelos **não revisados**) |
+| Modelos próprios do escritório + permissões por usuário | ✅ importação de peça pronta por IA, editor, revisão pelo admin |
+| Consumo de IA e tempo de uso por usuário (painel do admin) | ❌ próxima rodada |
 | Provas / anexos (upload) | ❌ não feito |
 | Movimentações automáticas e publicações/intimações | ❌ não feito (DataJud / provedor pago) |
 | Honorários, despesas, pagamentos | ❌ não feito |

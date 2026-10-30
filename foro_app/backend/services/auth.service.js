@@ -57,6 +57,8 @@ async function register({ name, email, password, phone, accountName }) {
       [userId, accountId, name, email, phone || null, passwordHash, 'admin']
     );
 
+    await conn.execute('UPDATE accounts SET owner_user_id = ? WHERE id = ?', [userId, accountId]);
+
     // Cria campos de sistema padrão
     await _seedDefaultFields(conn, accountId);
     await caseStages.seedAccount((sql, p) => conn.execute(sql, p), accountId);

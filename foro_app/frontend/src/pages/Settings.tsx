@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { settingsApi, fieldsApi, usersApi, alertsApi } from '../api'
+import { settingsApi, fieldsApi, usersApi, alertsApi, permissionsApi, type Permissions } from '../api'
 import { useAuth } from '../context/AuthContext'
 
 function TeamSection({ maxUsers }: { maxUsers?: number }) {
@@ -21,6 +21,12 @@ function TeamSection({ maxUsers }: { maxUsers?: number }) {
   const resend = useMutation({ mutationFn: (id: string) => usersApi.resendInvite(id), onSuccess: () => setMsg({ ok: true, text: 'Convite reenviado (confira também o spam/lixeira).' }), onError: fail })
   const toggle = useMutation({ mutationFn: (u: { id: string; active: boolean }) => usersApi.update(u.id, { active: u.active }), onSuccess: () => { setMsg(null); refresh() }, onError: fail })
   const activeCount = team.filter(u => u.active).length
+  const { data: defs = [] } = useQuery({ queryKey: ['perm-defs'], queryFn: permissionsApi.defs, staleTime: 10 * 60_000, enabled: isAdmin })
+  const [openPerm, setOpenPerm] = useState<string | null>(null)
+  const setPerm = useMutation({
+    mutationFn: ({ id, p }: { id: string; p: Partial<Permissions> }) => usersApi.update(id, { permissions: p }),
+    onSuccess: () => { setMsg(null); refresh() }, onError: fail,
+  })
 
   return (
     <div className="card p-5">
@@ -41,7 +47,7 @@ function TeamSection({ maxUsers }: { maxUsers?: number }) {
                   <div className="text-slate-900">{u.name}{u.id === me?.id && <span className="text-slate-400"> (você)</span>}</div>
                   <div className="text-xs text-slate-500">{u.email}</div>
                 </td>
-                <td className="px-4 py-2.5 text-slate-500 text-xs">{u.role === 'admin' ? 'Administrador' : 'Membro'}</td>
+                <td className="px-4 py-2.5 text-slate-500 text-xs">{u.is_owner ? 'Administrador principal' : u.role === 'admin' ? 'Administrador' : 'Membro'}</td>
                 <td className="px-4 py-2.5">
                   {!u.active ? <span className="badge bg-slate-100 text-slate-500">inativo</span>
                     : u.pending_invite ? <span className="badge bg-amber-100 text-amber-700 whitespace-nowrap">aguardando e-mail</span>
@@ -51,7 +57,10 @@ function TeamSection({ maxUsers }: { maxUsers?: number }) {
                   {isAdmin && u.active && u.pending_invite && (
                     <button className="text-xs text-brand-600 hover:underline mr-3" onClick={() => resend.mutate(u.id)}>Reenviar convite</button>
                   )}
-                  {isAdmin && u.id !== me?.id && (
+                  {isAdmin && u.role !== 'admin' && u.active && (
+                    <button className="text-xs text-brand-600 hover:underline mr-3" aria-expanded={openPerm === u.id} onClick={() => setOpenPerm(openPerm === u.id ? null : u.id)}>Permissões</button>
+                  )}
+                  {isAdmin && u.id !== me?.id && !u.is_owner && (
                     <button className="text-xs text-slate-500 hover:text-slate-900" onClick={() => toggle.mutate({ id: u.id, active: !u.active })}>
                       {u.active ? 'Desativar' : 'Reativar'}
                     </button>
@@ -59,6 +68,27 @@ function TeamSection({ maxUsers }: { maxUsers?: number }) {
                 </td>
               </tr>
             ))}
+            {isAdmin && openPerm && (() => {
+              const u = team.find(x => x.id === openPerm)
+              if (!u) return null
+              return (
+                <tr className="bg-slate-50 border-b">
+                  <td colSpan={4} className="px-4 py-3">
+                    <p className="text-xs font-medium text-slate-600 mb-2">O que {u.name} pode fazer</p>
+                    <div className="space-y-1.5">
+                      {defs.map(d => (
+                        <label key={d.key} className="flex items-center gap-2 text-sm cursor-pointer">
+                          <input type="checkbox" className="w-4 h-4" checked={!!u.permissions?.[d.key]} disabled={setPerm.isPending}
+                            onChange={e => setPerm.mutate({ id: u.id, p: { [d.key]: e.target.checked } })} />
+                          <span>{d.label}</span>
+                        </label>
+                      ))}
+                    </div>
+                    <p className="text-xs text-slate-400 mt-2">Administradores sempre podem tudo. Cada escritório (conta) tem seus próprios usuários, clientes, processos e modelos.</p>
+                  </td>
+                </tr>
+              )
+            })()}
           </tbody>
         </table>
       </div>

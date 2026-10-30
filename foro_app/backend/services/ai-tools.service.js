@@ -300,7 +300,7 @@ async function executeTool(toolName, toolInput, context) {
       return partiesService.add(case_id, accountId, p);
     }
     case 'list_document_templates':
-      return templatesService.list(toolInput.area_key);
+      return templatesService.list(toolInput.area_key, accountId);
     case 'create_document': {
       const doc = await documentsService.create(accountId, { id: userId }, toolInput);
       return { id: doc.id, title: doc.title, status: doc.status, open_flags: doc.open_flags, pending_ai_slots: doc.pending_ai_slots };

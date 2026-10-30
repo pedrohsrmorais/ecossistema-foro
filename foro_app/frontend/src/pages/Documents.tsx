@@ -1,9 +1,9 @@
 import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { FileText, Plus, Sparkles, AlertTriangle, Trash2, ShieldCheck } from 'lucide-react'
+import { FileText, Plus, Sparkles, AlertTriangle, Trash2, ShieldCheck, Library } from 'lucide-react'
 import clsx from 'clsx'
-import { documentsApi, areasApi, casesApi, type DocumentTemplate } from '../api'
+import { documentsApi, areasApi, casesApi, usersApi, type DocumentTemplate } from '../api'
 import { fmtDate } from '../lib/cases'
 
 export const DOC_STATUS: Record<string, { label: string; pill: string }> = {
@@ -14,6 +14,8 @@ export const DOC_STATUS: Record<string, { label: string; pill: string }> = {
 
 export default function Documents() {
   const qc = useQueryClient()
+  const { data: me } = useQuery({ queryKey: ['me-profile'], queryFn: usersApi.me })
+  const canDelete = me?.permissions?.delete_records !== false
   const navigate = useNavigate()
   const [area, setArea] = useState('')
   const [search, setSearch] = useState('')
@@ -41,7 +43,10 @@ export default function Documents() {
           <h1 className="text-xl font-semibold text-slate-900">Documentos</h1>
           <p className="text-sm text-slate-500">Peças e documentos a partir de modelos prontos. A IA só redige os trechos marcados e nunca cita lei fora da lista de referências.</p>
         </div>
-        <button className="btn-primary" onClick={() => setPicking(p => !p)}><Plus className="w-4 h-4" /> Novo documento</button>
+        <div className="flex gap-2">
+          <Link to="/documentos/modelos" className="btn-secondary"><Library className="w-4 h-4" /> Modelos do escritório</Link>
+          <button className="btn-primary" onClick={() => setPicking(p => !p)}><Plus className="w-4 h-4" /> Novo documento</button>
+        </div>
       </div>
       {error && <p className="mb-3 text-sm text-red-600">{error}</p>}
 
@@ -68,8 +73,8 @@ export default function Documents() {
                 </div>
                 {t.description && <p className="text-xs text-slate-500 mt-1">{t.description}</p>}
                 <p className="text-[11px] mt-1.5 flex items-center gap-1.5 text-slate-400">
-                  {t.reviewed ? <span className="text-green-700 flex items-center gap-1"><ShieldCheck className="w-3 h-3" /> revisado</span> : <span className="text-amber-700">modelo-base · revisar antes de usar</span>}
-                  <span>· {t.origin === 'escritório' ? 'do seu escritório' : 'embutido'}</span>
+                  {t.reviewed ? <span className="text-green-700 flex items-center gap-1"><ShieldCheck className="w-3 h-3" /> revisado</span> : <span className="text-amber-700">não revisado · confira antes de usar</span>}
+                  <span className={t.origin === 'escritório' ? 'text-brand-700 font-medium' : ''}>· {t.origin === 'escritório' ? 'do seu escritório' : t.origin === 'servidor' ? 'da plataforma' : 'modelo-base Foro'}</span>
                   {t.ai_slots > 0 && <span className="flex items-center gap-0.5"><Sparkles className="w-3 h-3" /> {t.ai_slots} trecho(s) IA</span>}
                 </p>
               </button>
@@ -104,7 +109,7 @@ export default function Documents() {
               {d.open_flags > 0 && <span className="badge bg-amber-100 text-amber-700 !py-0 flex items-center gap-1"><AlertTriangle className="w-3 h-3" />{d.open_flags}</span>}
               <span className={clsx('badge !py-0', DOC_STATUS[d.status].pill)}>{DOC_STATUS[d.status].label}</span>
               <span className="text-xs text-slate-400 w-20 text-right">{fmtDate(d.updated_at)}</span>
-              <button onClick={() => confirm(`Excluir "${d.title}"?`) && remove.mutate(d.id)} title="Excluir" className="text-slate-300 hover:text-red-600 opacity-0 group-hover:opacity-100"><Trash2 className="w-4 h-4" /></button>
+              {canDelete && <button onClick={() => confirm(`Excluir "${d.title}"?`) && remove.mutate(d.id)} title="Excluir" className="text-slate-300 hover:text-red-600 opacity-0 group-hover:opacity-100"><Trash2 className="w-4 h-4" /></button>}
             </li>
           ))}
         </ul>

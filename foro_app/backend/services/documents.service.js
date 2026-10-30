@@ -107,7 +107,7 @@ async function list(accountId, { case_id, area_key, status, search } = {}) {
 async function getById(id, accountId) {
   const d = await _get(id, accountId);
   const [versions] = await query('SELECT version_no, note, created_at FROM document_versions WHERE document_id = ? ORDER BY version_no DESC LIMIT 50', [id]);
-  const tpl = d.template_key ? templates.get(d.template_key) : null;
+  const tpl = d.template_key ? await templates.get(d.template_key, accountId) : null;
   return { ...d, versions, template: tpl ? { key: tpl.key, title: tpl.title, reviewed: tpl.reviewed, origin: tpl.origin, source: tpl.source, legal_basis: tpl.legal_basis } : null,
     pending_ai_slots: (d.content.match(new RegExp(guard.SLOT_SRC, 'g')) || []).length };
 }
@@ -120,7 +120,7 @@ async function _saveVersion(conn, d, accountId, userId, note) {
 
 /** Cria o documento a partir de um modelo (sem IA): estrutura + dados do sistema. */
 async function create(accountId, user, { template_key, case_id, title, lead_id } = {}) {
-  const tpl = templates.get(template_key);
+  const tpl = await templates.get(template_key, accountId);
   if (!tpl) throw new AppError('Modelo não encontrado.', 404);
   if (case_id) await casesService.getById(case_id, accountId);
   const { ctx } = await buildContext(accountId, user, case_id || null);
@@ -207,7 +207,7 @@ async function draftWithAI(id, accountId, user, { instructions } = {}) {
   if (slots.length > 25) throw new AppError('Trechos demais para uma única geração.', 422, 'VALIDATION');
   await aiCredits.assertHasCredits(accountId);
 
-  const tpl = d.template_key ? templates.get(d.template_key) : null;
+  const tpl = d.template_key ? await templates.get(d.template_key, accountId) : null;
   const area = areas.get(d.area_key);
   const { c } = await buildContext(accountId, user, d.case_id);
   const allowedIds = [...new Set([...(tpl?.legal_basis || []), ...area.refs.map(r => r.id)])];
@@ -304,4 +304,9 @@ async function exportDocx(id, accountId) {
   return { buffer: await docx.Packer.toBuffer(doc), filename: `${d.title.replace(/[^\p{L}\p{N}]+/gu, '_').replace(/^_|_$/g, '').slice(0, 80) || 'documento'}.docx` };
 }
 
-module.exports = { buildContext, fill, list, getById, create, createBlank, update, remove, restoreVersion, getVersion, draftWithAI, exportDocx, STATUSES };
+/** Placeholders aceitos nos modelos. */
+const PLACEHOLDERS = ['escritorio', 'cidade', 'advogado.nome', 'advogado.oab', 'data.hoje', 'data.extenso',
+  'processo.numero', 'processo.titulo', 'processo.tribunal', 'processo.comarca', 'processo.vara', 'processo.magistrado', 'processo.area', 'processo.fase', 'processo.valor_causa',
+  'cliente.nome', 'cliente.qualificacao', 'cliente.documento', 'parte_contraria.nome', 'parte_contraria.qualificacao'];
+
+module.exports = { PLACEHOLDERS, buildContext, fill, list, getById, create, createBlank, update, remove, restoreVersion, getVersion, draftWithAI, exportDocx, STATUSES };

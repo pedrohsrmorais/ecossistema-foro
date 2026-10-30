@@ -449,6 +449,22 @@ Além das 10 originais de leads/notas/tarefas, o chat opera: `create_case`, `sea
 
 `PUT /users/me` aceita `oab_number`.
 
+## Modelos do escritório e permissões
+
+| Método | Rota | Descrição |
+|---|---|---|
+| GET | `/permissions` | Catálogo de permissões (`templates_manage`, `ai_drafts`, `delete_records`) |
+| PUT | `/users/:id` | **Admin.** Aceita `permissions: { chave: boolean }` (mescla; chaves desconhecidas ignoradas). Dono do escritório: `400 OWNER_PROTECTED` ao rebaixar/desativar. `GET /users*` traz `permissions` e `is_owner` |
+| GET | `/office-templates` · `/office-templates/:id` | Modelos do escritório (qualquer usuário da conta) |
+| POST | `/office-templates` | **Permissão `templates_manage`.** `{ title, area_key, description?, body, legal_basis? }` (sem `legal_basis`, usa os dispositivos citados no texto). Nasce não revisado |
+| PUT | `/office-templates/:id` | Edita (usuário comum só os seus). `reviewed` só admin; mudar o texto zera `reviewed` |
+| DELETE | `/office-templates/:id` | Exclusão lógica (usuário comum só os seus) |
+| POST | `/office-templates/check` | `{ body, area_key }` → `unknown_placeholders`, `ai_slots` |
+| POST | `/office-templates/extract` | `{ data_base64 }` (.docx ≤ 3 MB) → `{ text }` |
+| POST | `/office-templates/convert` | `{ text, area_key? }` — IA converte peça pronta em modelo; devolve `body`, `legal_basis`, `modified_fragments`, `credits_used`. Gasta créditos |
+
+`GET /document-templates` passa a incluir os modelos do escritório (`origin: "escritório"`, chave `o_<id>`); `origin` dos demais: `embutido` ou `servidor`. `POST /documents/:id/draft` exige `ai_drafts`; `DELETE /documents/:id` e `DELETE /cases/:id` exigem `delete_records`.
+
 ## Pagamentos (Stripe — somente cartão)
 
 Detalhes do fluxo, eventos e configuração do Dashboard: [pagamentos.md](./pagamentos.md).

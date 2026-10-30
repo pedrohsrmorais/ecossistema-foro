@@ -83,6 +83,7 @@ CREATE TABLE IF NOT EXISTS accounts (
   cancel_at_period_end   TINYINT(1)  NOT NULL DEFAULT 0 COMMENT '1 = cancelamento agendado para o fim do período',
   created_at     DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at     DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  owner_user_id VARCHAR(36) NULL COMMENT 'administrador principal do escritório',
   PRIMARY KEY (id),
   UNIQUE KEY uk_accounts_slug (slug),
   KEY idx_accounts_stripe_customer (stripe_customer_id),
@@ -106,6 +107,7 @@ CREATE TABLE IF NOT EXISTS users (
   phone_verified_at  DATETIME     NULL,
   created_at         DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at         DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  permissions JSON NULL COMMENT 'permissões definidas pelo admin: { templates_manage, ai_drafts, delete_records }',
   PRIMARY KEY (id),
   UNIQUE KEY uk_users_email (email),
   UNIQUE KEY uk_users_phone (phone),
@@ -901,3 +903,21 @@ ON DUPLICATE KEY UPDATE
 -- dinamicamente por conta (tenant) no momento do cadastro, em
 -- auth.service.js::_seedDefaultFields(), pois cada conta tem suas próprias
 -- field_definitions isoladas.
+
+CREATE TABLE IF NOT EXISTS office_templates (
+  id          VARCHAR(36)  NOT NULL DEFAULT (UUID()),
+  account_id  VARCHAR(36)  NOT NULL,
+  title       VARCHAR(200) NOT NULL,
+  area_key    VARCHAR(30)  NOT NULL DEFAULT 'geral',
+  description VARCHAR(500) NULL,
+  body        MEDIUMTEXT   NOT NULL,
+  legal_basis JSON         NULL COMMENT 'dispositivos que a IA pode citar neste modelo',
+  reviewed    TINYINT(1)   NOT NULL DEFAULT 0 COMMENT '1 = admin confirmou que o modelo foi revisado',
+  version     INT          NOT NULL DEFAULT 1,
+  created_by  VARCHAR(36)  NOT NULL,
+  created_at  DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at  DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  deleted_at  DATETIME     NULL,
+  PRIMARY KEY (id),
+  KEY idx_office_tpl_account (account_id, deleted_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

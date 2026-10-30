@@ -227,7 +227,11 @@ export interface User {
   pending_invite?: boolean
   email_verified?: boolean
   oab_number?: string | null
+  is_owner?: boolean
+  permissions?: Permissions
 }
+export type Permissions = { templates_manage: boolean; ai_drafts: boolean; delete_records: boolean }
+export interface PermissionDef { key: keyof Permissions; label: string; default: boolean }
 
 export interface ServicePrice {
   service_key: string
@@ -332,7 +336,7 @@ export const usersApi = {
     http.get<User>(`/users/${id}`).then(r => r.data),
 
   /** PUT /users/:id */
-  update: (id: string, data: Partial<User>) =>
+  update: (id: string, data: Omit<Partial<User>, 'permissions'> & { permissions?: Partial<Permissions> }) =>
     http.put<User>(`/users/${id}`, data).then(r => r.data),
 
   /** DELETE /users/:id */
@@ -498,7 +502,7 @@ export interface CaseParty {
 }
 export interface CaseMember { id: string; user_id: string; role: 'responsavel' | 'colaborador'; name: string; email: string }
 export interface DocumentSummary { id: string; case_id: string | null; template_key: string | null; area_key: string; title: string; status: 'rascunho' | 'revisado' | 'final'; ai_generated: number; open_flags: number; updated_at: string; case_title?: string | null; case_number?: string | null }
-export interface DocumentTemplate { key: string; title: string; area: string; version: string; reviewed: boolean; source: string | null; description: string | null; legal_basis: string[]; origin: string; ai_slots: number }
+export interface DocumentTemplate { id?: string; key: string; title: string; area: string; version: string; reviewed: boolean; source: string | null; description: string | null; legal_basis: string[]; origin: string; ai_slots: number }
 export interface DocumentFull extends DocumentSummary {
   content: string; pending_ai_slots: number
   versions: { version_no: number; note: string | null; created_at: string }[]
@@ -557,6 +561,22 @@ export const casePeopleApi = {
 }
 
 export interface DraftResult { document: DocumentFull; flagged_citations: string[]; unfilled_slots: number; credits_used: number }
+export interface OfficeTemplate extends DocumentTemplate { id: string; body: string; unknown_placeholders: string[]; created_by?: string }
+export interface OfficeTemplateRow { id: string; key: string; title: string; area_key: string; description: string | null; reviewed: number; version: number; legal_basis: string[]; created_by: string; created_by_name: string | null; updated_at: string; size: number }
+export interface ConvertResult { title: string; description: string | null; area_key: string; body: string; legal_basis: string[]; modified_fragments: string[]; unknown_placeholders: string[]; ai_slots: number; credits_used: number }
+export interface TemplateInput { title: string; area_key: string; description?: string | null; body: string; reviewed?: boolean; legal_basis?: string[] }
+export const permissionsApi = { defs: () => http.get<PermissionDef[]>('/permissions').then(r => r.data) }
+export const officeTemplatesApi = {
+  list: () => http.get<OfficeTemplateRow[]>('/office-templates').then(r => r.data),
+  get: (id: string) => http.get<OfficeTemplate>(`/office-templates/${id}`).then(r => r.data),
+  create: (d: TemplateInput) => http.post<OfficeTemplate>('/office-templates', d).then(r => r.data),
+  update: (id: string, d: Partial<TemplateInput>) => http.put<OfficeTemplate>(`/office-templates/${id}`, d).then(r => r.data),
+  remove: (id: string) => http.delete(`/office-templates/${id}`).then(r => r.data),
+  check: (body: string, area_key: string) => http.post<{ unknown_placeholders: string[]; ai_slots: number }>('/office-templates/check', { body, area_key }).then(r => r.data),
+  extract: (data_base64: string) => http.post<{ text: string; truncated: boolean }>('/office-templates/extract', { data_base64 }).then(r => r.data),
+  convert: (text: string, area_key?: string) => http.post<ConvertResult>('/office-templates/convert', { text, area_key }).then(r => r.data),
+}
+
 export const documentsApi = {
   templates: (area_key?: string) => http.get<{ templates: DocumentTemplate[] }>('/document-templates', { params: { area_key } }).then(r => r.data.templates),
   list: (params?: { case_id?: string; area_key?: string; status?: string; search?: string }) => http.get<DocumentSummary[]>('/documents', { params }).then(r => r.data),

@@ -62,6 +62,19 @@ function guard(text, allowedRefIds = []) {
   return { text: out, flags };
 }
 
+/** Chave canônica -> id de referência legível ("CPC:319" -> "CPC art. 319"). */
+function idFromKey(key) {
+  const [st, art] = String(key).split(':');
+  if (!art) return null;
+  const m = st.match(/^L(\d+)\/(\d{4})$/);
+  if (m) { const n = m[1].replace(/\B(?=(\d{3})+(?!\d))/g, '.'); return `Lei ${n}/${m[2]} art. ${art}`; }
+  return `${st} art. ${art}`;
+}
+/** Dispositivos citados num texto (ids únicos) — usado para liberar a IA a citar o que o próprio modelo do escritório já cita. */
+function citedRefIds(text) {
+  return [...new Set(findCitations(String(text || '')).map(c => c.key && idFromKey(c.key)).filter(Boolean))];
+}
+
 /** Quantos marcadores pendentes (PREENCHER/CONFERIR/IA) o documento ainda tem. */
 function countOpen(text) {
   return (String(text || '').match(/\[(?:PREENCHER|CONFERIR)\b[^\]]*\]/g) || []).length + (String(text || '').match(new RegExp(SLOT_SRC, 'g')) || []).length;
@@ -70,4 +83,4 @@ function countOpen(text) {
 /** Trecho a ser preenchido pela IA: [[IA: instrução]] — aceita [colchetes] simples dentro da instrução. */
 const SLOT_SRC = '\\[\\[IA:((?:[^\\[\\]]|\\[[^\\[\\]]*\\])*)\\]\\]';
 
-module.exports = { SLOT_SRC, guard, countOpen, findCitations, keyFromRefId, refKey };
+module.exports = { idFromKey, citedRefIds, SLOT_SRC, guard, countOpen, findCitations, keyFromRefId, refKey };
