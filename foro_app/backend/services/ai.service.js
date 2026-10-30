@@ -328,7 +328,12 @@ INSIGHTS TÉCNICOS SOBRE PROCESSOS (permitidos, com disciplina):
 /** Traduz o erro da API da Anthropic em algo que o dono da plataforma consiga corrigir (não expõe segredo). */
 function diagnose(err) {
   const msg = String(err?.message || '');
-  if (err?.status === 401 || err?.status === 403) return 'A chave ANTHROPIC_API_KEY foi recusada pela Anthropic (inválida, revogada ou sem permissão). Confira o .env da VPS e reinicie o container.';
+  if (err?.status === 401 || err?.status === 403) {
+    const k = process.env.ANTHROPIC_API_KEY || '';
+    const raw = String(err?.error?.error?.message || msg).slice(0, 140);
+    const hint = k !== k.trim() || /["'\s]/.test(k) ? ' ATENÇÃO: a chave lida tem espaço, aspas ou quebra de linha — corrija o .env.' : '';
+    return `A Anthropic recusou a chave (HTTP ${err.status}: ${raw}). A chave lida pelo container começa com "${k.slice(0, 10)}…" e tem ${k.length} caracteres.${hint}`;
+  }
   if (err?.status === 404) return `O modelo "${MODEL}" não existe para esta chave. Ajuste ANTHROPIC_MODEL no .env da VPS (ex.: claude-sonnet-5-5) e reinicie.`;
   if (err?.status === 400 && /credit balance|billing/i.test(msg)) return 'A conta da Anthropic está sem saldo. Adicione créditos em console.anthropic.com > Billing.';
   if (err?.status === 400) return 'A Anthropic recusou a requisição: ' + msg.slice(0, 160);
