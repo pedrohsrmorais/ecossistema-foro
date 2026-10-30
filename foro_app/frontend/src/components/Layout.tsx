@@ -1,7 +1,7 @@
 import { Outlet, NavLink, useNavigate, useLocation } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import {
-  MessageSquare, ScrollText, Users, LayoutDashboard, CheckSquare, Settings, LogOut, Scale,
+  MessageSquare, Users, LayoutDashboard, CheckSquare, Settings, LogOut, Scale,
   GraduationCap, FileText, Sparkles, Wand2, Landmark, CreditCard, LifeBuoy, Clock, Briefcase, CalendarDays, Building2, UserSearch, Gavel, FlaskConical, Trophy, Users2,
 } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
@@ -28,7 +28,6 @@ type NavItem = { to: string; label: string; icon: typeof Scale; module: string |
 // gira em torno dele (provas de conceito, desafios semanais).
 const NAV_TOP: NavItem[] = [
   { to: '/chat',      label: 'IA',      icon: MessageSquare,   module: 'crm', access: 'ai', crm: true },
-  { to: '/ia-log',    label: 'Log da IA', icon: ScrollText,    module: 'crm', access: 'ai', crm: true },
   { to: '/leads',     label: 'Leads',   icon: Users,           module: 'crm', access: 'leads', crm: true },
   { to: '/processos', label: 'Processos', icon: Briefcase,    module: 'crm', access: 'cases', crm: true },
   { to: '/documentos', label: 'Documentos', icon: FileText,   module: 'crm', access: 'documents', crm: true },
@@ -84,7 +83,7 @@ export default function Layout() {
   const hasOffice = office?.configured !== false // enquanto carrega, assume que tem (evita piscar o bloqueio)
   const canAccess = (item: NavItem) => !item.access || meP?.permissions?.[('access_' + item.access) as keyof NonNullable<typeof meP.permissions>] !== false
   const visible = (item: NavItem) => (!item.module || !disabledModules.has(item.module)) && canAccess(item)
-  const CRM_PATHS = ['/chat', '/leads', '/processos', '/documentos', '/agenda', '/dashboard', '/tasks', '/gerador-documentos', '/ia-log']
+  const CRM_PATHS = ['/chat', '/leads', '/processos', '/documentos', '/agenda', '/dashboard', '/tasks', '/gerador-documentos']
   const gated = !hasOffice && CRM_PATHS.some(p => location.pathname === p || location.pathname.startsWith(p + '/'))
 
   // Tempo ativo na aba: um "ping" por minuto enquanto a aba está visível e houve interação recente

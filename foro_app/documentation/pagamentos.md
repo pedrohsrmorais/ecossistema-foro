@@ -169,5 +169,5 @@ Cada usuário paga um plano independente. O administrador do escritório contrat
 ## IA: áudio, log e diagnóstico
 
 - Áudio: botão de microfone no chat usa o ditado do navegador (Web Speech API, pt-BR); o texto é conferido antes de enviar. Sem suporte no Firefox; não há upload de arquivo de áudio.
-- Log da IA (`/ia-log`): tudo que a IA fez, com botão Desfazer.
+- Log da IA: aba "Log" dentro do painel do assistente (chat da direita), com tudo que a IA fez e botão Desfazer.
 - Se a IA falhar: admin clica em "Testar conexão da IA" no Log da IA; confira `docker compose logs backend | grep "\[ai\]"`, a `ANTHROPIC_API_KEY`, `ANTHROPIC_MODEL` (ex.: `claude-sonnet-5-5`) e o saldo na Anthropic.

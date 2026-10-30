@@ -6,6 +6,7 @@ import { Link } from 'react-router-dom'
 import clsx from 'clsx'
 import { useChat } from '../context/ChatContext'
 import CreditMeter from './CreditMeter'
+import AiLogPanel from './AiLogPanel'
 
 const SUGGESTIONS = [
   'Cadastra um lead: Maria Souza, trabalhista, 51 99999-1234',
@@ -36,6 +37,7 @@ function UndoButton({ id }: { id: string }) {
 }
 
 export default function ChatPanel({ compact = false }: { compact?: boolean }) {
+  const [tab, setTab] = useState<'chat' | 'log'>('chat')
   const [listening, setListening] = useState(false)
   const recRef = useRef<any>(null)
   function toggleMic() {
@@ -75,6 +77,14 @@ export default function ChatPanel({ compact = false }: { compact?: boolean }) {
         <button onClick={reset} className="btn-secondary text-xs !px-2.5 !py-1.5"><Plus className="w-3.5 h-3.5" /> Nova</button>
       </div>
 
+      <div className="flex border-b px-3 text-sm" role="tablist">
+        {([['chat', 'Conversa'], ['log', 'Log']] as const).map(([k, l]) => (
+          <button key={k} role="tab" aria-selected={tab === k} onClick={() => setTab(k)}
+            className={clsx('px-3 py-2 -mb-px border-b-2', tab === k ? 'border-accent-500 text-slate-900 font-medium' : 'border-transparent text-slate-500 hover:text-slate-700')}>{l}</button>
+        ))}
+      </div>
+
+      {tab === 'log' ? <AiLogPanel /> : <>
       <div className="px-4 pt-3"><CreditMeter variant="light" /></div>
 
       <div className={clsx('flex-1 overflow-y-auto space-y-4', compact ? 'p-3' : 'p-4')}>
@@ -163,8 +173,9 @@ export default function ChatPanel({ compact = false }: { compact?: boolean }) {
             <Send className="w-4 h-4" />
           </button>
         </form>
-        <p className="text-[11px] text-slate-400 text-center mt-1.5">A IA pode cometer erros. Tudo que ela faz fica no <Link to="/ia-log" className="underline">Log da IA</Link>, onde você pode desfazer.</p>
+        <p className="text-[11px] text-slate-400 text-center mt-1.5">A IA pode cometer erros. Tudo que ela faz fica na aba <button type="button" className="underline" onClick={() => setTab('log')}>Log</button>, onde você pode desfazer.</p>
       </div>
+      </>}
     </div>
   )
 }
