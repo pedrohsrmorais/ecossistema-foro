@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useQuery, useMutation, useQueryClient, keepPreviousData } from '@tanstack/react-query'
-import { Archive, Search, FileText, Download, Trash2, X, Copy, Check, Database, ChevronLeft, ChevronRight } from 'lucide-react'
+import { Archive, Search, FileText, Info, Download, Trash2, X, Copy, Check, Database, ChevronLeft, ChevronRight } from 'lucide-react'
 import { savedProcessesApi, SavedProcess } from '../../api'
 
 const LIMIT = 15
@@ -126,7 +126,7 @@ export default function ProcessosSalvos() {
     <div className="p-6 max-w-6xl animate-fade-in">
       <div className="mb-5">
         <h1 className="text-xl font-semibold text-slate-900 flex items-center gap-2"><Archive className="w-5 h-5 text-accent-500" /> Processos salvos</h1>
-        <p className="text-sm text-slate-500 mt-1">Tudo que foi salvo no armazenamento. Os dados e o caminho de cada arquivo ficam no banco, então a busca é rápida.</p>
+        <p className="text-sm text-slate-500 mt-1">Clique em um processo para abrir o PDF. Os dados e o caminho de cada arquivo ficam no banco, então a busca é rápida.</p>
       </div>
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-5" data-testid="resumo">
@@ -159,18 +159,19 @@ export default function ProcessosSalvos() {
       <div className="card overflow-x-auto">
         <table className="w-full text-sm" data-testid="tabela">
           <thead><tr className="text-left text-[11px] uppercase tracking-wide text-slate-400 border-b border-slate-200">
-            <th className="p-3">Processo</th><th className="p-3">Partes</th><th className="p-3">Salvo</th><th className="p-3">Arquivo</th><th className="p-3">Local no S3</th><th className="p-3 w-24" />
+            <th className="p-3">Processo</th><th className="p-3">Partes</th><th className="p-3">Salvo</th><th className="p-3">Arquivo</th><th className="p-3">Local no S3</th><th className="p-3 w-28" />
           </tr></thead>
           <tbody>
             {list.data?.data.map(p => (
-              <tr key={p.id} data-testid="linha" className="border-b border-slate-100 hover:bg-slate-50 cursor-pointer" onClick={() => setDetail(p)}>
+              <tr key={p.id} data-testid="linha" className="border-b border-slate-100 hover:bg-slate-50 cursor-pointer" onClick={() => setPdf(p)} title="Clique para abrir o PDF">
                 <td className="p-3 align-top"><p className="font-medium text-slate-900">{p.numero_cnj}</p><p className="text-xs text-slate-500">{p.tribunal} · {p.classe}</p></td>
                 <td className="p-3 align-top text-xs text-slate-600">{p.parties.map((x, i) => <span key={i} className="block">{x.nome}</span>)}</td>
                 <td className="p-3 align-top text-xs text-slate-600">{fmtDateTime(p.created_at)}<span className="block text-slate-400">{p.saved_by_name}</span></td>
                 <td className="p-3 align-top text-xs text-slate-600">{p.pages ?? '?'} pág.<span className="block text-slate-400">{fmtSize(p.size_bytes)}</span></td>
-                <td className="p-3 align-top"><div className="flex items-start gap-1 max-w-[260px]"><code className="font-mono text-[11px] text-slate-600 break-all">{p.s3_bucket}/{p.s3_key}</code><CopyBtn text={`${p.s3_bucket}/${p.s3_key}`} label="Copiar bucket e caminho" /></div></td>
+                <td className="p-3 align-top" onClick={e => e.stopPropagation()}><div className="flex items-start gap-1 max-w-[260px]"><code className="font-mono text-[11px] text-slate-600 break-all">{p.s3_bucket}/{p.s3_key}</code><CopyBtn text={`${p.s3_bucket}/${p.s3_key}`} label="Copiar bucket e caminho" /></div></td>
                 <td className="p-3 align-top"><div className="flex gap-1 justify-end">
                   <button className="btn-ghost p-1.5" aria-label="Abrir PDF" title="Abrir PDF" onClick={e => { e.stopPropagation(); setPdf(p) }}><FileText className="w-4 h-4" /></button>
+                  <button className="btn-ghost p-1.5" aria-label="Detalhes" title="Detalhes e caminho no S3" onClick={e => { e.stopPropagation(); setDetail(p) }}><Info className="w-4 h-4" /></button>
                   <button className="btn-ghost p-1.5" aria-label="Baixar" title="Baixar" onClick={async e => { e.stopPropagation(); download(await savedProcessesApi.file(p.id), p.file_name) }}><Download className="w-4 h-4" /></button>
                   <button className="btn-ghost p-1.5 text-red-600" aria-label="Remover" title="Remover da lista" onClick={e => { e.stopPropagation(); if (window.confirm(`Remover ${p.numero_cnj} da lista? O arquivo continua no armazenamento.`)) remove.mutate(p.id) }}><Trash2 className="w-4 h-4" /></button>
                 </div></td>
