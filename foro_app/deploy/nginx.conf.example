@@ -18,7 +18,7 @@ server {
     ssl_certificate_key /etc/letsencrypt/live/app.seudominio.com.br/privkey.pem;
     add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
 
-    client_max_body_size 2m;          # a API limita o corpo a 1 MB
+    client_max_body_size 6m;          # importação de .docx de modelos envia até ~4 MB (base64); as demais rotas limitam a 1 MB
 
     location / {
         proxy_pass http://127.0.0.1:3040;
