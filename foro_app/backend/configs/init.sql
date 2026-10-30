@@ -101,6 +101,7 @@ CREATE TABLE IF NOT EXISTS users (
   role               ENUM('admin','user') NOT NULL DEFAULT 'user',
   active             TINYINT(1)   NOT NULL DEFAULT 1,
   email_verified_at  DATETIME     NULL,
+  oab_number         VARCHAR(30)  NULL COMMENT 'ex.: OAB/RS 12345',
   notify_deadlines_email TINYINT(1) NOT NULL DEFAULT 1 COMMENT '1 = recebe o resumo diário de prazos por e-mail',
   phone_verified_at  DATETIME     NULL,
   created_at         DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -273,6 +274,12 @@ CREATE TABLE IF NOT EXISTS cases (
   opposing_party      VARCHAR(255)  NULL,
   cause_value         DECIMAL(14,2) NULL,
   responsible_user_id VARCHAR(36)   NULL,
+  area_key            VARCHAR(30)   NOT NULL DEFAULT 'geral' COMMENT 'civel|trabalhista|criminal|contratacoes_publicas|consultivo|geral',
+  details             JSON          NULL COMMENT 'campos específicos da área (configs/legal-areas.js)',
+  comarca             VARCHAR(120)  NULL,
+  vara                VARCHAR(120)  NULL,
+  magistrate          VARCHAR(160)  NULL,
+  stage_id            VARCHAR(36)   NULL COMMENT 'etapa do kanban (case_stages.id)',
   deleted_at          DATETIME      NULL,
   created_at          DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at          DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
@@ -460,6 +467,44 @@ CREATE TABLE IF NOT EXISTS support_tickets (
   PRIMARY KEY (id),
   KEY idx_support_account (account_id, created_at),
   KEY idx_support_user (user_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Núcleo jurídico (migração 005): etapas do kanban, partes, responsáveis e documentos.
+CREATE TABLE IF NOT EXISTS case_stages (
+  id VARCHAR(36) NOT NULL DEFAULT (UUID()), account_id VARCHAR(36) NOT NULL, area_key VARCHAR(30) NOT NULL DEFAULT 'geral',
+  stage_key VARCHAR(40) NOT NULL, label VARCHAR(80) NOT NULL, color VARCHAR(9) NOT NULL DEFAULT '#64748b',
+  position INT NOT NULL DEFAULT 0, is_final TINYINT(1) NOT NULL DEFAULT 0, created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (id), UNIQUE KEY uk_stage (account_id, area_key, stage_key), KEY idx_stage_order (account_id, area_key, position)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS case_parties (
+  id VARCHAR(36) NOT NULL DEFAULT (UUID()), account_id VARCHAR(36) NOT NULL, case_id VARCHAR(36) NOT NULL, lead_id VARCHAR(36) NULL,
+  name VARCHAR(255) NOT NULL, role VARCHAR(40) NOT NULL DEFAULT 'outro', document VARCHAR(20) NULL, email VARCHAR(255) NULL,
+  phone VARCHAR(30) NULL, address VARCHAR(500) NULL, nationality VARCHAR(60) NULL, marital_status VARCHAR(40) NULL, profession VARCHAR(100) NULL,
+  responsible_user_id VARCHAR(36) NULL, notes TEXT NULL, created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (id), KEY idx_parties_case (account_id, case_id), KEY idx_parties_lead (lead_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS case_members (
+  id VARCHAR(36) NOT NULL DEFAULT (UUID()), account_id VARCHAR(36) NOT NULL, case_id VARCHAR(36) NOT NULL, user_id VARCHAR(36) NOT NULL,
+  role ENUM('responsavel','colaborador') NOT NULL DEFAULT 'colaborador', created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (id), UNIQUE KEY uk_member (case_id, user_id), KEY idx_member_user (account_id, user_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS documents (
+  id VARCHAR(36) NOT NULL DEFAULT (UUID()), account_id VARCHAR(36) NOT NULL, case_id VARCHAR(36) NULL, lead_id VARCHAR(36) NULL,
+  template_key VARCHAR(80) NULL, template_version INT NULL, area_key VARCHAR(30) NOT NULL DEFAULT 'geral', title VARCHAR(255) NOT NULL,
+  content LONGTEXT NOT NULL, status ENUM('rascunho','revisado','final') NOT NULL DEFAULT 'rascunho', ai_generated TINYINT(1) NOT NULL DEFAULT 0,
+  open_flags INT NOT NULL DEFAULT 0, created_by VARCHAR(36) NOT NULL, created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP, deleted_at DATETIME NULL,
+  PRIMARY KEY (id), KEY idx_docs_case (account_id, case_id), KEY idx_docs_account (account_id, updated_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS document_versions (
+  id VARCHAR(36) NOT NULL DEFAULT (UUID()), account_id VARCHAR(36) NOT NULL, document_id VARCHAR(36) NOT NULL, version_no INT NOT NULL,
+  content LONGTEXT NOT NULL, note VARCHAR(255) NULL, created_by VARCHAR(36) NOT NULL, created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (id), UNIQUE KEY uk_doc_version (document_id, version_no)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS stripe_events (

@@ -9,8 +9,8 @@ async function me(req, res) {
 }
 
 async function updateMe(req, res) {
-  const { name } = req.body;
-  res.json(await usersService.update(req.user.id, req.account.id, { name }, req.user.id));
+  const { name, oab_number } = req.body;
+  res.json(await usersService.update(req.user.id, req.account.id, { name, oab_number }, req.user.id));
 }
 
 async function changePassword(req, res) {

@@ -400,3 +400,12 @@ O `init.sql` só roda na primeira subida do MySQL (volume vazio). Toda mudança 
 - `notification_log (user_id, kind, ref_date)` UNIQUE: garante 1 resumo por usuário por dia (mesmo com reinício/2 instâncias).
 - `support_tickets`: chamados da página Suporte (`status` aberto/respondido/fechado, `email_sent`).
 - Índice `idx_tasks_deadline (account_id, completed_at, due_date)` para as consultas de prazo.
+
+## Núcleo jurídico e Documentos (migração 005)
+
+- `cases` ganhou: `area_key` (padrão `geral`; backfill a partir do texto livre `area`), `details` JSON (campos da área), `comarca`, `vara`, `magistrate`, `stage_id`; índice `idx_cases_area_stage`. `users.oab_number`.
+- `case_stages (account_id, area_key, stage_key UNIQUE)`: etapas do kanban por conta e área (`label`, `color`, `position`, `is_final`). Semeadas para todas as contas na migração e para contas novas no cadastro.
+- `case_parties`: partes do processo (qualificação, `responsible_user_id`, `lead_id` opcional).
+- `case_members (case_id, user_id UNIQUE, role responsavel|colaborador)`: equipe do processo; alimenta os alertas de prazo.
+- `documents` (`template_key`, `template_version`, `area_key`, `title`, `content` LONGTEXT, `status`, `ai_generated`, `open_flags`, `deleted_at`) e `document_versions (document_id, version_no UNIQUE)`.
+- A migração é idempotente (rodada 2× em banco legado: backfill de área/etapa/equipe correto, sem duplicar).

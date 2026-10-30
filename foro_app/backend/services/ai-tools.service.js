@@ -10,6 +10,11 @@
 
 const leadsService = require('./leads.service');
 const casesService = require('./cases.service');
+const caseContext = require('./case-context.service');
+const partiesService = require('./case-parties.service');
+const documentsService = require('./documents.service');
+const templatesService = require('./document-templates.service');
+const legalAreas = require('../configs/legal-areas');
 const eventsService = require('./events.service');
 
 // ─── Definição das tools (formato Anthropic) ─────────────────────────────────
@@ -141,6 +146,9 @@ const TOOL_DEFINITIONS = [
         title: { type: 'string' }, lead_id: { type: 'string', description: 'ID do cliente/contato.' },
         area: { type: 'string' }, court_url: { type: 'string', description: 'Link do processo no tribunal.' },
         opposing_party: { type: 'string' }, client_role: { type: 'string', description: 'autor, réu...' },
+        area_key: { type: 'string', enum: ["geral", "civel", "trabalhista", "criminal", "contratacoes_publicas", "consultivo"], description: 'Área do processo (define etapas do kanban e campos específicos).' },
+        comarca: { type: 'string' }, vara: { type: 'string' }, magistrate: { type: 'string', description: 'Magistrado(a).' },
+        details: { type: 'object', description: 'Campos específicos da área (chaves de get_case.area_details). Só use chaves que existam.' },
       },
     },
   },
@@ -154,19 +162,49 @@ const TOOL_DEFINITIONS = [
   },
   {
     name: 'get_case',
-    description: 'Detalhes de um processo: andamentos, prazos e compromissos.',
+    description: 'Visão completa de um processo: dados, partes, equipe, andamentos, prazos, campos da área, orientação técnica e as ÚNICAS referências legais que podem ser citadas (legal_refs_allowed).',
     input_schema: { type: 'object', properties: { case_id: { type: 'string' } }, required: ['case_id'] },
   },
   {
     name: 'update_case',
-    description: 'Atualiza processo (status, fase, link, título, área, parte contrária).',
+    description: 'Atualiza processo (status, fase, link, título, parte contrária, comarca, vara, magistrado, campos da área).',
     input_schema: {
       type: 'object',
       properties: {
         case_id: { type: 'string' }, status: { type: 'string' }, phase: { type: 'string' }, court_url: { type: 'string' },
         title: { type: 'string' }, area: { type: 'string' }, opposing_party: { type: 'string' },
+        area_key: { type: 'string', enum: ["geral", "civel", "trabalhista", "criminal", "contratacoes_publicas", "consultivo"] }, comarca: { type: 'string' }, vara: { type: 'string' }, magistrate: { type: 'string' },
+        details: { type: 'object', description: 'Campos específicos da área a atualizar (mescla com os atuais).' },
       },
       required: ['case_id'],
+    },
+  },
+  {
+    name: 'add_party',
+    description: 'Adiciona uma parte ao processo (cliente, réu, empregador, testemunha etc.). Não invente dados pessoais: envie só o que o usuário informou.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        case_id: { type: 'string' }, name: { type: 'string' },
+        role: { type: 'string', enum: Object.keys(partiesService.ROLES) },
+        document: { type: 'string', description: 'CPF ou CNPJ (somente se informado).' }, email: { type: 'string' }, phone: { type: 'string' }, address: { type: 'string' },
+        nationality: { type: 'string' }, marital_status: { type: 'string' }, profession: { type: 'string' },
+      },
+      required: ['case_id', 'name', 'role'],
+    },
+  },
+  {
+    name: 'list_document_templates',
+    description: 'Lista os modelos de documento disponíveis (petições, ETP, TR etc.), opcionalmente por área.',
+    input_schema: { type: 'object', properties: { area_key: { type: 'string' } } },
+  },
+  {
+    name: 'create_document',
+    description: 'Cria um documento (rascunho) a partir de um modelo, já preenchido com os dados do processo. A redação dos trechos pela IA é feita na tela Documentos; avise o usuário.',
+    input_schema: {
+      type: 'object',
+      properties: { template_key: { type: 'string' }, case_id: { type: 'string' }, title: { type: 'string' } },
+      required: ['template_key'],
     },
   },
   {
@@ -256,7 +294,17 @@ async function executeTool(toolName, toolInput, context) {
     case 'search_cases':
       return casesService.list(accountId, { search: toolInput.search, status: toolInput.status, lead_id: toolInput.lead_id, limit: 20 });
     case 'get_case':
-      return casesService.getById(toolInput.case_id, accountId);
+      return caseContext.build(toolInput.case_id, accountId);
+    case 'add_party': {
+      const { case_id, ...p } = toolInput;
+      return partiesService.add(case_id, accountId, p);
+    }
+    case 'list_document_templates':
+      return templatesService.list(toolInput.area_key);
+    case 'create_document': {
+      const doc = await documentsService.create(accountId, { id: userId }, toolInput);
+      return { id: doc.id, title: doc.title, status: doc.status, open_flags: doc.open_flags, pending_ai_slots: doc.pending_ai_slots };
+    }
     case 'update_case': {
       const { case_id, ...rest } = toolInput;
       return casesService.update(case_id, accountId, rest);

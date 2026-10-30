@@ -114,6 +114,9 @@ function _summarizeAction(name, input, result) {
     case 'create_case':      return `Processo cadastrado: ${result?.case_number || result?.title || ''}`.trim();
     case 'update_case':      return 'Processo atualizado';
     case 'add_case_update':  return 'Andamento registrado';
+    case 'add_party':        return `Parte adicionada: ${input.name}`;
+    case 'list_document_templates': return 'Consultou modelos de documento';
+    case 'create_document':  return `Documento criado: ${result?.title || ''}`.trim();
     case 'get_case':         return `Consultou processo: ${result?.case_number || result?.title || ''}`.trim();
     case 'search_cases':     return `Busca de processos: ${result?.data?.length ?? 0}`;
     case 'create_event':     return `Agendado: ${result?.title || input.title}`;
@@ -122,7 +125,7 @@ function _summarizeAction(name, input, result) {
   }
 }
 
-const WRITE_TOOLS = new Set(['create_lead','update_lead','move_lead_stage','add_note','create_task','complete_task','create_case','update_case','add_case_update','create_event']);
+const WRITE_TOOLS = new Set(['create_lead','update_lead','move_lead_stage','add_note','create_task','complete_task','create_case','update_case','add_case_update','create_event','add_party','create_document']);
 
 // ─── Chat principal ────────────────────────────────────────────────────────────
 
@@ -151,23 +154,30 @@ async function _chat({ accountId, userId, conversationId, userMessage }) {
   const today = new Date().toLocaleDateString('pt-BR', { weekday: 'long', day: '2-digit', month: '2-digit', year: 'numeric', timeZone: 'America/Sao_Paulo' });
   const systemPrompt = `Você é o assistente interno do CRM Foro, um sistema de gestão de leads para escritórios de advocacia.
 
-Seu papel é ajudar o usuário a gerenciar contatos (leads), processos, andamentos, prazos, tarefas, notas e a agenda do escritório usando linguagem natural.
+Seu papel é ajudar o usuário a gerenciar contatos (leads), processos, partes, andamentos, prazos, tarefas, notas, agenda e documentos do escritório usando linguagem natural.
 Você tem ferramentas para criar, atualizar e buscar tudo isso. Hoje é ${today} (fuso America/Sao_Paulo, -03:00); resolva datas relativas ("amanhã", "sexta") a partir dela.
 
 CAMPOS CUSTOMIZADOS DESTA CONTA:
 ${fieldSchema}
 
-ETAPAS DO FUNIL (use exatamente estes códigos): novo, em_contato, proposta, convertido, encerrado.
+ETAPAS DO FUNIL DE LEADS (use exatamente estes códigos): novo, em_contato, proposta, convertido, encerrado.
+ÁREAS DE PROCESSO: geral, civel, trabalhista, criminal, contratacoes_publicas, consultivo. Cada área tem etapas de kanban e campos próprios; get_case mostra os campos da área e quais faltam.
 
 REGRAS IMPORTANTES:
 - Antes de executar qualquer ação de escrita (criar, atualizar, mover, encerrar), descreva o que vai fazer e peça confirmação — exceto quando o comando for claro e explícito (ex: "cria um lead: João Silva, 51 99999-1234").
 - Se um nome de lead for ambíguo, liste as opções e peça escolha antes de agir.
 - Se faltar um campo obrigatório, pergunte só o que está faltando.
-- Nunca invente campos que não existem na configuração.
+- Nunca invente campos que não existem na configuração, nem dados de partes (CPF, endereço, estado civil etc.).
 - Nunca acesse dados de outras contas.
 - Números de processo seguem o padrão CNJ; se a ferramenta indicar número inválido, avise o usuário.
-- Não faça análises jurídicas, pareceres ou recomendações profissionais.
-- Se o usuário pedir algo fora do escopo (ex: redigir petição), recuse de forma clara e útil.
+
+INSIGHTS TÉCNICOS SOBRE PROCESSOS (permitidos, com disciplina):
+- Ao analisar um processo, chame get_case e baseie-se SOMENTE nos dados retornados (campos da área, partes, andamentos, prazos). Aponte: o que está faltando ou inconsistente, riscos e pontos de atenção, próximos passos práticos, prazos a verificar e documentos/modelos úteis.
+- Só cite dispositivos legais que estejam em legal_refs_allowed, no formato dado ali. NUNCA cite outros artigos, leis, súmulas, temas ou jurisprudência — se achar relevante, diga em texto livre que "vale conferir se há dispositivo/precedente aplicável" sem numerar.
+- Prazos que você calcular são ESTIMATIVAS: informe a premissa (dias úteis, termo inicial) e diga que o advogado deve confirmar no sistema do tribunal.
+- Deixe claro que é apoio à decisão do advogado responsável, não parecer. Se não houver dados suficientes, diga o que falta em vez de supor.
+- Para redigir peças, crie o documento a partir de um modelo (create_document) e oriente o usuário a gerar o rascunho na tela Documentos; não escreva peças inteiras no chat.
+- Se o usuário pedir algo fora do escopo de gestão jurídica, recuse de forma clara e útil.
 - Responda sempre em português do Brasil.`;
 
   const messages = [
@@ -348,4 +358,4 @@ async function getUsageSummary(accountId, { from, to } = {}) {
   return rows;
 }
 
-module.exports = { chat, listConversations, getConversation, clearConversation, getUsageSummary };
+module.exports = { MODEL, recordUsage: _recordUsage, chat, listConversations, getConversation, clearConversation, getUsageSummary };

@@ -226,6 +226,7 @@ export interface User {
   /** true enquanto a pessoa não confirmou o e-mail / aceitou o convite */
   pending_invite?: boolean
   email_verified?: boolean
+  oab_number?: string | null
 }
 
 export interface ServicePrice {
@@ -319,7 +320,7 @@ export const usersApi = {
     http.get<User>('/users/me').then(r => r.data),
 
   /** PUT /users/me */
-  updateMe: (data: { name: string }) =>
+  updateMe: (data: { name?: string; oab_number?: string }) =>
     http.put<User>('/users/me', data).then(r => r.data),
 
   /** PUT /users/me/password */
@@ -458,6 +459,14 @@ export interface Case {
   responsible_name: string | null
   next_deadline: string | null
   created_at: string
+  area_key: string
+  comarca: string | null
+  vara: string | null
+  magistrate: string | null
+  stage_id: string | null
+  stage_label: string | null
+  stage_color: string | null
+  parties_count?: number
 }
 
 export interface CaseUpdate { id: string; update_date: string; text: string; source: string; created_at: string }
@@ -479,7 +488,31 @@ export interface CrmEvent {
   case_title: string | null
 }
 
+export interface AreaField { key: string; label: string; type: 'text' | 'textarea' | 'select' | 'multiselect' | 'number' | 'date'; options?: string[]; help?: string }
+export interface AreaMeta { key: string; label: string; short: string; description: string; fields: AreaField[] }
+export interface CaseStage { id: string; area_key: string; stage_key: string; label: string; color: string; position: number; is_final: number; cases_count?: number }
+export interface CaseParty {
+  id: string; name: string; role: string; role_label: string; document: string | null; document_formatted: string
+  email: string | null; phone: string | null; address: string | null; nationality: string | null; marital_status: string | null; profession: string | null
+  responsible_user_id: string | null; responsible_name: string | null; notes: string | null
+}
+export interface CaseMember { id: string; user_id: string; role: 'responsavel' | 'colaborador'; name: string; email: string }
+export interface DocumentSummary { id: string; case_id: string | null; template_key: string | null; area_key: string; title: string; status: 'rascunho' | 'revisado' | 'final'; ai_generated: number; open_flags: number; updated_at: string; case_title?: string | null; case_number?: string | null }
+export interface DocumentTemplate { key: string; title: string; area: string; version: string; reviewed: boolean; source: string | null; description: string | null; legal_basis: string[]; origin: string; ai_slots: number }
+export interface DocumentFull extends DocumentSummary {
+  content: string; pending_ai_slots: number
+  versions: { version_no: number; note: string | null; created_at: string }[]
+  template: { key: string; title: string; reviewed: boolean; origin: string; source: string | null; legal_basis: string[] } | null
+}
+
 export interface CaseDetail extends Case {
+  area_label: string
+  area_fields: AreaField[]
+  details: Record<string, string | number | string[]>
+  missing_fields: string[]
+  parties: CaseParty[]
+  members: CaseMember[]
+  documents: DocumentSummary[]
   tribunal_name: string | null
   suggested_url: string | null
   number_valid?: boolean | null
@@ -491,7 +524,7 @@ export interface CaseDetail extends Case {
 export interface CaseNumberAnalysis { case_number: string; tribunal: string | null; tribunal_name?: string | null; valid: boolean; suggested_url: string | null }
 
 export const casesApi = {
-  list: (params?: { status?: string; search?: string; lead_id?: string }) =>
+  list: (params?: { status?: string; search?: string; lead_id?: string; area_key?: string }) =>
     http.get<{ data: Case[]; total: number }>('/cases', { params }).then(r => r.data),
   getById: (id: string) => http.get<CaseDetail>(`/cases/${id}`).then(r => r.data),
   create: (data: Partial<Case> & { cause_value?: string | number }) =>
@@ -502,6 +535,42 @@ export const casesApi = {
   addUpdate: (id: string, data: { text: string; update_date?: string }) =>
     http.post<CaseUpdate>(`/cases/${id}/updates`, data).then(r => r.data),
   deleteUpdate: (id: string, updateId: string) => http.delete(`/cases/${id}/updates/${updateId}`).then(r => r.data),
+}
+
+export const areasApi = { list: () => http.get<AreaMeta[]>('/areas').then(r => r.data) }
+
+export const stagesApi = {
+  list: (area_key?: string) => http.get<CaseStage[]>('/case-stages', { params: { area_key } }).then(r => r.data),
+  create: (d: { area_key: string; label: string; color?: string; is_final?: boolean }) => http.post<CaseStage>('/case-stages', d).then(r => r.data),
+  update: (id: string, d: Partial<{ label: string; color: string; is_final: boolean }>) => http.put<CaseStage>(`/case-stages/${id}`, d).then(r => r.data),
+  reorder: (area_key: string, ids: string[]) => http.put<CaseStage[]>('/case-stages/reorder', { area_key, ids }).then(r => r.data),
+  remove: (id: string, move_to?: string) => http.delete(`/case-stages/${id}`, { params: { move_to } }).then(r => r.data),
+  reset: (area_key: string) => http.post<CaseStage[]>('/case-stages/reset', { area_key }).then(r => r.data),
+}
+
+export const casePeopleApi = {
+  addParty: (caseId: string, d: Partial<CaseParty> & { name: string; role: string }) => http.post<CaseParty>(`/cases/${caseId}/parties`, d).then(r => r.data),
+  updateParty: (caseId: string, partyId: string, d: Partial<CaseParty>) => http.put<CaseParty>(`/cases/${caseId}/parties/${partyId}`, d).then(r => r.data),
+  removeParty: (caseId: string, partyId: string) => http.delete(`/cases/${caseId}/parties/${partyId}`).then(r => r.data),
+  setMembers: (caseId: string, members: { user_id: string; role: 'responsavel' | 'colaborador' }[]) => http.put<CaseMember[]>(`/cases/${caseId}/members`, { members }).then(r => r.data),
+  moveStage: (caseId: string, stage_id: string) => http.put<CaseDetail>(`/cases/${caseId}/stage`, { stage_id }).then(r => r.data),
+}
+
+export interface DraftResult { document: DocumentFull; flagged_citations: string[]; unfilled_slots: number; credits_used: number }
+export const documentsApi = {
+  templates: (area_key?: string) => http.get<{ templates: DocumentTemplate[] }>('/document-templates', { params: { area_key } }).then(r => r.data.templates),
+  list: (params?: { case_id?: string; area_key?: string; status?: string; search?: string }) => http.get<DocumentSummary[]>('/documents', { params }).then(r => r.data),
+  get: (id: string) => http.get<DocumentFull>(`/documents/${id}`).then(r => r.data),
+  create: (d: { template_key?: string; case_id?: string; title?: string; area_key?: string }) => http.post<DocumentFull>('/documents', d).then(r => r.data),
+  update: (id: string, d: { title?: string; content?: string; status?: string }) => http.put<DocumentFull>(`/documents/${id}`, d).then(r => r.data),
+  remove: (id: string) => http.delete(`/documents/${id}`).then(r => r.data),
+  draft: (id: string, instructions?: string) => http.post<DraftResult>(`/documents/${id}/draft`, { instructions }).then(r => r.data),
+  version: (id: string, n: number) => http.get<{ version_no: number; content: string }>(`/documents/${id}/versions/${n}`).then(r => r.data),
+  restore: (id: string, n: number) => http.post<DocumentFull>(`/documents/${id}/versions/${n}/restore`).then(r => r.data),
+  exportDocx: async (id: string, filename: string) => {
+    const r = await http.get(`/documents/${id}/export.docx`, { responseType: 'blob' })
+    const url = URL.createObjectURL(r.data); const a = document.createElement('a'); a.href = url; a.download = filename; document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(url), 10_000)
+  },
 }
 
 export const eventsApi = {

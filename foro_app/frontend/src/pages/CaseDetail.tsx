@@ -6,6 +6,7 @@ import clsx from 'clsx'
 import { casesApi, leadsApi, tasksApi, type Task } from '../api'
 import { EditableCell } from '../components/crm'
 import EventForm from '../components/EventForm'
+import CaseCore from '../components/CaseCore'
 import { useChat } from '../context/ChatContext'
 import { CASE_STATUSES, caseStatus, EVENT_TYPES, fmtDate, fmtTime } from '../lib/cases'
 
@@ -120,7 +121,6 @@ export default function CaseDetail() {
                 </form>
               )}
             </Row>
-            <Row label="Área"><EditableCell value={c.area} placeholder="Ex: Trabalhista" onSave={v => update.mutate({ area: v })} /></Row>
             <Row label="Fase"><EditableCell value={c.phase} placeholder="Ex: Conhecimento" onSave={v => update.mutate({ phase: v })} /></Row>
             <Row label="Polo do cliente"><EditableCell value={c.client_role} placeholder="autor, réu…" onSave={v => update.mutate({ client_role: v })} /></Row>
             <Row label="Parte contrária"><EditableCell value={c.opposing_party} placeholder="Adicionar" onSave={v => update.mutate({ opposing_party: v })} /></Row>
@@ -172,6 +172,8 @@ export default function CaseDetail() {
           </div>
         </div>
       </div>
+
+      <CaseCore c={c} onChange={refresh} />
 
       <div className="card p-5 mt-5">
         <h2 className="font-medium text-slate-900 mb-3">Andamentos ({c.updates.length})</h2>

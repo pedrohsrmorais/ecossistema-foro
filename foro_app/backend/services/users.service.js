@@ -6,7 +6,7 @@ const { AppError } = require('../middlewares/error.middleware');
 const authService = require('./auth.service');
 
 const ROLES = ['admin', 'user'];
-const COLS = 'id, name, email, role, active, email_verified_at, created_at';
+const COLS = 'id, name, email, role, active, oab_number, email_verified_at, created_at';
 
 function _shape(u) {
   const { email_verified_at, ...rest } = u;
@@ -100,6 +100,10 @@ async function update(userId, accountId, data, actorId) {
     const n = String(data.name || '').trim();
     if (!n) throw new AppError('Nome não pode ficar vazio.', 422);
     fields.push('name = ?'); values.push(n);
+  }
+  if (data.oab_number !== undefined) {
+    const o = String(data.oab_number || '').trim().slice(0, 30);
+    fields.push('oab_number = ?'); values.push(o || null);
   }
   if (data.role !== undefined && !ROLES.includes(data.role)) throw new AppError('Perfil inválido.', 422);
   if (data.role !== undefined) { fields.push('role = ?'); values.push(data.role); }

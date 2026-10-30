@@ -10,6 +10,8 @@ O Foro é uma plataforma SaaS multi-tenant para escritórios de advocacia. O pri
 
 ---
 
+> **Áreas do direito, kanban editável e módulo Documentos:** ver [documentos-e-modelos.md](documentos-e-modelos.md) (inclui como colocar os modelos do escritório na VPS).
+
 ## Stack
 
 | Camada      | Tecnologia                              |

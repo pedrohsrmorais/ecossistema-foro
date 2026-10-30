@@ -49,9 +49,9 @@ async function forUser(accountId, user, { days = 7, now = new Date() } = {}) {
      LEFT JOIN cases c ON c.id = t.case_id AND c.deleted_at IS NULL
      LEFT JOIN leads l ON l.id = t.lead_id
      WHERE t.account_id = ? AND t.completed_at IS NULL AND t.due_date IS NOT NULL AND t.due_date < ?
-       AND (t.user_id = ? OR c.responsible_user_id = ?${isAdmin ? ' OR t.is_deadline = 1' : ''})
+       AND (t.user_id = ? OR c.responsible_user_id = ? OR EXISTS (SELECT 1 FROM case_members cm WHERE cm.case_id = t.case_id AND cm.user_id = ?)${isAdmin ? ' OR t.is_deadline = 1' : ''})
      ORDER BY t.due_date ASC LIMIT 300`,
-    [accountId, end, user.id, user.id]
+    [accountId, end, user.id, user.id, user.id]
   );
   const [events] = await query(
     `SELECT e.id, e.title, e.starts_at AS at, e.type, e.case_id, e.lead_id, e.meeting_url,
@@ -60,9 +60,9 @@ async function forUser(accountId, user, { days = 7, now = new Date() } = {}) {
      LEFT JOIN cases c ON c.id = e.case_id AND c.deleted_at IS NULL
      LEFT JOIN leads l ON l.id = e.lead_id
      WHERE e.account_id = ? AND e.status = 'agendado' AND e.starts_at >= ? AND e.starts_at < ?
-       AND (e.user_id = ? OR c.responsible_user_id = ?${isAdmin ? " OR e.type IN ('audiencia','pericia')" : ''})
+       AND (e.user_id = ? OR c.responsible_user_id = ? OR EXISTS (SELECT 1 FROM case_members cm WHERE cm.case_id = e.case_id AND cm.user_id = ?)${isAdmin ? " OR e.type IN ('audiencia','pericia')" : ''})
      ORDER BY e.starts_at ASC LIMIT 300`,
-    [accountId, start, end, user.id, user.id]
+    [accountId, start, end, user.id, user.id, user.id]
   );
 
   const items = [

@@ -2,7 +2,7 @@ import { Outlet, NavLink, useNavigate, useLocation } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import {
   MessageSquare, Users, LayoutDashboard, CheckSquare, Settings, LogOut, Scale,
-  GraduationCap, Sparkles, CreditCard, LifeBuoy, Clock, Briefcase, CalendarDays, Building2, UserSearch, Gavel, FlaskConical, Trophy, Users2,
+  GraduationCap, FileText, Sparkles, CreditCard, LifeBuoy, Clock, Briefcase, CalendarDays, Building2, UserSearch, Gavel, FlaskConical, Trophy, Users2,
 } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
 import { modulesApi, settingsApi } from '../api'
@@ -27,6 +27,7 @@ const NAV_TOP: NavItem[] = [
   { to: '/chat',      label: 'IA',      icon: MessageSquare,   module: 'crm' },
   { to: '/leads',     label: 'Leads',   icon: Users,           module: 'crm' },
   { to: '/processos', label: 'Processos', icon: Briefcase,    module: 'crm' },
+  { to: '/documentos', label: 'Documentos', icon: FileText,   module: 'crm' },
   { to: '/agenda',    label: 'Agenda',    icon: CalendarDays, module: 'crm' },
   { to: '/dashboard', label: 'Painel',  icon: LayoutDashboard, module: 'crm' },
   { to: '/tasks',     label: 'Tarefas', icon: CheckSquare,     module: 'crm' },
@@ -101,7 +102,7 @@ export default function Layout() {
 
   return (
     <ChatProvider>
-    <div className="flex h-screen overflow-hidden bg-slate-50">
+    <div className="flex h-screen overflow-hidden bg-slate-50 print:block print:h-auto print:overflow-visible">
       {/* Sidebar — navy institucional, não branco: lê mais como backoffice
           jurídico "sério" do que como app de consumidor. */}
       <aside className="w-56 bg-brand-950 flex flex-col shrink-0">

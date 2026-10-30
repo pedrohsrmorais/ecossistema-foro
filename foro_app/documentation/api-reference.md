@@ -411,9 +411,43 @@ Todas as rotas exigem autenticação e o módulo `crm`.
 
 `POST /tasks` cria tarefa sem exigir lead: aceita `case_id` e `is_deadline` (prazo processual). Tarefas listadas em `GET /tasks` incluem o processo vinculado.
 
-## Ferramentas da IA (17)
+## Ferramentas da IA (20)
 
-Além das 10 originais de leads/notas/tarefas, o chat opera: `create_case`, `search_cases`, `get_case`, `update_case`, `add_case_update`, `create_event`, `list_events`. As `actions` retornadas pelo chat incluem `case_id` quando aplicável. Mais ferramentas elevam o consumo-base de créditos por mensagem (~1,1 crédito).
+Além das 10 originais de leads/notas/tarefas, o chat opera: `create_case`, `search_cases`, `get_case`, `update_case`, `add_case_update`, `create_event`, `list_events`, `add_party`, `list_document_templates`, `create_document`. As `actions` retornadas pelo chat incluem `case_id` quando aplicável. Mais ferramentas elevam o consumo-base de créditos por mensagem (~1,1 crédito).
+
+## Áreas, etapas do kanban, partes e equipe
+
+| Método | Rota | Descrição |
+|---|---|---|
+| GET | `/areas` | Áreas (`geral, civel, trabalhista, criminal, contratacoes_publicas, consultivo`) com seus campos específicos |
+| GET | `/case-stages?area_key=` | Etapas da conta (com `cases_count`) |
+| POST | `/case-stages` | **Admin.** `{ area_key, label, color?, is_final? }` (máx. 15 por área) |
+| PUT | `/case-stages/:id` | **Admin.** `label`, `color` (`#RRGGBB`), `is_final` |
+| PUT | `/case-stages/reorder` | **Admin.** `{ area_key, ids: [todas as etapas da área, na nova ordem] }` |
+| DELETE | `/case-stages/:id?move_to=` | **Admin.** Com processos, exige `move_to` (senão 409 `STAGE_IN_USE`); a última etapa da área não pode sair (409 `LAST_STAGE`) |
+| POST | `/case-stages/reset` | **Admin.** `{ area_key }` restaura o padrão e realoca processos |
+| PUT | `/cases/:id/stage` | `{ stage_id }` — etapa da área do processo; etapa final ⇒ `status: encerrado`, sair dela ⇒ `ativo` |
+| GET/POST | `/cases/:id/parties` | Partes. `name`, `role`, `document` (CPF/CNPJ validado), `email`, `phone`, `address`, `nationality`, `marital_status`, `profession`, `responsible_user_id`, `lead_id`, `notes` |
+| PUT/DELETE | `/cases/:id/parties/:partyId` | Edita / remove parte |
+| GET/PUT | `/cases/:id/members` | Equipe do processo. `PUT { members: [{ user_id, role: responsavel\|colaborador }] }` substitui o conjunto (sem repetidos; usuários da conta) |
+
+`POST/PUT /cases` aceitam também `area_key`, `comarca`, `vara`, `magistrate`, `stage_id` e `details` (objeto com **chaves do `/areas`**; `null` apaga um campo; mescla com o atual). `GET /cases?area_key=&stage_id=` filtra. `GET /cases/:id` traz `area_label`, `area_fields`, `details`, `missing_fields`, `parties`, `members`, `documents`, `stage_label`.
+
+## Documentos
+
+| Método | Rota | Descrição |
+|---|---|---|
+| GET | `/document-templates?area_key=` | Modelos (embutidos + do escritório); `reviewed`, `legal_basis`, `ai_slots`, `origin` |
+| GET | `/documents?case_id=&area_key=&status=&search=` | Lista |
+| POST | `/documents` | `{ template_key, case_id?, title? }` cria a partir do modelo (preenche dados do sistema, sem IA); sem `template_key` cria em branco (`title`, `area_key?`) |
+| GET | `/documents/:id` | Conteúdo, `versions`, `template`, `pending_ai_slots`, `open_flags` |
+| PUT | `/documents/:id` | `title`, `content`, `status` (`rascunho`/`revisado`/`final`); mudança de conteúdo gera versão |
+| DELETE | `/documents/:id` | Exclusão lógica |
+| POST | `/documents/:id/draft` | `{ instructions? }` — IA preenche os trechos `[[IA…]]`; resposta `{ document, flagged_citations, unfilled_slots, credits_used }`. 422 `NO_AI_SLOTS` (sem custo), 402 sem créditos, 502 `AI_BAD_OUTPUT`. Limitada por `aiLimiter` |
+| GET | `/documents/:id/versions/:n` · POST `/documents/:id/versions/:n/restore` | Lê / restaura versão |
+| GET | `/documents/:id/export.docx` | Arquivo Word |
+
+`PUT /users/me` aceita `oab_number`.
 
 ## Pagamentos (Stripe — somente cartão)
 

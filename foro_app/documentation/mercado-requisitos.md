@@ -57,6 +57,22 @@ Centerbase (EUA) e na documentação pública do DataJud/CNJ. Onde a fonte não 
 - Captura de publicações/intimações por OAB (exige provedor pago; encaixa nos planos Pro/Business e nas "consultas").
 - Portal do cliente, assinatura digital integrada, formulário de captação de leads no site, jurisprudência por IA, time & billing.
 
+## 2.1 Rodada seguinte: lista sugerida (cadastro, tribunal/vara/magistrado, movimentações, prazos, agenda, documentos, honorários, histórico)
+
+| Item | Situação |
+|---|---|
+| Cadastro de clientes, processos e **partes** | ✅ partes por processo, com responsável no escritório |
+| Número, tribunal, **comarca, vara, magistrado** | ✅ |
+| **Kanban editável** por área + responsáveis | ✅ (Cível, Trabalhista, Criminal, Contratações públicas, Consultivo) |
+| Campos técnicos por área para a IA | ✅ |
+| Prazos, audiências, compromissos, tarefas | ✅ (rodada anterior; agora alerta toda a equipe do processo) |
+| **Elaboração de documentos** (petição, ETP, TR…) | ✅ MVP: modelos + IA nos trechos marcados + Word/PDF (modelos **não revisados**) |
+| Provas / anexos (upload) | ❌ não feito |
+| Movimentações automáticas e publicações/intimações | ❌ não feito (DataJud / provedor pago) |
+| Honorários, despesas, pagamentos | ❌ não feito |
+| Histórico de comunicação com cliente | ❌ não feito |
+| Mobile e Termos/Privacidade (Must-Have M8/M9) | ❌ ainda pendentes |
+
 ## 3. Decisões tomadas a partir disto
 1. Prioridade desta rodada: **M3, M5, M7, M10** (pedidos do dono do produto), todos entregues.
 2. Próximas lacunas **Must-Have**: M8 (celular) e M9 (Termos/Privacidade).

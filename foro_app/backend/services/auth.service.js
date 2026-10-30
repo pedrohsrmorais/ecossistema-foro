@@ -5,6 +5,7 @@ const { v4: uuidv4 } = require('uuid');
 const { query, transaction } = require('../configs/db.config');
 const { AppError } = require('../middlewares/error.middleware');
 const emailService = require('./email.service');
+const caseStages = require('./case-stages.service');
 
 const VERIFICATION_CODE_TTL_MIN = 10;   // validade do código de e-mail/celular
 const RESET_TOKEN_TTL_MIN = 60;         // validade do link de redefinição de senha
@@ -58,6 +59,7 @@ async function register({ name, email, password, phone, accountName }) {
 
     // Cria campos de sistema padrão
     await _seedDefaultFields(conn, accountId);
+    await caseStages.seedAccount((sql, p) => conn.execute(sql, p), accountId);
 
     const token = generateToken({ id: userId, account_id: accountId, role: 'admin', email });
     return { token, user: { id: userId, name, email, role: 'admin' }, account: { id: accountId, name: accountName } };

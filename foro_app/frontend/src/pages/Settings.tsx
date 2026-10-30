@@ -78,6 +78,30 @@ function TeamSection({ maxUsers }: { maxUsers?: number }) {
   )
 }
 
+function ProfileSection() {
+  const qc = useQueryClient()
+  const { data: me } = useQuery({ queryKey: ['me-profile'], queryFn: usersApi.me })
+  const [oab, setOab] = useState<string | null>(null)
+  const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null)
+  const value = oab ?? me?.oab_number ?? ''
+  const save = useMutation({
+    mutationFn: () => usersApi.updateMe({ oab_number: value.trim() }),
+    onSuccess: () => { setMsg({ ok: true, text: 'Salvo.' }); setOab(null); qc.invalidateQueries({ queryKey: ['me-profile'] }) },
+    onError: (e: any) => setMsg({ ok: false, text: e?.response?.data?.error || 'Não foi possível salvar.' }),
+  })
+  return (
+    <div className="card p-5">
+      <h2 className="font-medium text-slate-900 mb-1">Meu perfil profissional</h2>
+      <p className="text-sm text-slate-500 mb-3">O número da OAB assina as peças geradas na área Documentos.</p>
+      <form className="flex gap-2 items-center flex-wrap" onSubmit={e => { e.preventDefault(); setMsg(null); save.mutate() }}>
+        <input className="input !w-56" placeholder="Ex.: OAB/PR 12345" aria-label="Número da OAB" value={value} maxLength={30} onChange={e => setOab(e.target.value)} />
+        <button className="btn-secondary text-sm" disabled={save.isPending || oab === null}>Salvar</button>
+        {msg && <span className={msg.ok ? 'text-sm text-green-700' : 'text-sm text-red-600'}>{msg.text}</span>}
+      </form>
+    </div>
+  )
+}
+
 function NotificationsSection() {
   const qc = useQueryClient()
   const { data } = useQuery({ queryKey: ['alert-prefs'], queryFn: alertsApi.getPrefs })
@@ -179,6 +203,7 @@ export default function Settings() {
 
       <NotificationsSection />
 
+      <ProfileSection />
       <TeamSection maxUsers={plan?.max_users ?? undefined} />
 
     </div>

@@ -42,6 +42,8 @@ import AdminEducationTrilhaDetail from './pages/admin/AdminEducationTrilhaDetail
 import AdminQuizDetail from './pages/admin/AdminQuizDetail'
 import AdminChallenges from './pages/admin/AdminChallenges'
 import AdminCommunity from './pages/admin/AdminCommunity'
+import Documents from './pages/Documents'
+import DocumentEditor from './pages/DocumentEditor'
 import NotFound from './pages/NotFound'
 
 export default function App() {
@@ -69,6 +71,8 @@ export default function App() {
                 <Route path="/leads/:id" element={<LeadDetail />} />
                 <Route path="/processos"     element={<Cases />} />
                 <Route path="/processos/:id" element={<CaseDetail />} />
+                <Route path="/documentos"     element={<Documents />} />
+                <Route path="/documentos/:id" element={<DocumentEditor />} />
                 <Route path="/agenda"        element={<Agenda />} />
                 <Route path="/tasks"     element={<Tasks />} />
                 <Route path="/settings"  element={<Settings />} />

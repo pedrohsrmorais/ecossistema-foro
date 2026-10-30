@@ -1,0 +1,27 @@
+---
+key: peticao_inicial_meu_escritorio      # a-z, 0-9 e _ ; se igual a um modelo embutido, SUBSTITUI o embutido
+title: Petição inicial (padrão do escritório)
+area: civel
+version: 1
+reviewed: true                           # true = um advogado do escritório revisou e aprovou este modelo
+description: Nossa petição inicial padrão.
+source: Modelo interno aprovado em 2026-01 por Dr(a). Fulano
+legal_basis:                             # ÚNICOS dispositivos que a IA pode citar neste documento
+  - CPC art. 319
+  - CPC art. 320
+---
+# EXCELENTÍSSIMO(A) SENHOR(A) DOUTOR(A) JUIZ(A) DE DIREITO DA {{processo.vara}} DA COMARCA DE {{processo.comarca}}
+
+{{cliente.qualificacao}}, por seu advogado, vem propor ação em face de {{parte_contraria.qualificacao}}.
+
+## DOS FATOS
+
+[[IA: Narre os fatos usando apenas os dados fornecidos.]]
+
+## DOS PEDIDOS
+
+[[IA: Liste os pedidos.]]
+
+{{cidade}}, {{data.extenso}}.
+
+{{advogado.nome}} — OAB {{advogado.oab}}

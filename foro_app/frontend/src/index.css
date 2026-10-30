@@ -49,3 +49,12 @@
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
 ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+
+/* Impressão / "Salvar como PDF" de documentos: só o conteúdo do documento */
+@media print {
+  aside, nav, .print\:hidden { display: none !important; }
+  html, body, #root, #root > div, main { height: auto !important; overflow: visible !important; background: #fff !important; }
+  .card { border: 0 !important; box-shadow: none !important; padding: 0 !important; }
+  mark { background: transparent !important; color: inherit !important; }
+  @page { margin: 2.5cm 2cm 2cm 3cm; }
+}

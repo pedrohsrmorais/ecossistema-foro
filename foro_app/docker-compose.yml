@@ -65,6 +65,7 @@ services:
       DEADLINE_DIGEST: ${DEADLINE_DIGEST:-on}
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
       ANTHROPIC_MODEL: ${ANTHROPIC_MODEL:-claude-sonnet-4-6}
+      DOCUMENT_TEMPLATES_DIR: ${DOCUMENT_TEMPLATES_DIR:-/app/modelos}   # modelos do escritório (sobrepõem os embutidos) — ver documentation/documentos-e-modelos.md
       FEATURE_LOOKUPS_ENABLED: ${FEATURE_LOOKUPS_ENABLED:-false}
       STRIPE_SECRET_KEY: ${STRIPE_SECRET_KEY:-}
       STRIPE_WEBHOOK_SECRET: ${STRIPE_WEBHOOK_SECRET:-}
@@ -78,6 +79,8 @@ services:
       CPF_PROVIDER_API_KEY: ${CPF_PROVIDER_API_KEY:-}
       PROCESS_PROVIDER_BASE_URL: ${PROCESS_PROVIDER_BASE_URL:-}
       PROCESS_PROVIDER_API_KEY: ${PROCESS_PROVIDER_API_KEY:-}
+    volumes:
+      - ${MODELOS_DIR:-./modelos}:/app/modelos:ro   # pasta no servidor com os modelos de peças (<área>/<chave>.md)
     depends_on:
       db:
         condition: service_healthy
