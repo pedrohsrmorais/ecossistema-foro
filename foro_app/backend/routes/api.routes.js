@@ -34,6 +34,7 @@ const settingsController    = require('../controllers/settings.controller');
 const adminController       = require('../controllers/admin.controller');
 const creditsController     = require('../controllers/credits.controller');
 const lookupController      = require('../controllers/lookup.controller');
+const processSearch         = require('../controllers/process-search.controller');
 const modulesController     = require('../controllers/modules.controller');
 const educationController   = require('../controllers/education.controller');
 const quizzesController     = require('../controllers/quizzes.controller');
@@ -277,6 +278,15 @@ router.get   ('/plans',                settingsController.listPlans);
 router.get   ('/credits/balance',          creditsController.getBalance);
 router.get   ('/credits/prices',           creditsController.listPrices);
 router.get   ('/credits/transactions',     creditsController.listTransactions);
+
+// ─── Consulta processual: pesquisar → visualizar o PDF → salvar (S3/MinIO + metadados no MySQL) ───
+router.post  ('/process-search',               requireModule('crm'), requireAccess('cases'), aiLimiter, processSearch.search);
+router.get   ('/process-search/preview',       requireModule('crm'), requireAccess('cases'), processSearch.preview);
+router.post  ('/process-search/save',          requireModule('crm'), requireAccess('cases'), requirePermission('create_cases'), processSearch.save);
+router.get   ('/saved-processes',              requireModule('crm'), requireAccess('cases'), processSearch.list);
+router.get   ('/saved-processes/:id',          requireModule('crm'), requireAccess('cases'), processSearch.get);
+router.get   ('/saved-processes/:id/file',     requireModule('crm'), requireAccess('cases'), processSearch.file);
+router.delete('/saved-processes/:id',          requireModule('crm'), requireAccess('cases'), requirePermission('delete_records'), processSearch.remove);
 
 // ─── Consultas pagas (CPF/CNPJ/processual) e resumo por IA ────────────────────
 // Cada chamada debita créditos automaticamente (ver external-lookup.service.js).

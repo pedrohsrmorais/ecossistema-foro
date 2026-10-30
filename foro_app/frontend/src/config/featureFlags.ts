@@ -14,7 +14,7 @@
 export const LOCKED_FEATURES = {
   pesquisaCnpj: true,
   pesquisaCpf: true,
-  pesquisaProcessual: true,
+  pesquisaProcessual: false,
   pesquisaInteligente: true,
   // Trilha de educação — conteúdo ainda não publicado
   educacao: true,

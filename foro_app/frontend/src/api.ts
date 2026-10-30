@@ -791,6 +791,63 @@ export const lookupApi = {
     http.post<{ data: { summary: string } }>('/lookup/processo/summary', { processo }).then(r => r.data.data),
 }
 
+// ─── PESQUISA DE PROCESSOS + PROCESSOS SALVOS (S3/MinIO + MySQL) ─────────────
+
+export interface ProcessSearchResult {
+  ref: string
+  numero_cnj: string
+  tribunal: string
+  tribunal_nome: string
+  classe: string
+  assunto: string
+  partes: { papel: string; nome: string }[]
+  data_distribuicao: string
+  ultima_movimentacao: string
+  data_ultima_movimentacao: string
+}
+
+export interface SavedProcess {
+  id: string
+  numero_cnj: string
+  tribunal: string
+  classe: string | null
+  assunto: string | null
+  parties: { papel: string; nome: string }[]
+  distributed_at: string | null
+  last_movement: string | null
+  last_movement_at: string | null
+  source: string
+  search_query: string | null
+  file_name: string
+  size_bytes: number
+  sha256: string
+  pages: number | null
+  s3_bucket: string
+  s3_key: string
+  created_at: string
+  saved_by_name?: string | null
+  already_saved?: boolean
+}
+
+export const processSearchApi = {
+  /** POST /process-search */
+  search: (q: string) =>
+    http.post<{ provider: string; query: string; results: ProcessSearchResult[] }>('/process-search', { q }).then(r => r.data),
+  /** GET /process-search/preview?ref= → PDF (blob) */
+  preview: (ref: string) =>
+    http.get<Blob>('/process-search/preview', { params: { ref }, responseType: 'blob' }).then(r => r.data),
+  /** POST /process-search/save — grava o PDF no S3 e os metadados no MySQL */
+  save: (ref: string) => http.post<SavedProcess>('/process-search/save', { ref }).then(r => r.data),
+}
+
+export const savedProcessesApi = {
+  list: (params?: { q?: string; page?: number; limit?: number }) =>
+    http.get<{ data: SavedProcess[]; total: number; page: number; limit: number }>('/saved-processes', { params }).then(r => r.data),
+  get: (id: string) => http.get<SavedProcess>(`/saved-processes/${id}`).then(r => r.data),
+  file: (id: string) => http.get<Blob>(`/saved-processes/${id}/file`, { responseType: 'blob' }).then(r => r.data),
+  remove: (id: string) => http.delete(`/saved-processes/${id}`).then(r => r.data),
+}
+
 // ─── MÓDULOS — liga/desliga de funcionalidade por conta, só pelo admin da plataforma ─
 
 export interface ModuleStatus {

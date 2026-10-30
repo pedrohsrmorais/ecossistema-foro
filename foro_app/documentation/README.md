@@ -132,6 +132,7 @@ foro_app/
 │   ├── arquitetura.md          # Decisões de arquitetura
 │   ├── banco-de-dados.md       # Schema completo, tabelas e relacionamentos
 │   ├── pagamentos.md           # Stripe + NFS-e
+│   ├── armazenamento-s3.md     # MinIO/S3 + processos salvos (migração para AWS)
 │   ├── mercado-requisitos.md   # pesquisa de mercado jurídico e Must-Have
 │   ├── api-reference.md        # Referência de todas as rotas
 │   ├── plataforma-e-precificacao.md # Requisitos, diferenciais, APIs avaliadas e precificação (planos + créditos)

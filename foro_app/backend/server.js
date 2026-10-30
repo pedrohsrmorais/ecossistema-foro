@@ -101,6 +101,8 @@ async function start() {
     console.error('❌ Falha ao migrar o banco:', err.message);
     process.exit(1);
   }
+  // Armazenamento S3/MinIO: não derruba a API se estiver fora — só avisa (o salvar processo responde erro claro).
+  require('./services/storage.service').check().then(r => console.log(r.ok ? `🗄️  Armazenamento S3 ok (bucket "${r.bucket}", ${r.endpoint})` : `⚠️  Armazenamento S3 indisponível: ${r.reason}`));
   const server = app.listen(PORT, () => {
     console.log(`🚀 Foro API running on port ${PORT}`);
     console.log(`📦 Serving React build from: ${distPath}`);
