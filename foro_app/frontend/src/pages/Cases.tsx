@@ -68,7 +68,7 @@ export default function Cases() {
     <div className="p-6">
       <div className="flex items-center justify-between mb-4 gap-3 flex-wrap">
         <div>
-          <h1 className="text-xl font-semibold text-slate-900">Processos</h1>
+          <h1 className="text-xl font-semibold text-slate-900">Monitoramento Processual</h1>
           <p className="text-sm text-slate-500">{data?.total ?? 0} processo(s) · o link do tribunal fica a um clique</p>
         </div>
         <div className="flex items-center gap-2">
@@ -85,8 +85,8 @@ export default function Cases() {
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
           <input className="input pl-9" placeholder="Buscar por número, cliente, parte contrária…" value={search} onChange={e => setSearch(e.target.value)} />
         </div>
-        {canCreateCase && <form className="flex gap-2 flex-1 min-w-[300px]" onSubmit={e => { e.preventDefault(); if (newNumber.trim()) create.mutate(newNumber.trim()) }}>
-          <input className="input" placeholder="Novo processo: cole o número CNJ (0000000-00.0000.0.00.0000) ou um título" value={newNumber} onChange={e => setNewNumber(e.target.value)} />
+        {canCreateCase && <form className="flex gap-2 flex-1 min-w-[300px] flex-wrap" onSubmit={e => { e.preventDefault(); if (newNumber.trim()) create.mutate(newNumber.trim()) }}>
+          <input className="input flex-1 min-w-[200px]" placeholder="Novo processo: nº CNJ ou título" title="Cole o número CNJ (0000000-00.0000.0.00.0000) ou digite um título" value={newNumber} onChange={e => setNewNumber(e.target.value)} />
           <select className="input max-w-[170px]" value={newArea} onChange={e => setNewArea(e.target.value)} aria-label="Área do processo">
             {areaList?.map(a => <option key={a.key} value={a.key}>{a.short}</option>) ?? <option value="geral">Geral</option>}
           </select>
@@ -128,13 +128,13 @@ export default function Cases() {
                       <div key={c.id} className={clsx('group grid items-center gap-2 px-3 py-1.5 border-b last:border-b-0 hover:bg-slate-50/70', COLS)}>
                         <span className={clsx('w-1 h-7 rounded-full', st.bar)} />
                         <div className="min-w-0 flex items-center gap-1">
-                          <Link to={`/processos/${c.id}`} className="min-w-0 hover:underline">
+                          <Link to={`/monitoramento-processual/${c.id}`} className="min-w-0 hover:underline">
                             <p className="text-sm font-medium text-slate-900 font-mono truncate">{c.case_number || c.title || 'Sem número'}</p>
                             {c.case_number && c.title && <p className="text-xs text-slate-500 truncate">{c.title}</p>}
                           </Link>
                           {c.case_number && <CopyButton text={c.case_number} />}
                         </div>
-                        <span className="text-sm text-slate-600 truncate px-1">{c.lead_id ? <Link to={`/leads/${c.lead_id}`} className="hover:underline text-brand-700">{c.lead_name}</Link> : '—'}</span>
+                        <span className="text-sm text-slate-600 truncate px-1">{c.lead_id ? <Link to={`/crm-comercial/${c.lead_id}`} className="hover:underline text-brand-700">{c.lead_name}</Link> : '—'}</span>
                         <span className="text-xs font-medium text-slate-600">{c.tribunal || '—'}</span>
                         <EditableCell value={c.area} placeholder="Área" onSave={v => update.mutate({ id: c.id, data: { area: v } })} />
                         <EditableCell value={c.phase} placeholder="Fase" onSave={v => update.mutate({ id: c.id, data: { phase: v } })} />
@@ -142,7 +142,7 @@ export default function Cases() {
                         <span className="flex items-center justify-end gap-1">
                           {c.court_url
                             ? <a href={c.court_url} target="_blank" rel="noreferrer" title="Abrir processo no tribunal" className="p-1 text-brand-600 hover:text-brand-800"><ExternalLink className="w-4 h-4" /></a>
-                            : <Link to={`/processos/${c.id}`} title="Sem link do tribunal — clique para adicionar" className="p-1 text-slate-300 hover:text-amber-600"><Link2Off className="w-4 h-4" /></Link>}
+                            : <Link to={`/monitoramento-processual/${c.id}`} title="Sem link do tribunal — clique para adicionar" className="p-1 text-slate-300 hover:text-amber-600"><Link2Off className="w-4 h-4" /></Link>}
                           {canDelete && <button onClick={() => confirm('Excluir este processo?') && remove.mutate(c.id)} title="Excluir" className="p-1 text-slate-300 hover:text-red-600 opacity-0 group-hover:opacity-100"><Trash2 className="w-4 h-4" /></button>}
                         </span>
                       </div>

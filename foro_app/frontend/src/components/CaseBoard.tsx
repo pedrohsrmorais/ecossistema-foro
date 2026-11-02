@@ -119,7 +119,7 @@ export default function CaseBoard({ search, isAdmin }: { search: string; isAdmin
               </div>
               <div className="space-y-2 min-h-[40px]">
                 {col.map(c => (
-                  <Link key={c.id} to={`/processos/${c.id}`} draggable onDragStart={e => e.dataTransfer.setData('text/case', c.id)}
+                  <Link key={c.id} to={`/monitoramento-processual/${c.id}`} draggable onDragStart={e => e.dataTransfer.setData('text/case', c.id)}
                     className="block bg-white rounded-lg border p-2.5 hover:shadow-sm cursor-grab active:cursor-grabbing">
                     <p className="text-sm font-medium text-slate-900 truncate">{c.title || c.case_number || 'Sem título'}</p>
                     {c.case_number && c.title && <p className="text-[11px] font-mono text-slate-400 truncate">{c.case_number}</p>}

@@ -21,7 +21,7 @@ export default function VerifyEmail() {
     try {
       await authApi.verifyCode('email', code)
       markEmailVerified()
-      navigate('/chat')
+      navigate('/dashboard')
     } catch (err: any) {
       setError(err?.response?.data?.error || 'Código inválido.')
     } finally {

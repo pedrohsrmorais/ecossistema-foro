@@ -19,7 +19,7 @@ export default function Login() {
     setLoading(true)
     try {
       const res = await login(email, password)
-      navigate(res.user.email_verified ? '/chat' : '/verify-email')
+      navigate(res.user.email_verified ? '/dashboard' : '/verify-email')
     } catch (err: any) {
       setError(err?.response?.data?.error || 'Erro ao fazer login.')
     } finally {

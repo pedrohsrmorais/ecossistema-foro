@@ -94,7 +94,7 @@ export default function DocumentEditor() {
                 {doc.template.legal_basis.length > 0 && <p>Base legal permitida à IA: {doc.template.legal_basis.join('; ')}</p>}
               </div>
             )}
-            {doc.case_id && <p className="mt-2 text-xs"><Link to={`/processos/${doc.case_id}`} className="text-brand-700 hover:underline">Abrir processo</Link></p>}
+            {doc.case_id && <p className="mt-2 text-xs"><Link to={`/monitoramento-processual/${doc.case_id}`} className="text-brand-700 hover:underline">Abrir processo</Link></p>}
           </section>
 
           <section className="card p-4">

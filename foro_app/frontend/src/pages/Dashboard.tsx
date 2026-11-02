@@ -53,9 +53,9 @@ export default function Dashboard() {
   const { alerts, leads, cases, fees } = d
   const urgent = [...alerts.overdue, ...alerts.today]
   const attention: { key: string; icon: typeof Users; text: string; to: string }[] = []
-  if (leads.converted_no_case) attention.push({ key: 'cnc', icon: FileWarning, text: `${leads.converted_no_case} cliente${leads.converted_no_case > 1 ? 's convertidos' : ' convertido'} sem processo cadastrado`, to: '/leads' })
-  if (cases.active_no_deadline) attention.push({ key: 'nod', icon: CalendarClock, text: `${cases.active_no_deadline} processo${cases.active_no_deadline > 1 ? 's ativos' : ' ativo'} sem nenhum prazo em aberto`, to: '/processos' })
-  if (leads.stale) attention.push({ key: 'stale', icon: UserX, text: `${leads.stale} lead${leads.stale > 1 ? 's' : ''} sem contato há mais de 7 dias`, to: '/leads' })
+  if (leads.converted_no_case) attention.push({ key: 'cnc', icon: FileWarning, text: `${leads.converted_no_case} cliente${leads.converted_no_case > 1 ? 's convertidos' : ' convertido'} sem processo cadastrado`, to: '/crm-comercial' })
+  if (cases.active_no_deadline) attention.push({ key: 'nod', icon: CalendarClock, text: `${cases.active_no_deadline} processo${cases.active_no_deadline > 1 ? 's ativos' : ' ativo'} sem nenhum prazo em aberto`, to: '/monitoramento-processual' })
+  if (leads.stale) attention.push({ key: 'stale', icon: UserX, text: `${leads.stale} lead${leads.stale > 1 ? 's' : ''} sem contato há mais de 7 dias`, to: '/crm-comercial' })
 
   const totalLeads = leads.total
   const maxWeek = Math.max(1, ...leads.weekly.map(w => w.total))
@@ -70,12 +70,12 @@ export default function Dashboard() {
         <Kpi icon={AlertTriangle} tone={alerts.counts.overdue ? 'bg-red-100 text-red-600' : 'bg-green-100 text-green-600'} value={alerts.counts.overdue}
           label="Prazos vencidos" sub={alerts.counts.today ? `${alerts.counts.today} para hoje` : 'nenhum para hoje'} to="/tasks" />
         <Kpi icon={CalendarClock} tone="bg-amber-100 text-amber-600" value={alerts.counts.upcoming + alerts.counts.today} label="Próximos 7 dias" sub="prazos, audiências e reuniões" to="/agenda" />
-        <Kpi icon={Briefcase} tone="bg-brand-100 text-brand-600" value={cases.active} label="Processos ativos" sub={cases.active_value ? `${brl(cases.active_value)} em causa` : undefined} to="/processos" />
-        <Kpi icon={Users} tone="bg-sky-100 text-sky-600" value={leads.new_30d} label="Leads novos (30 dias)" sub={`${leads.conversion_rate}% convertidos no total`} to="/leads" />
+        <Kpi icon={Briefcase} tone="bg-brand-100 text-brand-600" value={cases.active} label="Processos ativos" sub={cases.active_value ? `${brl(cases.active_value)} em causa` : undefined} to="/monitoramento-processual" />
+        <Kpi icon={Users} tone="bg-sky-100 text-sky-600" value={leads.new_30d} label="Leads novos (30 dias)" sub={`${leads.conversion_rate}% convertidos no total`} to="/crm-comercial" />
       </div>
 
       <div className="grid lg:grid-cols-[1fr_340px] gap-5">
-        <div className="space-y-5">
+        <div className="space-y-5 min-w-0">
           {/* Urgente */}
           <section className={clsx('card p-5', alerts.counts.overdue > 0 && 'border-red-200')}>
             <h2 className="font-medium text-slate-900 mb-2 flex items-center gap-1.5">
@@ -97,9 +97,9 @@ export default function Dashboard() {
 
           {/* Funil */}
           <section className="card p-5">
-            <h2 className="font-medium text-slate-900 mb-4">Funil de leads</h2>
+            <h2 className="font-medium text-slate-900 mb-4">Funil do CRM Comercial</h2>
             {totalLeads === 0 ? (
-              <p className="text-sm text-slate-400">Nenhum lead cadastrado ainda. Peça à IA ou adicione em <Link to="/leads" className="text-brand-600 underline">Leads</Link>.</p>
+              <p className="text-sm text-slate-400">Nenhum lead cadastrado ainda. Peça à IA ou adicione em <Link to="/crm-comercial" className="text-brand-600 underline">CRM Comercial</Link>.</p>
             ) : (
               <div className="space-y-3">
                 {STAGES.map(st => {
@@ -147,7 +147,7 @@ export default function Dashboard() {
             )}
             {leads.converted_no_case_list.length > 0 && (
               <p className="text-xs text-slate-500 mt-3">Sem processo: {leads.converted_no_case_list.map((l, i) => (
-                <span key={l.id}>{i > 0 && ', '}<Link to={`/leads/${l.id}`} className="text-brand-700 hover:underline">{l.name || 'Sem nome'}</Link></span>
+                <span key={l.id}>{i > 0 && ', '}<Link to={`/crm-comercial/${l.id}`} className="text-brand-700 hover:underline">{l.name || 'Sem nome'}</Link></span>
               ))}</p>
             )}
           </section>

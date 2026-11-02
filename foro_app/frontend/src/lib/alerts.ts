@@ -18,4 +18,4 @@ export function relDays(days: number): string {
 }
 
 export const alertLink = (a: { case_id: string | null; lead_id: string | null }) =>
-  a.case_id ? `/processos/${a.case_id}` : a.lead_id ? `/leads/${a.lead_id}` : '/tasks'
+  a.case_id ? `/monitoramento-processual/${a.case_id}` : a.lead_id ? `/crm-comercial/${a.lead_id}` : '/tasks'

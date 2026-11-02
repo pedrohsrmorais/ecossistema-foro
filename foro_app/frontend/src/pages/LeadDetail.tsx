@@ -87,7 +87,7 @@ export default function LeadDetail() {
   return (
     <div className="p-6 max-w-5xl">
       <div className="flex items-center gap-3 mb-5">
-        <button onClick={() => navigate('/leads')} className="btn-ghost p-1.5" title="Voltar"><ArrowLeft className="w-4 h-4" /></button>
+        <button onClick={() => navigate('/crm-comercial')} className="btn-ghost p-1.5" title="Voltar"><ArrowLeft className="w-4 h-4" /></button>
         <span className={clsx('w-1 h-9 rounded-full', st.bar)} />
         <div className="flex-1 min-w-0">
           <EditableCell bold value={lead.name} placeholder="Lead sem nome" className="!text-xl !py-0.5" onSave={v => update.mutate({ name: v })} />
@@ -141,7 +141,7 @@ export default function LeadDetail() {
         <div className="card p-5">
           <div className="flex items-center justify-between mb-3">
             <h2 className="font-medium text-slate-900 flex items-center gap-1.5"><Briefcase className="w-4 h-4 text-slate-400" /> Processos ({cases?.total ?? 0})</h2>
-            <Link to="/processos" className="text-xs text-brand-600 hover:underline">Ver todos</Link>
+            <Link to="/monitoramento-processual" className="text-xs text-brand-600 hover:underline">Ver todos</Link>
           </div>
           {lead?.stage === 'convertido' && !cases?.data.length && (
             <p className="mb-3 text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded-lg p-2">Cliente convertido sem processo. Cadastre abaixo para acompanhar prazos e andamentos.</p>
@@ -150,7 +150,7 @@ export default function LeadDetail() {
             <ul className="divide-y mb-3">
               {cases.data.map(c => (
                 <li key={c.id} className="flex items-center gap-2 py-2">
-                  <Link to={`/processos/${c.id}`} className="flex-1 min-w-0 hover:underline">
+                  <Link to={`/monitoramento-processual/${c.id}`} className="flex-1 min-w-0 hover:underline">
                     <p className="text-sm font-mono text-slate-900 truncate">{c.case_number || c.title}</p>
                     <p className="text-xs text-slate-500">{[c.tribunal, c.area, c.phase].filter(Boolean).join(' · ') || c.status}{c.next_deadline ? ` · prazo ${fmtDate(c.next_deadline)}` : ''}</p>
                   </Link>
@@ -222,7 +222,7 @@ export default function LeadDetail() {
         )}
       </div>
       {showEvent && <EventForm onClose={() => setShowEvent(false)} leadId={id} />}
-      <p className="mt-4 text-xs text-slate-400"><Link to="/leads" className="underline">Voltar ao quadro</Link></p>
+      <p className="mt-4 text-xs text-slate-400"><Link to="/crm-comercial" className="underline">Voltar ao CRM Comercial</Link></p>
     </div>
   )
 }

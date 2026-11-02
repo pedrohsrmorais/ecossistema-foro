@@ -1,3 +1,4 @@
+import Markdown from './Markdown'
 import { useState, useRef, useEffect, FormEvent } from 'react'
 import { Send, Plus, Bot, User, CheckCircle2, Search, AlertTriangle, Sparkles, Mic, Square, Undo2 } from 'lucide-react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
@@ -124,10 +125,10 @@ export default function ChatPanel({ compact = false }: { compact?: boolean }) {
                     ))}
                   </span>
                 ) : (
-                  <p className="whitespace-pre-wrap">
+                  <div>
                     {msg.error && <AlertTriangle className="w-3.5 h-3.5 inline mr-1 -mt-0.5" />}
-                    {msg.content}
-                  </p>
+                    {msg.role === 'assistant' && !msg.error ? <Markdown text={msg.content} /> : <p className="whitespace-pre-wrap">{msg.content}</p>}
+                  </div>
                 )}
               </div>
               {msg.actions?.map((a, i) => (
@@ -138,8 +139,8 @@ export default function ChatPanel({ compact = false }: { compact?: boolean }) {
                   <span className="truncate">{a.summary}</span>
                   {a.ok && a.write && a.id && <UndoButton id={a.id} />}
                   {a.ok && (a.case_id
-                    ? <Link to={`/processos/${a.case_id}`} className="underline shrink-0">abrir</Link>
-                    : a.lead_id && <Link to={`/leads/${a.lead_id}`} className="underline shrink-0">abrir</Link>)}
+                    ? <Link to={`/monitoramento-processual/${a.case_id}`} className="underline shrink-0">abrir</Link>
+                    : a.lead_id && <Link to={`/crm-comercial/${a.lead_id}`} className="underline shrink-0">abrir</Link>)}
                 </div>
               ))}
               {msg.creditsUsed !== undefined && (

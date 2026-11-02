@@ -14,7 +14,7 @@ Segurança: o bucket é privado; o arquivo sempre passa pela API (login + conta 
 
 ## Ver os processos salvos
 
-- **No app:** menu *Aplicativos → Processos salvos* (`/processos-salvos`): resumo (total, páginas, espaço, último salvo), busca (número, parte, classe, assunto, caminho), filtros (tribunal, datas), ordenação, paginação, detalhe com bucket, **caminho no S3**, SHA-256 e botão de copiar, abrir/baixar/remover.
+- **No app:** menu *Monitoramento Processual → aba Salvos* (`/monitoramento-processual/salvos`): resumo (total, páginas, espaço, último salvo), busca (número, parte, classe, assunto, caminho), filtros (tribunal, datas), ordenação, paginação, detalhe com bucket, **caminho no S3**, SHA-256 e botão de copiar, abrir/baixar/remover.
 - **No MinIO:** abra o console por túnel (`ssh -L 9001:127.0.0.1:9001 usuario@servidor`) → http://localhost:9001 → login com `MINIO_ROOT_USER`/`MINIO_ROOT_PASSWORD` → *Object Browser* → bucket `foro-arquivos` → `accounts/<id da conta>/processos/<id>/<arquivo>.pdf`. O caminho exato de cada arquivo aparece na tela de Processos salvos.
 - **No MySQL:** `SELECT numero_cnj, s3_bucket, s3_key, size_bytes FROM saved_processes WHERE deleted_at IS NULL;`
 

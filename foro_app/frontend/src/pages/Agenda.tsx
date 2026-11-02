@@ -84,8 +84,8 @@ export default function Agenda() {
                             {e.status === 'realizado' && <span className="badge bg-green-100 text-green-700 !py-0">Realizado</span>}
                           </div>
                           <p className="text-xs text-slate-500 mt-0.5 flex gap-3 flex-wrap">
-                            {e.lead_name && e.lead_id && <Link to={`/leads/${e.lead_id}`} className="text-brand-600 hover:underline">{e.lead_name}</Link>}
-                            {e.case_id && <Link to={`/processos/${e.case_id}`} className="text-brand-600 hover:underline font-mono">{e.case_number || e.case_title}</Link>}
+                            {e.lead_name && e.lead_id && <Link to={`/crm-comercial/${e.lead_id}`} className="text-brand-600 hover:underline">{e.lead_name}</Link>}
+                            {e.case_id && <Link to={`/monitoramento-processual/${e.case_id}`} className="text-brand-600 hover:underline font-mono">{e.case_number || e.case_title}</Link>}
                             {e.location && <span className="flex items-center gap-1"><MapPin className="w-3 h-3" />{e.location}</span>}
                           </p>
                         </div>

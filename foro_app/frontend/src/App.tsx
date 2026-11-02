@@ -1,4 +1,4 @@
-import { Routes, Route, Navigate } from 'react-router-dom'
+import { Routes, Route, Navigate, useParams } from 'react-router-dom'
 import { AuthProvider } from './context/AuthContext'
 import { AdminAuthProvider } from './context/AdminAuthContext'
 import ProtectedRoute from './components/ProtectedRoute'
@@ -25,8 +25,6 @@ import Support from './pages/Support'
 import Education from './pages/Education'
 import TrilhaDetail from './pages/TrilhaDetail'
 import ModuloDesativado from './pages/ModuloDesativado'
-import ConsultaCnpj from './pages/aplicativos/ConsultaCnpj'
-import ConsultaCpf from './pages/aplicativos/ConsultaCpf'
 import ConsultaProcessual from './pages/aplicativos/ConsultaProcessual'
 import ProcessosSalvos from './pages/aplicativos/ProcessosSalvos'
 import PesquisaInteligente from './pages/aplicativos/PesquisaInteligente'
@@ -48,9 +46,14 @@ import DocumentEditor from './pages/DocumentEditor'
 import OfficeTemplates from './pages/OfficeTemplates'
 import NotFound from './pages/NotFound'
 import Escritorio from './pages/Escritorio'
-import GeradorDocumentos from './pages/aplicativos/GeradorDocumentos'
+import MonitoramentoLayout from './pages/MonitoramentoLayout'
 import ComingSoon from './components/ComingSoon'
 import { LOCKED_FEATURES } from './config/featureFlags'
+
+function Redirect({ to }: { to: (id: string) => string }) {
+  const { id = '' } = useParams()
+  return <Navigate to={to(id)} replace />
+}
 
 export default function App() {
   return (
@@ -70,19 +73,32 @@ export default function App() {
             {/* Logado + e-mail confirmado */}
             <Route element={<RequireVerified />}>
               <Route element={<Layout />}>
-                <Route index element={<Navigate to="/chat" replace />} />
+                <Route index element={<Navigate to="/dashboard" replace />} />
                 <Route path="/dashboard" element={<Dashboard />} />
                 <Route path="/chat"      element={<Chat />} />
-                <Route path="/leads"     element={<Leads />} />
-                <Route path="/leads/:id" element={<LeadDetail />} />
-                <Route path="/processos"     element={<Cases />} />
-                <Route path="/processos/:id" element={<CaseDetail />} />
+                <Route path="/crm-comercial"     element={<Leads />} />
+                <Route path="/crm-comercial/:id" element={<LeadDetail />} />
+                <Route path="/monitoramento-processual" element={<MonitoramentoLayout />}>
+                  <Route index element={<Cases />} />
+                  <Route path="pesquisar" element={<ConsultaProcessual />} />
+                  <Route path="salvos"    element={<ProcessosSalvos />} />
+                  <Route path=":id"       element={<CaseDetail />} />
+                </Route>
+                {/* nomes antigos continuam funcionando (links salvos, e-mails de alerta) */}
+                <Route path="/leads"         element={<Navigate to="/crm-comercial" replace />} />
+                <Route path="/leads/:id"     element={<Redirect to={id => `/crm-comercial/${id}`} />} />
+                <Route path="/processos"     element={<Navigate to="/monitoramento-processual" replace />} />
+                <Route path="/processos/:id" element={<Redirect to={id => `/monitoramento-processual/${id}`} />} />
+                <Route path="/processos-salvos"     element={<Navigate to="/monitoramento-processual/salvos" replace />} />
+                <Route path="/consulta-processual"  element={<Navigate to="/monitoramento-processual/pesquisar" replace />} />
+                <Route path="/consulta-cnpj"        element={<Navigate to="/pesquisa-inteligente?tipo=cnpj" replace />} />
+                <Route path="/consulta-cpf"         element={<Navigate to="/pesquisa-inteligente?tipo=cpf" replace />} />
+                <Route path="/gerador-documentos"   element={<Navigate to="/documentos?novo=1" replace />} />
                 <Route path="/documentos"     element={<Documents />} />
                 <Route path="/documentos/modelos" element={<OfficeTemplates />} />
                 <Route path="/documentos/:id" element={<DocumentEditor />} />
                 <Route path="/agenda"        element={<Agenda />} />
                 <Route path="/escritorio"    element={<Escritorio />} />
-                <Route path="/gerador-documentos" element={<GeradorDocumentos />} />
                 <Route path="/tasks"     element={<Tasks />} />
                 <Route path="/settings"  element={<Settings />} />
                 <Route path="/planos"    element={<Plans />} />
@@ -91,13 +107,8 @@ export default function App() {
                 <Route path="/education/:id"  element={LOCKED_FEATURES.educacao ? <ComingSoon title="Educação" description="As trilhas de estudo em vídeo chegam em breve." /> : <TrilhaDetail />} />
                 <Route path="/modulo-desativado" element={<ModuloDesativado />} />
 
-                {/* Aplicativos — consultas pagas (todas atrás de "Em breve" por
-                    enquanto, ver config/featureFlags.ts) */}
+                {/* Pesquisa — consultas pagas (atrás de "Em breve" por enquanto, ver config/featureFlags.ts) */}
                 <Route path="/pesquisa-inteligente" element={<PesquisaInteligente />} />
-                <Route path="/consulta-cnpj"        element={<ConsultaCnpj />} />
-                <Route path="/consulta-cpf"         element={<ConsultaCpf />} />
-                <Route path="/consulta-processual"  element={<ConsultaProcessual />} />
-                <Route path="/processos-salvos"     element={<ProcessosSalvos />} />
 
                 {/* Inteligência — Provas de conceito, Desafios semanais, Comunidade */}
                 <Route path="/provas-de-conceito"          element={LOCKED_FEATURES.provasConceito ? <ComingSoon title="Provas de conceito" description="Quizzes ligados às aulas chegam em breve." /> : <ProvasDeConceito />} />

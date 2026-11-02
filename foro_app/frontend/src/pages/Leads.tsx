@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useRef } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { Link } from 'react-router-dom'
 import { Plus, Search, ChevronDown, ChevronRight, ExternalLink, Trash2, LayoutList, Columns3, Sparkles } from 'lucide-react'
@@ -37,14 +37,19 @@ function useBoardMutations() {
 
 function AddRow({ stage, onCreate }: { stage: string; onCreate: (name: string) => void }) {
   const canCreate = useCan('create_leads')
-  if (!canCreate) return null
   const [name, setName] = useState('')
-  function submit() { if (name.trim()) { onCreate(name.trim()); setName('') } }
+  const input = useRef<HTMLInputElement>(null)
+  if (!canCreate) return null
+  const label = stageOf(stage).label
+  function submit() { if (name.trim()) { onCreate(name.trim()); setName('') } else input.current?.focus() }
   return (
     <div className="flex items-center gap-2 px-3 py-1.5 border-t bg-slate-50/50">
-      <Plus className="w-3.5 h-3.5 text-slate-400" />
-      <input value={name} onChange={e => setName(e.target.value)} onKeyDown={e => e.key === 'Enter' && submit()}
-        placeholder="Adicionar lead (Enter)" title={`Novo lead em "${stageOf(stage).label}"`}
+      <button type="button" onClick={submit} aria-label={`Adicionar lead em ${label}`} title={name.trim() ? 'Adicionar' : 'Digite o nome ao lado'}
+        className="p-0.5 rounded text-slate-400 hover:text-brand-600 hover:bg-slate-200/60">
+        <Plus className="w-4 h-4" />
+      </button>
+      <input ref={input} value={name} onChange={e => setName(e.target.value)} onKeyDown={e => e.key === 'Enter' && submit()}
+        placeholder="Adicionar lead (Enter ou +)" title={`Novo lead em "${label}"`}
         className="flex-1 text-sm bg-transparent outline-none placeholder:text-slate-400 py-1" />
     </div>
   )
@@ -76,10 +81,10 @@ export default function Leads() {
     <div className="p-6">
       <div className="flex items-center justify-between mb-4 gap-3 flex-wrap">
         <div>
-          <h1 className="text-xl font-semibold text-slate-900">Leads</h1>
+          <h1 className="text-xl font-semibold text-slate-900">CRM Comercial</h1>
           <p className="text-sm text-slate-500">{data?.total ?? 0} no funil · clique em qualquer campo para editar</p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
           <div className="inline-flex rounded-lg border bg-white p-0.5">
             {([['board', LayoutList, 'Quadro'], ['kanban', Columns3, 'Kanban']] as const).map(([k, Icon, label]) => (
               <button key={k} onClick={() => setViewMode(k)}
@@ -129,7 +134,7 @@ export default function Leads() {
                         <span className="text-sm text-slate-500 truncate px-1.5">{l.assigned_name || '—'}</span>
                         <span className="text-sm text-slate-500 px-1.5">{new Date(l.created_at).toLocaleDateString('pt-BR')}</span>
                         <span className="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                          <Link to={`/leads/${l.id}`} title="Abrir" className="p-1 text-slate-400 hover:text-brand-600"><ExternalLink className="w-4 h-4" /></Link>
+                          <Link to={`/crm-comercial/${l.id}`} title="Abrir" className="p-1 text-slate-400 hover:text-brand-600"><ExternalLink className="w-4 h-4" /></Link>
                           {canDelete && <button onClick={() => del(l)} title="Excluir" className="p-1 text-slate-400 hover:text-red-600"><Trash2 className="w-4 h-4" /></button>}
                         </span>
                       </div>
@@ -156,7 +161,7 @@ export default function Leads() {
                 </div>
                 <div className="space-y-2 min-h-[40px]">
                   {rows.map(l => (
-                    <Link key={l.id} to={`/leads/${l.id}`} draggable onDragStart={() => setDragId(l.id)} onDragEnd={() => setDragId(null)}
+                    <Link key={l.id} to={`/crm-comercial/${l.id}`} draggable onDragStart={() => setDragId(l.id)} onDragEnd={() => setDragId(null)}
                       className={clsx('block bg-white border rounded-lg p-3 shadow-sm hover:shadow transition-shadow', dragId === l.id && 'opacity-40')}>
                       <p className="text-sm font-medium text-slate-900 truncate">{l.name || 'Sem nome'}</p>
                       <p className="text-xs text-slate-500 truncate">{l.phone || l.email || '—'}</p>

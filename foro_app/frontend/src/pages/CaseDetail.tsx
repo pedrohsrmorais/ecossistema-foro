@@ -57,7 +57,7 @@ export default function CaseDetail() {
   return (
     <div className="p-6 max-w-5xl">
       <div className="flex items-center gap-3 mb-5 flex-wrap">
-        <button onClick={() => navigate('/processos')} className="btn-ghost p-1.5" title="Voltar"><ArrowLeft className="w-4 h-4" /></button>
+        <button onClick={() => navigate('/monitoramento-processual')} className="btn-ghost p-1.5" title="Voltar"><ArrowLeft className="w-4 h-4" /></button>
         <span className={clsx('w-1 h-10 rounded-full', st.bar)} />
         <div className="flex-1 min-w-[240px]">
           <div className="flex items-center gap-2">
@@ -106,7 +106,7 @@ export default function CaseDetail() {
               </select>
               {c.lead_id ? (
                 <div className="mt-1.5 text-xs text-slate-600 flex flex-wrap items-center gap-x-3 gap-y-1">
-                  <Link to={`/leads/${c.lead_id}`} className="text-brand-700 hover:underline font-medium">Abrir cliente</Link>
+                  <Link to={`/crm-comercial/${c.lead_id}`} className="text-brand-700 hover:underline font-medium">Abrir cliente</Link>
                   {c.lead_phone && <>
                     <a href={`tel:${c.lead_phone}`} className="hover:underline">{c.lead_phone}</a>
                     <a href={`https://wa.me/${c.lead_phone.replace(/\D/g, '').replace(/^(?!55)/, '55')}`} target="_blank" rel="noreferrer" className="text-green-700 hover:underline">WhatsApp</a>
@@ -197,7 +197,7 @@ export default function CaseDetail() {
           </ol>
         )}
       </div>
-      <p className="mt-4 text-xs text-slate-400"><Link to="/processos" className="underline">Voltar aos processos</Link></p>
+      <p className="mt-4 text-xs text-slate-400"><Link to="/monitoramento-processual" className="underline">Voltar ao Monitoramento Processual</Link></p>
       {showEvent && <EventForm onClose={() => setShowEvent(false)} caseId={c.id} leadId={c.lead_id || undefined} />}
     </div>
   )

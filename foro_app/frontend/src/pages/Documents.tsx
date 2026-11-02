@@ -1,10 +1,11 @@
 import { useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { FileText, Sparkles, AlertTriangle, Trash2, Wand2, Briefcase } from 'lucide-react'
+import { FileText, Sparkles, AlertTriangle, Trash2, Wand2, Briefcase, Library } from 'lucide-react'
 import clsx from 'clsx'
 import { documentsApi, areasApi, usersApi, type DocumentSummary } from '../api'
 import { fmtDate } from '../lib/cases'
+import NovoDocumento from '../components/NovoDocumento'
 
 export const DOC_STATUS: Record<string, { label: string; pill: string }> = {
   rascunho: { label: 'Rascunho', pill: 'bg-slate-100 text-slate-600' },
@@ -16,6 +17,8 @@ export default function Documents() {
   const qc = useQueryClient()
   const { data: me } = useQuery({ queryKey: ['me-profile'], queryFn: usersApi.me })
   const canDelete = me?.permissions?.delete_records !== false
+  const [params, setParams] = useSearchParams()
+  const [novo, setNovo] = useState(params.get('novo') === '1')
   const [area, setArea] = useState('')
   const [search, setSearch] = useState('')
   const { data: areas = [] } = useQuery({ queryKey: ['areas'], queryFn: areasApi.list, staleTime: 5 * 60_000 })
@@ -38,10 +41,15 @@ export default function Documents() {
       <div className="flex items-center justify-between mb-4 gap-3 flex-wrap">
         <div>
           <h1 className="text-xl font-semibold text-slate-900">Documentos</h1>
-          <p className="text-sm text-slate-500">Os documentos do escritório, organizados por processo.</p>
+          <p className="text-sm text-slate-500">Crie e organize os documentos do escritório, agrupados por processo.</p>
         </div>
-        <Link to="/gerador-documentos" className="btn-primary"><Wand2 className="w-4 h-4" /> Gerar documento</Link>
+        <div className="flex gap-2">
+          <Link to="/documentos/modelos" className="btn-secondary"><Library className="w-4 h-4" /> Modelos do escritório</Link>
+          <button className="btn-primary" onClick={() => { setNovo(true); if (params.has('novo')) { params.delete('novo'); setParams(params, { replace: true }) } }}><Wand2 className="w-4 h-4" /> Novo documento</button>
+        </div>
       </div>
+
+      {novo && <NovoDocumento onClose={() => setNovo(false)} />}
 
       <div className="flex gap-2 mb-3 flex-wrap">
         <input className="input max-w-xs" placeholder="Buscar por título" value={search} onChange={e => setSearch(e.target.value)} />
@@ -53,7 +61,7 @@ export default function Documents() {
       {isLoading ? <div className="card p-8 text-center text-slate-400">Carregando…</div> : docs.length === 0 ? (
         <div className="card p-10 text-center">
           <p className="text-slate-600 mb-1">Nenhum documento ainda.</p>
-          <p className="text-sm text-slate-400">Use o <Link to="/gerador-documentos" className="underline">Gerador de documentos</Link>, escolha um modelo e vincule o processo.</p>
+          <p className="text-sm text-slate-400">Clique em <button className="underline" onClick={() => setNovo(true)}>Novo documento</button>, escolha um modelo e vincule o processo.</p>
         </div>
       ) : (
         <div className="space-y-4">
@@ -61,7 +69,7 @@ export default function Documents() {
             <section key={g.key} className="card overflow-hidden" data-testid="doc-group">
               <header className="flex items-center gap-2 px-4 py-2 bg-slate-50 border-b text-sm">
                 <Briefcase className="w-4 h-4 text-slate-400" />
-                {g.caseId ? <Link to={`/processos/${g.caseId}`} className="font-medium text-slate-800 hover:underline">{g.label}</Link> : <span className="font-medium text-slate-600">{g.label}</span>}
+                {g.caseId ? <Link to={`/monitoramento-processual/${g.caseId}`} className="font-medium text-slate-800 hover:underline">{g.label}</Link> : <span className="font-medium text-slate-600">{g.label}</span>}
                 <span className="text-xs text-slate-400">{g.docs.length} documento(s)</span>
               </header>
               <ul className="divide-y">

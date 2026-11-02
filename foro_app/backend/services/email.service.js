@@ -138,7 +138,7 @@ async function sendDeadlineDigest(to, { name, data, appUrl, isTest = false }) {
       <tr style="border-top:1px solid #e2e8f0;">
         <td style="padding:8px 6px; vertical-align:top; width:92px; color:#64748b; font-size:12px;">${esc(KIND_LABEL[it.kind] || 'Item')}</td>
         <td style="padding:8px 6px; color:#0f172a;">
-          <a href="${esc(appUrl)}${it.case_id ? '/processos/' + esc(it.case_id) : (it.lead_id ? '/leads/' + esc(it.lead_id) : '/tasks')}" style="color:#0f172a; text-decoration:none; font-weight:600;">${esc(it.title)}</a>
+          <a href="${esc(appUrl)}${it.case_id ? '/monitoramento-processual/' + esc(it.case_id) : (it.lead_id ? '/crm-comercial/' + esc(it.lead_id) : '/tasks')}" style="color:#0f172a; text-decoration:none; font-weight:600;">${esc(it.title)}</a>
           ${it.case_label || it.lead_name ? `<br><span style="color:#64748b; font-size:12px;">${esc([it.case_label, it.lead_name].filter(Boolean).join(' · '))}</span>` : ''}
         </td>
         <td style="padding:8px 6px; text-align:right; white-space:nowrap; font-size:12px; color:${color};">${esc(fmtWhen(it.at, it.kind !== 'prazo' && it.kind !== 'tarefa'))}<br>${esc(_rel(it.days))}</td>

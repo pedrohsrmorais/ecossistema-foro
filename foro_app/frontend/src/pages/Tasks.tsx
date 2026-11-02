@@ -79,8 +79,8 @@ export default function Tasks() {
                               {t.is_deadline ? <span className="badge bg-amber-100 text-amber-700 !py-0 mr-2">Prazo</span> : null}{t.description}
                             </p>
                             <p className="text-xs flex gap-3">
-                              {t.lead_name && t.lead_id && <Link to={`/leads/${t.lead_id}`} className="text-brand-600 hover:underline">{t.lead_name}</Link>}
-                              {t.case_id && <Link to={`/processos/${t.case_id}`} className="text-brand-600 hover:underline font-mono">{t.case_number || 'Processo'}</Link>}
+                              {t.lead_name && t.lead_id && <Link to={`/crm-comercial/${t.lead_id}`} className="text-brand-600 hover:underline">{t.lead_name}</Link>}
+                              {t.case_id && <Link to={`/monitoramento-processual/${t.case_id}`} className="text-brand-600 hover:underline font-mono">{t.case_number || 'Processo'}</Link>}
                             </p>
                           </div>
                           {t.due_date && (

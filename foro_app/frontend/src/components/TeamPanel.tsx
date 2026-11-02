@@ -96,7 +96,7 @@ export default function TeamPanel({ maxUsers }: { maxUsers?: number }) {
                           <option value="all">Tudo do escritório</option>
                           <option value="own">Apenas o que é meu</option>
                         </select>
-                        <p className="text-xs text-slate-400 mt-1.5">“Apenas o que é meu” vale para Leads, Processos e Documentos (os que ele criou, é responsável ou participa). Nessa visão o assistente de IA fica indisponível, porque ele consulta o escritório inteiro.</p>
+                        <p className="text-xs text-slate-400 mt-1.5">“Apenas o que é meu” vale para CRM Comercial, Monitoramento Processual e Documentos (os que ele criou, é responsável ou participa). Nessa visão o assistente de IA fica indisponível, porque ele consulta o escritório inteiro.</p>
                       </div>
                     </div>
                     <p className="text-xs text-slate-400 mt-3">Administradores sempre podem tudo.</p>

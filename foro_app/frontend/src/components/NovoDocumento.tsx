@@ -1,10 +1,10 @@
 import { useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { FileText, Sparkles, ShieldCheck, Library, Wand2 } from 'lucide-react'
-import { documentsApi, areasApi, casesApi, type DocumentTemplate } from '../../api'
+import { FileText, Sparkles, ShieldCheck, X } from 'lucide-react'
+import { documentsApi, areasApi, casesApi, type DocumentTemplate } from '../api'
 
-export default function GeradorDocumentos() {
+export default function NovoDocumento({ onClose }: { onClose: () => void }) {
   const qc = useQueryClient()
   const navigate = useNavigate()
   const [pickArea, setPickArea] = useState('')
@@ -21,16 +21,14 @@ export default function GeradorDocumentos() {
   const areaLabel = (k: string) => areas.find(a => a.key === k)?.short || k
 
   return (
-    <div className="p-6 max-w-5xl">
-      <div className="flex items-center justify-between mb-4 gap-3 flex-wrap">
-        <div>
-          <h1 className="text-xl font-semibold text-slate-900 flex items-center gap-2"><Wand2 className="w-5 h-5 text-accent-500" /> Gerador de documentos</h1>
-          <p className="text-sm text-slate-500">Escolha um modelo (da plataforma ou do seu escritório), vincule o processo e a IA redige só os trechos marcados, sem citar lei fora da lista de referências.</p>
-        </div>
-        <Link to="/documentos/modelos" className="btn-secondary"><Library className="w-4 h-4" /> Modelos do escritório</Link>
-      </div>
+    <div>
       {error && <p className="mb-3 text-sm text-red-600">{error}</p>}
-      <section className="card p-5 mb-5">
+      <section className="card p-5 mb-5" data-testid="novo-documento">
+        <div className="flex items-center gap-2 mb-1">
+          <h2 className="font-medium text-slate-900 flex-1">Novo documento</h2>
+          <button className="btn-ghost p-1.5" onClick={onClose} aria-label="Fechar"><X className="w-4 h-4" /></button>
+        </div>
+        <p className="text-sm text-slate-500 mb-3">Escolha um modelo (da plataforma ou do seu escritório), vincule o processo e a IA redige só os trechos marcados, sem citar lei fora da lista de referências.</p>
 
           <div className="flex gap-2 flex-wrap mb-3">
             <select className="input !w-52" aria-label="Área dos modelos" value={pickArea} onChange={e => setPickArea(e.target.value)}>
@@ -62,7 +60,6 @@ export default function GeradorDocumentos() {
           </div>
           <button className="mt-3 text-xs text-slate-500 hover:underline" onClick={() => create.mutate(null)}>ou começar com um documento em branco</button>
         </section>
-      <p className="text-xs text-slate-500">Os documentos gerados ficam na aba <Link to="/documentos" className="underline">Documentos</Link>, organizados por processo.</p>
     </div>
   )
 }

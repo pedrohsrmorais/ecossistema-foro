@@ -91,7 +91,7 @@ foro_app/
 │   │   ├── config/
 │   │   │   └── featureFlags.ts         # LOCKED_FEATURES — "em breve" por recurso, independente do toggle de módulo
 │   │   ├── components/
-│   │   │   ├── Layout.tsx              # Sidebar do app do tenant — nav em Aplicativos/Inteligência, filtrada por módulo ativo
+│   │   │   ├── Layout.tsx              # Sidebar do app do tenant — menu (Painel, CRM Comercial, Monitoramento Processual, Pesquisa inteligente, Documentos, Agenda, Tarefas, IA, Escritório + Inteligência), filtrado por módulo; menu recolhível no celular ativo
 │   │   │   ├── AdminLayout.tsx         # Sidebar do painel administrativo
 │   │   │   ├── ComingSoon.tsx          # Selo "Em breve" reutilizável (ver featureFlags.ts)
 │   │   │   ├── ProtectedRoute.tsx / AdminProtectedRoute.tsx

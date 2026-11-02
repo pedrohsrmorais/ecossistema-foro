@@ -11,7 +11,7 @@ const STATUS: Record<AiLogRow['status'], { l: string; c: string }> = {
 }
 const OP = { insert: 'criou', update: 'alterou', delete: 'excluiu' } as const
 const LINK: Record<string, (id: string) => string> = {
-  leads: id => `/leads/${id}`, cases: id => `/processos/${id}`, documents: id => `/documentos/${id}`, events: () => '/agenda', tasks: () => '/tasks',
+  leads: id => `/crm-comercial/${id}`, cases: id => `/monitoramento-processual/${id}`, documents: id => `/documentos/${id}`, events: () => '/agenda', tasks: () => '/tasks',
 }
 
 /** Log do que a IA fez, dentro do painel do assistente (aba "Log"). */

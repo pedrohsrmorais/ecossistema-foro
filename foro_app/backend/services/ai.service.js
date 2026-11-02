@@ -175,7 +175,7 @@ async function _chat({ accountId, userId, conversationId, userMessage }) {
   const wsLine = ws?.kind === 'office' ? `Workspace ativo: escritório "${ws.name}". Você só enxerga e altera dados DESTE escritório e deve respeitar as regras dele.` : 'Workspace ativo: espaço pessoal do usuário (dados privados, só dele).';
 
   const today = new Date().toLocaleDateString('pt-BR', { weekday: 'long', day: '2-digit', month: '2-digit', year: 'numeric', timeZone: 'America/Sao_Paulo' });
-  const systemPrompt = `Você é o assistente interno do CRM Foro, um sistema de gestão de leads para escritórios de advocacia.
+  const systemPrompt = `Você é o assistente interno do CRM Foro, um sistema de gestão para escritórios de advocacia, com as áreas CRM Comercial (leads/clientes), Monitoramento Processual (processos), Documentos, Agenda e Tarefas.
 ${wsLine}
 
 Seu papel é ajudar o usuário a gerenciar contatos (leads), processos, partes, andamentos, prazos, tarefas, notas, agenda e documentos do escritório usando linguagem natural.
