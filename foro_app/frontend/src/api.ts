@@ -498,6 +498,10 @@ export interface CrmEvent {
   case_id: string | null
   case_number: string | null
   case_title: string | null
+  /** 'google' = importado do Google Agenda (somente leitura, privado do dono) */
+  source?: 'foro' | 'google'
+  google_event_id?: string | null
+  user_id?: string
 }
 
 export interface AreaField { key: string; label: string; type: 'text' | 'textarea' | 'select' | 'multiselect' | 'number' | 'date'; options?: string[]; help?: string }
@@ -643,7 +647,7 @@ export const documentsApi = {
 export const eventsApi = {
   list: (params?: { from?: string; to?: string; lead_id?: string; case_id?: string }) =>
     http.get<CrmEvent[]>('/events', { params }).then(r => r.data),
-  create: (data: Partial<CrmEvent>) => http.post<CrmEvent>('/events', data).then(r => r.data),
+  create: (data: Partial<CrmEvent> & { sync_google?: boolean }) => http.post<CrmEvent>('/events', data).then(r => r.data),
   update: (id: string, data: Partial<CrmEvent>) => http.put<CrmEvent>(`/events/${id}`, data).then(r => r.data),
   remove: (id: string) => http.delete(`/events/${id}`).then(r => r.data),
 }
@@ -1395,4 +1399,18 @@ export const boardsApi = {
   addItem: (id: string, data: { name: string; group_id?: string; vals?: Record<string, BoardCell> }) => http.post<BoardItem>(`/boards/${id}/items`, data).then(r => r.data),
   updateItem: (id: string, itemId: string, data: { name?: string; group_id?: string; vals?: Record<string, BoardCell> }) => http.put<BoardItem>(`/boards/${id}/items/${itemId}`, data).then(r => r.data),
   removeItem: (id: string, itemId: string) => http.delete(`/boards/${id}/items/${itemId}`).then(r => r.data),
+}
+
+
+// ─── GOOGLE AGENDA (integração opcional, por usuário) ────────────────────────
+
+export interface GoogleStatus {
+  configured: boolean; connected: boolean; status: 'active' | 'revoked' | null; email: string | null
+  scopes: string[]; last_sync_at: string | null; last_sync_error: string | null; imported_events: number; required_scopes: string[]
+}
+export const googleApi = {
+  status: () => http.get<GoogleStatus>('/integrations/google').then(r => r.data),
+  start: () => http.post<{ url: string }>('/integrations/google/start').then(r => r.data),
+  sync: () => http.post<{ imported?: number; removed?: number; skipped?: boolean }>('/integrations/google/sync').then(r => r.data),
+  disconnect: () => http.delete<{ disconnected: boolean; removed_imported_events?: number }>('/integrations/google').then(r => r.data),
 }

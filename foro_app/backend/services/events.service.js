@@ -37,8 +37,10 @@ async function _assertRefs(accountId, { lead_id, case_id }) {
   }
 }
 
-async function list(accountId, { from, to, lead_id, case_id, include_cancelled = false, limit = 200 } = {}) {
+async function list(accountId, { from, to, lead_id, case_id, include_cancelled = false, limit = 200, viewerId } = {}) {
   const cond = ['e.account_id = ?']; const params = [accountId];
+  // eventos importados do Google são privados do dono: só aparecem para ele (sem viewerId, não aparecem)
+  if (viewerId) { cond.push("(e.source <> 'google' OR e.user_id = ?)"); params.push(viewerId); } else cond.push("e.source <> 'google'");
   if (from) { cond.push('e.starts_at >= ?'); params.push(_date(from, 'Data inicial')); }
   if (to)   { cond.push('e.starts_at < ?');  params.push(_date(to, 'Data final')); }
   if (lead_id) { cond.push('e.lead_id = ?'); params.push(lead_id); }
@@ -70,11 +72,19 @@ async function create(accountId, userId, data) {
     [id, accountId, userId, data.lead_id || null, data.case_id || null, type, title, starts, ends,
       data.location || null, _url(data.meeting_url) ?? null, data.notes || null]
   );
-  return getById(id, accountId);
+  const created = await getById(id, accountId);
+  // Google Agenda: envio em segundo plano (não trava nem derruba o cadastro se o Google falhar)
+  setImmediate(() => require('./google.service').pushCreate(created, { sync: data.sync_google !== false }).catch(e => console.error('[google] envio:', e.statusCode || e.name)));
+  return created;
+}
+
+function _assertEditable(ev) {
+  if (ev.source === 'google') throw new AppError('Este evento veio do Google Agenda. Para alterar ou excluir, faça isso no Google Agenda.', 400);
 }
 
 async function update(id, accountId, data) {
   const current = await getById(id, accountId);
+  _assertEditable(current);
   const fields = []; const values = [];
   const set = (col, val) => { fields.push(`${col} = ?`); values.push(val); };
   if (data.title !== undefined) { if (!String(data.title).trim()) throw new AppError('Informe o título do compromisso.', 400); set('title', String(data.title).trim()); }
@@ -96,12 +106,16 @@ async function update(id, accountId, data) {
     if (data.case_id !== undefined) set('case_id', data.case_id || null);
   }
   if (fields.length) { values.push(id, accountId); await query(`UPDATE events SET ${fields.join(', ')} WHERE id = ? AND account_id = ?`, values); }
-  return getById(id, accountId);
+  const updated = await getById(id, accountId);
+  if (fields.length) setImmediate(() => require('./google.service').pushUpdate(updated).catch(e => console.error('[google] atualização:', e.statusCode || e.name)));
+  return updated;
 }
 
 async function remove(id, accountId) {
-  await getById(id, accountId);
+  const current = await getById(id, accountId);
+  _assertEditable(current);
   await query('DELETE FROM events WHERE id = ? AND account_id = ?', [id, accountId]);
+  setImmediate(() => require('./google.service').pushDelete(current).catch(e => console.error('[google] exclusão:', e.statusCode || e.name)));
 }
 
 module.exports = { TYPES, STATUSES, list, getById, create, update, remove };

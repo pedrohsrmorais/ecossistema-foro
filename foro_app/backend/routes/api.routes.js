@@ -28,6 +28,7 @@ const { requireAccess, scoped } = require('../middlewares/office.middleware');
 const { countActions } = require('../middlewares/activity.middleware');
 const eventsController      = require('../controllers/events.controller');
 const boardsController      = require('../controllers/boards.controller');
+const googleController      = require('../controllers/google.controller');
 const aiController          = require('../controllers/ai.controller');
 const paymentsController    = require('../controllers/payments.controller');
 const webhooksController    = require('../controllers/webhooks.controller');
@@ -111,6 +112,9 @@ router.delete('/admin/community/posts/:id', authenticatePlatform, communityContr
 // Stripe/NFE.io cairia em 401 e a emissão automática de NFS-e nunca seria disparada.
 router.post  ('/webhooks/stripe',      webhooksController.stripe);   // corpo bruto em req.rawBody (server.js) p/ validar Stripe-Signature
 router.post  ('/webhooks/nfeio',       webhooksController.nfeio);
+
+// ─── Google OAuth (callback público: o Google redireciona o navegador; valida state assinado + cookie) ──────
+router.get   ('/integrations/google/callback', googleController.callback);
 
 // ─── Tudo abaixo exige autenticação de tenant ─────────────────────────────────
 router.use(authenticate);
@@ -256,6 +260,12 @@ router.delete('/boards/:id/groups/:groupId',             ...BM, boardsController
 router.post  ('/boards/:id/items',                       ...BE, boardsController.addItem);
 router.put   ('/boards/:id/items/:itemId',               ...BE, boardsController.updateItem);
 router.delete('/boards/:id/items/:itemId',               ...BE, boardsController.removeItem);
+
+// ─── Integração com o Google Agenda (opcional, por usuário) ───────────────────
+router.get   ('/integrations/google',            googleController.status);
+router.post  ('/integrations/google/start',      requireModule('crm'), requireAccess('agenda'), googleController.start);
+router.post  ('/integrations/google/sync',       requireModule('crm'), requireAccess('agenda'), googleController.sync);
+router.delete('/integrations/google',            googleController.disconnect);
 
 // ─── Alertas de prazo (módulo "crm") — sino do app, painel e resumo diário por e-mail ─────
 router.get ('/alerts',               requireModule('crm'), alertsController.summary);

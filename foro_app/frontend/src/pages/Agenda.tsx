@@ -3,7 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { Link } from 'react-router-dom'
 import { ChevronLeft, ChevronRight, Plus, Video, MapPin, Trash2, Check, Ban, X, List, CalendarDays } from 'lucide-react'
 import clsx from 'clsx'
-import { eventsApi, type CrmEvent } from '../api'
+import { eventsApi, googleApi, type CrmEvent } from '../api'
 import EventForm from '../components/EventForm'
 import { EVENT_TYPES, fmtTime } from '../lib/cases'
 
@@ -62,6 +62,7 @@ export default function Agenda() {
   const [cursor, setCursor] = useState(() => startOfDay(new Date()))
   const [form, setForm] = useState<null | { date?: string; start?: string; end?: string }>(null)
   const [detail, setDetail] = useState<CrmEvent | null>(null)
+  const { data: g } = useQuery({ queryKey: ['google'], queryFn: googleApi.status, staleTime: 60_000 })
   const setView = (v: View) => { setViewState(v); try { localStorage.setItem('foro.agenda.view', v) } catch { /* sem storage */ } }
 
   // intervalo visível (mês: grade de 6 semanas completas; lista: o mês do cursor)
@@ -114,7 +115,10 @@ export default function Agenda() {
       <div className="flex items-center justify-between mb-4 gap-3 flex-wrap">
         <div>
           <h1 className="text-xl font-semibold text-slate-900">Agenda</h1>
-          <p className="text-sm text-slate-500">Reuniões, audiências e perícias — com o link na mão</p>
+          <p className="text-sm text-slate-500">Reuniões, audiências e perícias — com o link na mão
+            {g?.configured && !g.connected && <> · <Link to="/settings" className="text-brand-600 hover:underline" data-testid="agenda-conectar-google">Sincronizar com o Google Agenda</Link></>}
+            {g?.connected && g.status === 'revoked' && <> · <Link to="/settings" className="text-amber-700 hover:underline">Reconectar o Google Agenda</Link></>}
+          </p>
         </div>
         <button className="btn-primary text-sm" onClick={() => openNew(view === 'lista' || view === 'mes' ? undefined : ymd(cursor))}><Plus className="w-4 h-4" /> Novo compromisso</button>
       </div>
@@ -195,13 +199,14 @@ function ListView({ byDay, today, onOpen, onStatus, onRemove }: {
                       <span className={clsx('badge !py-0', EVENT_TYPES[e.type].pill)}>{EVENT_TYPES[e.type].label}</span>
                       <button className={clsx('font-medium text-slate-900 text-left hover:underline', e.status === 'cancelado' && 'line-through')} onClick={() => onOpen(e)}>{e.title}</button>
                       {e.status === 'realizado' && <span className="badge bg-green-100 text-green-700 !py-0">Realizado</span>}
+                      {e.source === 'google' && <span className="badge bg-white border text-slate-500 !py-0" title="Evento do seu Google Agenda (só você vê)">Google</span>}
                     </div>
                     <Links e={e} />
                   </div>
                   {e.meeting_url && e.status === 'agendado' && (
                     <a href={e.meeting_url} target="_blank" rel="noreferrer" className="btn-primary !py-1.5 !px-3 text-xs shrink-0"><Video className="w-3.5 h-3.5" /> Entrar</a>
                   )}
-                  <div className="flex gap-1 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity shrink-0">
+                  <div className={clsx('flex gap-1 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity shrink-0', e.source === 'google' && 'hidden')}>
                     {e.status === 'agendado' && <button title="Marcar como realizado" onClick={() => onStatus(e.id, 'realizado')} className="p-1 text-slate-400 hover:text-green-600"><Check className="w-4 h-4" /></button>}
                     {e.status === 'agendado' && <button title="Cancelar" onClick={() => onStatus(e.id, 'cancelado')} className="p-1 text-slate-400 hover:text-amber-600"><Ban className="w-4 h-4" /></button>}
                     <button title="Excluir" onClick={() => onRemove(e.id)} className="p-1 text-slate-400 hover:text-red-600"><Trash2 className="w-4 h-4" /></button>
@@ -256,7 +261,7 @@ function MonthView({ cursor, from, byDay, today, onOpen, onDay, onNew }: {
               <div className="mt-0.5 space-y-0.5">
                 {list.slice(0, 3).map(e => (
                   <button key={e.id} data-testid="agenda-event" onClick={() => onOpen(e)} title={`${fmtTime(e.starts_at)} ${e.title}`}
-                    className={clsx('w-full text-left text-[11px] leading-tight rounded border-l-2 px-1 py-0.5 truncate block', CHIP[e.type], e.status !== 'agendado' && 'opacity-50', e.status === 'cancelado' && 'line-through')}>
+                    className={clsx('w-full text-left text-[11px] leading-tight rounded border-l-2 px-1 py-0.5 truncate block', CHIP[e.type], e.status !== 'agendado' && 'opacity-50', e.status === 'cancelado' && 'line-through', e.source === 'google' && 'border-dashed')}>
                     <span className="tabular-nums hidden sm:inline">{fmtTime(e.starts_at)} </span>{e.title}
                   </button>
                 ))}
@@ -322,7 +327,7 @@ function TimeGrid({ days, byDay, today, onOpen, onSlot, onDayClick }: {
                   {items.map(({ e, startMin, endMin, col, cols }) => (
                     <button key={e.id} data-testid="agenda-event" onClick={ev => { ev.stopPropagation(); onOpen(e) }}
                       title={`${fmtTime(e.starts_at)} ${e.title}`}
-                      className={clsx('absolute z-10 text-left text-[11px] leading-tight rounded border-l-4 px-1 py-0.5 overflow-hidden shadow-sm', CHIP[e.type], e.status !== 'agendado' && 'opacity-50')}
+                      className={clsx('absolute z-10 text-left text-[11px] leading-tight rounded border-l-4 px-1 py-0.5 overflow-hidden shadow-sm', CHIP[e.type], e.status !== 'agendado' && 'opacity-50', e.source === 'google' && 'border-dashed')}
                       style={{ top: (startMin / 60) * HOUR_PX, height: Math.max(((endMin - startMin) / 60) * HOUR_PX - 2, 18), left: `calc(${(col / cols) * 100}% + 1px)`, width: `calc(${100 / cols}% - 3px)` }}>
                       <div className={clsx('font-medium truncate', e.status === 'cancelado' && 'line-through')}>{e.title}</div>
                       <div className="opacity-75 tabular-nums truncate">{fmtTime(e.starts_at)}{e.ends_at && ` – ${fmtTime(e.ends_at)}`}</div>
@@ -365,12 +370,15 @@ function EventDetail({ e, onClose, onStatus, onRemove }: {
         {e.status !== 'agendado' && <p className="mt-1"><span className={clsx('badge', e.status === 'realizado' ? 'bg-green-100 text-green-700' : 'bg-slate-100 text-slate-600')}>{e.status === 'realizado' ? 'Realizado' : 'Cancelado'}</span></p>}
         <Links e={e} />
         {e.notes && <p className="mt-3 text-sm text-slate-700 whitespace-pre-wrap">{e.notes}</p>}
+        {e.source === 'google' && <p className="mt-3 text-xs text-slate-500 rounded-lg bg-slate-50 border p-2" data-testid="evento-google-aviso">Evento do seu Google Agenda — só você vê. Para alterar ou excluir, use o Google Agenda.</p>}
         <div className="flex items-center gap-2 mt-4 flex-wrap">
           {e.meeting_url && e.status === 'agendado' && <a href={e.meeting_url} target="_blank" rel="noreferrer" className="btn-primary text-sm"><Video className="w-4 h-4" /> Entrar</a>}
+          {e.source !== 'google' && <>
           {e.status === 'agendado' && <button className="btn-secondary text-sm" onClick={() => onStatus('realizado')}><Check className="w-4 h-4" /> Realizado</button>}
           {e.status === 'agendado' && <button className="btn-secondary text-sm" onClick={() => onStatus('cancelado')}><Ban className="w-4 h-4" /> Cancelar</button>}
           {e.status !== 'agendado' && <button className="btn-secondary text-sm" onClick={() => onStatus('agendado')}>Reabrir</button>}
           <button className="btn-ghost text-sm text-red-600 ml-auto" onClick={onRemove}><Trash2 className="w-4 h-4" /> Excluir</button>
+          </>}
         </div>
       </div>
     </div>

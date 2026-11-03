@@ -36,7 +36,7 @@ const sections: LegalSection[] = [
       <li>não usamos esses dados para desenvolver, melhorar ou treinar modelos de inteligência artificial ou aprendizado de máquina generalistas;</li>
       <li>nenhuma pessoa da nossa equipe lê os dados da sua agenda, salvo com a sua autorização expressa para um caso específico (por exemplo, um pedido de suporte), por necessidade de segurança (investigar abuso ou falha) ou por obrigação legal.</li>
     </ul>
-    <p><strong>Como tratamos:</strong> os eventos sincronizados são exibidos para você na Agenda do {LEGAL.product}, ao lado dos demais compromissos. Mantemos uma cópia dos eventos importados enquanto a conexão estiver ativa, e os eventos que você cria no {LEGAL.product} são gravados também na sua conta Google.</p>
+    <p><strong>Como tratamos:</strong> os eventos sincronizados são exibidos para você na Agenda do {LEGAL.product}, ao lado dos demais compromissos. Os eventos importados ficam <strong>visíveis apenas para você</strong> (não aparecem para os demais membros do seu escritório), são <strong>somente leitura</strong> no {LEGAL.product}, não geram alertas nem resumos para a equipe e não são enviados a terceiros. Mantemos uma cópia deles enquanto a conexão estiver ativa. Os eventos que você cria no {LEGAL.product} são gravados também na sua conta Google (somente título, horário, local e link de reunião; as observações internas nunca são enviadas).</p>
     <p className="rounded-lg border bg-white p-4 text-sm">
       O uso e a transferência, para qualquer outro aplicativo, das informações recebidas das APIs do Google pelo {LEGAL.product} seguirão a{' '}
       <a href="https://developers.google.com/terms/api-services-user-data-policy" target="_blank" rel="noopener noreferrer">Política de Dados do Usuário dos Serviços de API do Google</a>, incluindo os requisitos de Uso Limitado.<br />
@@ -81,7 +81,7 @@ const sections: LegalSection[] = [
   { id: 'retencao', title: 'Por quanto tempo guardamos e como excluir', body: (<>
     <ul>
       <li><strong>Conta e conteúdo do escritório:</strong> enquanto a conta existir. Ao encerrar, apagamos ou anonimizamos os dados em até 30 dias, salvo o que a lei obrigue a manter (por exemplo, registros fiscais e de pagamento).</li>
-      <li><strong>Dados do Google:</strong> ao clicar em “Desconectar” em Configurações → Integrações, revogamos o acesso junto ao Google e apagamos imediatamente os tokens. As cópias dos eventos importados do Google Agenda e os vínculos com a Agenda são apagados em até 30 dias; os eventos que já estão na sua conta Google permanecem nela.</li>
+      <li><strong>Dados do Google:</strong> ao clicar em “Desconectar” em Configurações → Integrações, revogamos o acesso junto ao Google e apagamos imediatamente os tokens. As cópias dos eventos importados do Google Agenda e os vínculos com a Agenda são apagados imediatamente (e, em qualquer caso, em até 30 dias nos backups); os eventos que já estão na sua conta Google permanecem nela.</li>
       <li>Você também pode revogar o acesso a qualquer momento em <a href="https://myaccount.google.com/permissions" target="_blank" rel="noopener noreferrer">myaccount.google.com/permissions</a>. Se o acesso for revogado, deixamos de ler sua agenda e removemos os tokens.</li>
       <li>Para pedir a exclusão da conta ou dos seus dados, escreva para {mail}.</li>
     </ul>

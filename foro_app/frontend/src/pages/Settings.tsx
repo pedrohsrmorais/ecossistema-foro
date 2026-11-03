@@ -1,7 +1,8 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { Link } from 'react-router-dom'
-import { settingsApi, fieldsApi, usersApi, alertsApi } from '../api'
+import { Link, useSearchParams } from 'react-router-dom'
+import { CalendarDays, Loader2, RefreshCw } from 'lucide-react'
+import { settingsApi, fieldsApi, usersApi, alertsApi, googleApi } from '../api'
 
 function ProfileSection() {
   const qc = useQueryClient()
@@ -60,6 +61,87 @@ function NotificationsSection() {
         </button>
         {msg && <p className={msg.ok ? 'text-sm text-green-700' : 'text-sm text-red-600'}>{msg.text}</p>}
       </div>
+    </div>
+  )
+}
+
+const GOOGLE_MSG: Record<string, { ok: boolean; text: string }> = {
+  ok: { ok: true, text: 'Google Agenda conectado! Estamos importando os seus eventos.' },
+  negado: { ok: false, text: 'Você cancelou a autorização no Google. Nada foi conectado.' },
+  escopo: { ok: false, text: 'Para sincronizar é preciso marcar a permissão de Agenda na tela do Google. Tente conectar de novo.' },
+  estado: { ok: false, text: 'A conexão expirou ou não pôde ser confirmada. Clique em Conectar de novo.' },
+  erro: { ok: false, text: 'Não foi possível concluir a conexão com o Google. Tente novamente.' },
+}
+const when = (iso?: string | null) => (iso ? new Date(iso).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' }) : 'ainda não sincronizou')
+
+function IntegrationsSection() {
+  const qc = useQueryClient()
+  const [params, setParams] = useSearchParams()
+  const back = params.get('google')
+  const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null)
+  const { data: g, isLoading } = useQuery({ queryKey: ['google'], queryFn: googleApi.status, refetchInterval: q => (q.state.data?.connected && !q.state.data.last_sync_at ? 3000 : false) })
+  useEffect(() => {
+    if (back && GOOGLE_MSG[back]) {
+      setMsg(GOOGLE_MSG[back]); qc.invalidateQueries({ queryKey: ['google'] }); qc.invalidateQueries({ queryKey: ['events'] })
+      const n = new URLSearchParams(params); n.delete('google'); setParams(n, { replace: true })
+    }
+  }, [back])  // eslint-disable-line react-hooks/exhaustive-deps
+  const err = (e: any) => setMsg({ ok: false, text: e?.response?.data?.error || 'Algo deu errado. Tente novamente.' })
+  const connect = useMutation({ mutationFn: googleApi.start, onSuccess: r => { window.location.href = r.url }, onError: err })
+  const sync = useMutation({
+    mutationFn: googleApi.sync,
+    onSuccess: r => { setMsg({ ok: true, text: r.skipped ? 'Já existe uma sincronização em andamento.' : `Sincronizado: ${r.imported ?? 0} evento(s) do Google Agenda.` }); qc.invalidateQueries({ queryKey: ['google'] }); qc.invalidateQueries({ queryKey: ['events'] }) },
+    onError: e => { err(e); qc.invalidateQueries({ queryKey: ['google'] }) },
+  })
+  const disconnect = useMutation({
+    mutationFn: googleApi.disconnect,
+    onSuccess: () => { setMsg({ ok: true, text: 'Google desconectado. O acesso foi revogado, os tokens foram apagados e os eventos importados saíram do Foro.' }); qc.invalidateQueries({ queryKey: ['google'] }); qc.invalidateQueries({ queryKey: ['events'] }) },
+    onError: err,
+  })
+  const busy = connect.isPending || sync.isPending || disconnect.isPending
+  const revoked = g?.connected && g.status === 'revoked'
+
+  return (
+    <div className="card p-5 mb-5" data-testid="integracoes">
+      <h2 className="font-medium text-slate-900 mb-1 flex items-center gap-2"><CalendarDays className="w-4 h-4 text-accent-600" /> Integrações</h2>
+      <p className="text-sm text-slate-500 mb-4">Conecte a sua conta Google para ver os seus eventos do Google Agenda na Agenda do Foro e enviar para lá os compromissos que você criar aqui.</p>
+      {msg && <p className={`mb-3 text-sm rounded-lg p-2.5 border ${msg.ok ? 'bg-green-50 border-green-200 text-green-800' : 'bg-red-50 border-red-200 text-red-700'}`} role="status">{msg.text}</p>}
+
+      {isLoading ? <p className="text-sm text-slate-400">Carregando…</p> : !g?.configured ? (
+        <p className="text-sm text-slate-600">A integração com o Google ainda não foi ativada neste servidor. Fale com o administrador da plataforma.</p>
+      ) : !g.connected ? (
+        <>
+          <div className="text-sm text-slate-600 space-y-1.5 mb-4">
+            <p className="font-medium text-slate-800">O que o Foro vai acessar na sua conta Google:</p>
+            <ul className="list-disc pl-5 space-y-1">
+              <li><strong>Seu nome e e-mail</strong>, para identificar a conta conectada.</li>
+              <li><strong>Google Agenda</strong>: ler os seus eventos e criar os eventos que você agendar no Foro.</li>
+            </ul>
+            <p>O Foro <strong>não acessa o seu Gmail</strong>. Os eventos importados ficam <strong>visíveis só para você</strong> (não para o resto do escritório) e não são alterados no Google. Você pode desconectar quando quiser. Detalhes na <Link to="/privacidade#google" target="_blank" className="text-brand-600 underline">Política de Privacidade</Link>.</p>
+          </div>
+          <button className="btn-primary text-sm" onClick={() => { setMsg(null); connect.mutate() }} disabled={busy} data-testid="google-conectar">
+            {connect.isPending && <Loader2 className="w-4 h-4 animate-spin" />} Conectar Google
+          </button>
+        </>
+      ) : (
+        <div className="space-y-3" data-testid="google-conectado">
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="font-medium text-slate-900">{g.email}</span>
+            {revoked ? <span className="badge bg-amber-100 text-amber-800">Precisa reconectar</span> : <span className="badge bg-green-100 text-green-700">Conectado</span>}
+          </div>
+          <dl className="text-sm text-slate-600 grid sm:grid-cols-[10rem_1fr] gap-x-3 gap-y-1">
+            <dt className="text-slate-400">Permissões</dt><dd>Google Agenda (eventos) · identificação (nome e e-mail)</dd>
+            <dt className="text-slate-400">Última sincronização</dt><dd>{when(g.last_sync_at)}{g.last_sync_error && <span className="text-red-600"> · último erro: {g.last_sync_error}</span>}</dd>
+            <dt className="text-slate-400">Eventos importados</dt><dd>{g.imported_events} <span className="text-slate-400">(janela de 30 dias atrás a 6 meses à frente; só você os vê)</span></dd>
+          </dl>
+          {revoked && <p className="text-sm text-amber-800">O acesso ao Google foi revogado ou expirou. Reconecte para voltar a sincronizar.</p>}
+          <div className="flex gap-2 flex-wrap">
+            {!revoked && <button className="btn-secondary text-sm" onClick={() => { setMsg(null); sync.mutate() }} disabled={busy} data-testid="google-sincronizar">{sync.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />} Sincronizar agora</button>}
+            <button className="btn-secondary text-sm" onClick={() => { setMsg(null); connect.mutate() }} disabled={busy} data-testid="google-reconectar">Reconectar</button>
+            <button className="btn-ghost text-sm text-red-600" onClick={() => confirm('Desconectar o Google? O Foro revoga o acesso, apaga os tokens e remove os eventos importados (os compromissos criados no Foro continuam aqui).') && disconnect.mutate()} disabled={busy} data-testid="google-desconectar">Desconectar</button>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
@@ -127,6 +209,7 @@ export default function Settings() {
       </div>
 
       <NotificationsSection />
+      <IntegrationsSection />
 
       <ProfileSection />
       <div className="card p-5">

@@ -130,6 +130,7 @@ foro_app/
 ├── documentation/
 │   ├── README.md               # Este arquivo
 │   ├── arquitetura.md          # Decisões de arquitetura
+│   ├── google-agenda.md        # Integração com o Google Agenda (OAuth, sincronização, verificação)
 │   ├── banco-de-dados.md       # Schema completo, tabelas e relacionamentos
 │   ├── pagamentos.md           # Stripe + NFS-e
 │   ├── armazenamento-s3.md     # MinIO/S3 + processos salvos (migração para AWS)

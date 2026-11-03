@@ -439,6 +439,11 @@ O `init.sql` só roda na primeira subida do MySQL (volume vazio). Toda mudança 
 - Perfil do escritório: `legal_name`, `website`, `office_email`, `zip_code`, `address_number`, `address_complement`, `district`, `oab_society`, `founded_on`, `practice_areas` (JSON), `headcount_total`, `headcount_lawyers`, `notes`; governança em `member_defaults` (JSON).
 - Idempotente (testada duas vezes sobre um banco legado).
 
+## Migração 014 — Google Agenda
+
+- `google_connections` (uma por usuário, `user_id` UNIQUE): `google_sub`, `google_email`, `scopes`, `access_token_enc`, `refresh_token_enc` (AES-256-GCM, formato `v1:iv:tag:ct`), `token_expires_at`, `status` (`active`/`revoked`), `status_reason`, `last_sync_at`, `last_sync_error`.
+- `events` ganha `source` (`foro`|`google`, padrão `foro`), `google_event_id` e o índice `idx_events_google (user_id, google_event_id)`. Eventos `source='google'` são privados do `user_id` dono.
+
 ## Migração 013 — Quadros personalizáveis
 
 - `boards` (`account_id`, `name`, `description`, `color`, `position`, `deleted_at`), `board_columns` (`type`: text|number|status|date|person|checkbox|link|lead|case; `settings` JSON com as opções de status), `board_groups` e `board_items` (`vals` JSON `{ colunaId: valor }`, exclusão lógica).

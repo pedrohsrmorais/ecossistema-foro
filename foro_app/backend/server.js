@@ -59,7 +59,12 @@ app.use(express.urlencoded({ extended: true, limit: '1mb' }));
 
 // ─── Logging ─────────────────────────────────────────────────────────────────
 if (process.env.NODE_ENV !== 'test') {
-  app.use(morgan(isProd ? 'combined' : 'dev'));
+  // O retorno do OAuth do Google traz `code` e `state` na URL: nunca vão para o log.
+  morgan.token('safe-url', (req) => String(req.originalUrl || req.url).replace(/^(\/api\/integrations\/google\/callback)\?.*/, '$1?[omitido]'));
+  const fmt = isProd
+    ? ':remote-addr - :remote-user [:date[clf]] ":method :safe-url HTTP/:http-version" :status :res[content-length] ":referrer" ":user-agent"'
+    : ':method :safe-url :status :response-time ms - :res[content-length]';
+  app.use(morgan(fmt));
 }
 
 // ─── Rate Limiting (global; limites específicos de login etc. ficam em middlewares/rateLimits.js)
@@ -134,6 +139,7 @@ async function start() {
     console.log(`🌍 Environment: ${process.env.NODE_ENV || 'development'}`);
   });
   require('./jobs/deadline-digest').start();
+  require('./jobs/google-sync').start();
   const shutdown = () => { server.close(() => process.exit(0)); setTimeout(() => process.exit(0), 10000).unref(); };
   process.on('SIGTERM', shutdown);
   process.on('SIGINT', shutdown);

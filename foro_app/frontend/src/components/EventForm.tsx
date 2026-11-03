@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { X, Loader2 } from 'lucide-react'
-import { eventsApi, leadsApi, casesApi } from '../api'
+import { eventsApi, leadsApi, casesApi, googleApi } from '../api'
 import { EVENT_TYPES } from '../lib/cases'
 
 /** Modal de novo compromisso (reunião/audiência/perícia) — usado na Agenda, no lead e no processo. */
@@ -12,6 +12,9 @@ export default function EventForm({ onClose, leadId, caseId, defaultDate, defaul
     meeting_url: '', location: '', notes: '', lead_id: leadId || '', case_id: caseId || '',
   })
   const [error, setError] = useState('')
+  const [toGoogle, setToGoogle] = useState(true)
+  const { data: g } = useQuery({ queryKey: ['google'], queryFn: googleApi.status, staleTime: 60_000 })
+  const googleOn = !!g?.connected && g.status === 'active'
   const set = (k: string, v: string) => setF(x => ({ ...x, [k]: v }))
 
   const { data: leads } = useQuery({ queryKey: ['leads', 'board'], queryFn: () => leadsApi.list({ limit: 500 }), staleTime: 30_000 })
@@ -24,6 +27,7 @@ export default function EventForm({ onClose, leadId, caseId, defaultDate, defaul
       ends_at: f.end ? new Date(`${f.date}T${f.end}`).toISOString() : null,
       meeting_url: f.meeting_url.trim() || null, location: f.location.trim() || null, notes: f.notes.trim() || null,
       lead_id: f.lead_id || null, case_id: f.case_id || null,
+      sync_google: googleOn ? toGoogle : false,
     }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['events'] }); qc.invalidateQueries({ queryKey: ['case'] })
@@ -67,6 +71,12 @@ export default function EventForm({ onClose, leadId, caseId, defaultDate, defaul
             </select>
           </div>
           <textarea className="input resize-none" rows={2} placeholder="Observações" value={f.notes} onChange={e => set('notes', e.target.value)} />
+          {googleOn && (
+            <label className="flex items-center gap-2 text-sm text-slate-600 cursor-pointer">
+              <input type="checkbox" className="w-4 h-4" checked={toGoogle} onChange={e => setToGoogle(e.target.checked)} data-testid="evento-google" />
+              Adicionar também ao Google Agenda <span className="text-slate-400">({g?.email})</span>
+            </label>
+          )}
           {error && <p className="text-sm text-red-600">{error}</p>}
           <div className="flex justify-end gap-2">
             <button className="btn-secondary" onClick={onClose}>Cancelar</button>

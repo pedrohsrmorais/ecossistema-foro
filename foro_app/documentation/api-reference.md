@@ -407,6 +407,18 @@ Todas as rotas exigem autenticação e o módulo `crm`.
 | PUT | `/events/:id` | Atualiza evento |
 | DELETE | `/events/:id` | Remove evento |
 
+Campos extras: `sync_google` (boolean, padrão `true`) no POST envia o compromisso também ao Google Agenda se o usuário estiver conectado. Eventos importados do Google têm `source: "google"` e `google_event_id`; são **privados do dono** (`user_id`), somente leitura (PUT/DELETE → 400) e não entram em alertas/resumo.
+
+### Integração Google Agenda
+
+| Método | Rota | Descrição |
+|--------|------|-----------|
+| GET | `/integrations/google` | Estado: `configured`, `connected`, `status` (`active`/`revoked`), `email`, `scopes`, `last_sync_at`, `last_sync_error`, `imported_events` |
+| POST | `/integrations/google/start` | Inicia o OAuth: devolve `{url}` e grava o cookie anti-CSRF `foro_g_state` (exige módulo CRM + acesso à agenda) |
+| GET | `/integrations/google/callback` | **Pública** (chamada pelo Google): troca o `code`, cifra e guarda os tokens e redireciona para `/settings?google=ok\|negado\|escopo\|estado\|erro` |
+| POST | `/integrations/google/sync` | Sincroniza agora (importa e reconcilia) |
+| DELETE | `/integrations/google` | Revoga no Google, apaga tokens e eventos importados |
+
 ## Quadros personalizáveis (estilo Monday)
 
 Todas exigem módulo `crm` e a permissão de módulo `access_boards`. Leitura: qualquer membro com acesso. **Itens** (`/items`) exigem `boards_edit`; **estrutura** (criar/renomear/excluir quadro, colunas e grupos) exige `boards_manage` — padrão `false` para membros; o admin libera por escritório (Governança → `member_defaults`) ou por pessoa. Admin sempre pode tudo. Tudo é isolado por `account_id`.

@@ -59,7 +59,7 @@ async function forUser(accountId, user, { days = 7, now = new Date() } = {}) {
      FROM events e
      LEFT JOIN cases c ON c.id = e.case_id AND c.deleted_at IS NULL
      LEFT JOIN leads l ON l.id = e.lead_id
-     WHERE e.account_id = ? AND e.status = 'agendado' AND e.starts_at >= ? AND e.starts_at < ?
+     WHERE e.account_id = ? AND e.source <> 'google' AND e.status = 'agendado' AND e.starts_at >= ? AND e.starts_at < ?
        AND (e.user_id = ? OR c.responsible_user_id = ? OR EXISTS (SELECT 1 FROM case_members cm WHERE cm.case_id = e.case_id AND cm.user_id = ?)${isAdmin ? " OR e.type IN ('audiencia','pericia')" : ''})
      ORDER BY e.starts_at ASC LIMIT 300`,
     [accountId, start, end, user.id, user.id, user.id]
