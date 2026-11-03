@@ -4,6 +4,7 @@ import { Sparkles, Search, Building2, UserSearch, Gavel } from 'lucide-react'
 import { Link, useSearchParams } from 'react-router-dom'
 import ConsultaCnpj from './ConsultaCnpj'
 import ConsultaCpf from './ConsultaCpf'
+import { useModuleEnabled } from '../../hooks/useModuleEnabled'
 import { lookupApi, CnpjResult, CpfResult, ProcessoResult } from '../../api'
 import ComingSoon from '../../components/ComingSoon'
 import { LOCKED_FEATURES } from '../../config/featureFlags'
@@ -176,19 +177,23 @@ const MODOS = [
 /** Uma única área de pesquisa: busca inteligente, CNPJ, CPF e (link) processos. */
 export default function PesquisaInteligente() {
   const [params, setParams] = useSearchParams()
-  const modo = MODOS.find(m => m.key === params.get('tipo'))?.key || 'inteligente'
+  const enabled = useModuleEnabled()
+  const modos = MODOS.filter(m => m.key === 'inteligente' || enabled('pesquisa_cpf_cnpj'))
+  const modo = modos.find(m => m.key === params.get('tipo'))?.key || 'inteligente'
   return (
     <div>
       <nav className="px-6 pt-4 flex gap-1 border-b border-slate-200 bg-white/60 flex-wrap" aria-label="Tipo de pesquisa">
-        {MODOS.map(({ key, label, icon: Icon }) => (
+        {modos.map(({ key, label, icon: Icon }) => (
           <button key={key} onClick={() => setParams(key === 'inteligente' ? {} : { tipo: key })}
             className={`flex items-center gap-1.5 px-4 py-2 text-sm font-medium -mb-px border-b-2 ${modo === key ? 'border-accent-500 text-accent-600' : 'border-transparent text-slate-500 hover:text-slate-700'}`}>
             <Icon className="w-4 h-4" /> {label}
           </button>
         ))}
-        <Link to="/monitoramento-processual/pesquisar" className="flex items-center gap-1.5 px-4 py-2 text-sm font-medium -mb-px border-b-2 border-transparent text-slate-500 hover:text-slate-700">
-          <Gavel className="w-4 h-4" /> Processo
-        </Link>
+        {enabled('pesquisa_processual') && (
+          <Link to="/monitoramento-processual/pesquisar" className="flex items-center gap-1.5 px-4 py-2 text-sm font-medium -mb-px border-b-2 border-transparent text-slate-500 hover:text-slate-700">
+            <Gavel className="w-4 h-4" /> Processo
+          </Link>
+        )}
       </nav>
       {modo === 'cnpj' ? <ConsultaCnpj /> : modo === 'cpf' ? <ConsultaCpf /> : <PesquisaInteligenteBusca />}
     </div>

@@ -93,12 +93,15 @@ services:
       db:
         condition: service_healthy
       minio:
-        condition: service_healthy
+        condition: service_started   # a API sobe mesmo se o armazenamento estiver fora (salvar processo responde erro claro; o bucket é criado sob demanda)
 
   # Armazenamento de arquivos compatível com S3 (processos salvos etc.). Fase de teste: o bucket é criado pela
   # própria API no boot. Para migrar para a AWS depois, basta trocar as variáveis S3_* — ver documentation/armazenamento-s3.md.
+  # ATENÇÃO: desde out/2025 a MinIO não publica mais imagens oficiais novas da edição comunitária (o repositório está
+  # em modo manutenção/arquivado). Serve para a FASE DE TESTE; fixe a tag que já funcionou (MINIO_IMAGE) e planeje
+  # trocar por AWS S3 (ou Garage/SeaweedFS) — o código só usa o protocolo S3, então a troca é só de variáveis.
   minio:
-    image: minio/minio:latest
+    image: ${MINIO_IMAGE:-minio/minio:latest}
     container_name: foro_minio
     restart: unless-stopped
     command: ["server", "/data", "--console-address", ":9001"]

@@ -35,6 +35,8 @@ Os valores de teste já vêm preenchidos no `.env.example`. **Rotacione antes de
 
 ## MinIO
 
+> **Atenção:** em out/2025 a MinIO deixou de publicar imagens Docker e binários oficiais da edição comunitária e o repositório entrou em modo manutenção/arquivado. A imagem `minio/minio:latest` ainda pode ser baixada, mas está congelada (sem correções de segurança futuras). Use só na fase de teste, fixe a tag (`MINIO_IMAGE`) e planeje migrar para AWS S3 (ou outro servidor S3 como Garage/SeaweedFS) — a aplicação só fala o protocolo S3. A API sobe mesmo sem o MinIO; só o salvar processo fica indisponível.
+
 Console web só em `127.0.0.1:9001` (túnel: `ssh -L 9001:127.0.0.1:9001 usuario@servidor`); a porta 9000 não é publicada. Dados no volume `foro_minio_data` — inclua-o no backup.
 
 ## Migrar para a AWS
