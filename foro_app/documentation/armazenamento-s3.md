@@ -35,7 +35,9 @@ Os valores de teste já vêm preenchidos no `.env.example`. **Rotacione antes de
 
 ## MinIO
 
-> **Atenção:** em out/2025 a MinIO deixou de publicar imagens Docker e binários oficiais da edição comunitária e o repositório entrou em modo manutenção/arquivado. A imagem `minio/minio:latest` ainda pode ser baixada, mas está congelada (sem correções de segurança futuras). Use só na fase de teste, fixe a tag (`MINIO_IMAGE`) e planeje migrar para AWS S3 (ou outro servidor S3 como Garage/SeaweedFS) — a aplicação só fala o protocolo S3. A API sobe mesmo sem o MinIO; só o salvar processo fica indisponível.
+> **Atenção (leia primeiro):** o serviço `minio` do compose agora é OPCIONAL (perfil `minio`) e **não sobe** com `docker compose up -d`: a imagem `minio/minio` não existe mais no Docker Hub (`pull access denied`) e travava o deploy inteiro. Sem ele, a pesquisa de processos funciona, mas *salvar* um processo falha com erro claro até você configurar um S3 (AWS S3: `S3_ENDPOINT=` vazio).
+>
+> Histórico: em out/2025 a MinIO deixou de publicar imagens Docker e binários oficiais da edição comunitária e o repositório entrou em modo manutenção/arquivado. A imagem `minio/minio:latest` ainda pode ser baixada, mas está congelada (sem correções de segurança futuras). Use só na fase de teste, fixe a tag (`MINIO_IMAGE`) e planeje migrar para AWS S3 (ou outro servidor S3 como Garage/SeaweedFS) — a aplicação só fala o protocolo S3. A API sobe mesmo sem o MinIO; só o salvar processo fica indisponível.
 
 Console web só em `127.0.0.1:9001` (túnel: `ssh -L 9001:127.0.0.1:9001 usuario@servidor`); a porta 9000 não é publicada. Dados no volume `foro_minio_data` — inclua-o no backup.
 
