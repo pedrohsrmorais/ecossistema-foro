@@ -20,23 +20,23 @@ const sections: LegalSection[] = [
       <li><strong>Dados do Google</strong>, somente se você conectar sua conta Google (seção 3).</li>
     </ul>
   </>) },
-  { id: 'google', title: 'Integração com o Google (Gmail e Agenda)', body: (<>
+  { id: 'google', title: 'Integração com o Google (Agenda)', body: (<>
     <p>A integração é <strong>opcional</strong> e só acontece quando você, usuário do {LEGAL.product}, clica em “Conectar Google” e autoriza o acesso na tela de consentimento do Google. Você escolhe a conta e pode desconectar quando quiser.</p>
     <p><strong>Permissões solicitadas e para que servem:</strong></p>
     <ul>
       <li><strong>Identificação</strong> (<code>openid</code>, <code>email</code>, <code>profile</code>): identificar qual conta Google foi vinculada ao seu usuário.</li>
-      <li><strong>Gmail — somente leitura</strong> (<code>gmail.readonly</code>): ler mensagens da sua caixa de entrada para que a IA identifique e-mails relacionados ao seu trabalho (intimações, prazos, mensagens de clientes) e gere alertas e resumos para você dentro do {LEGAL.product}.</li>
-      <li><strong>Google Agenda</strong> (<code>calendar.events</code>): sincronizar seus compromissos entre o {LEGAL.product} e o Google Agenda — ler eventos e criar os eventos (reuniões, audiências, prazos) que você agendar no {LEGAL.product}.</li>
+      <li><strong>Google Agenda</strong> (<code>calendar.events</code>): sincronizar seus compromissos entre o {LEGAL.product} e o Google Agenda — ler os eventos da sua agenda e criar os eventos (reuniões, audiências, prazos) que você agendar no {LEGAL.product}.</li>
     </ul>
+    <p>O {LEGAL.product} <strong>não solicita acesso ao Gmail</strong> nem ao conteúdo dos seus e-mails.</p>
     <p><strong>O que nunca fazemos com os dados do Google:</strong></p>
     <ul>
-      <li>não enviamos, apagamos nem alteramos seus e-mails (o acesso ao Gmail é somente leitura);</li>
+      <li>não apagamos nem alteramos eventos da sua agenda sem uma ação sua;</li>
       <li>não vendemos, não alugamos e não transferimos esses dados a terceiros, exceto aos operadores necessários para prestar a funcionalidade (seção 6), para cumprir a lei ou com seu consentimento;</li>
       <li>não usamos esses dados para publicidade, perfilamento comercial, análise de crédito ou para formar bases de dados;</li>
       <li>não usamos esses dados para desenvolver, melhorar ou treinar modelos de inteligência artificial ou aprendizado de máquina generalistas;</li>
-      <li>nenhuma pessoa da nossa equipe lê o conteúdo dos seus e-mails, salvo com a sua autorização expressa para um caso específico (por exemplo, um pedido de suporte), por necessidade de segurança (investigar abuso ou falha) ou por obrigação legal.</li>
+      <li>nenhuma pessoa da nossa equipe lê os dados da sua agenda, salvo com a sua autorização expressa para um caso específico (por exemplo, um pedido de suporte), por necessidade de segurança (investigar abuso ou falha) ou por obrigação legal.</li>
     </ul>
-    <p><strong>Como tratamos:</strong> o conteúdo das mensagens é lido pelo servidor do {LEGAL.product} apenas para gerar o resultado que aparece para você (alerta, resumo, vínculo com contato ou processo). Guardamos o resultado e o identificador da mensagem, e não mantemos uma cópia do conteúdo integral dos e-mails. Os eventos que você cria na Agenda ficam na sua conta Google.</p>
+    <p><strong>Como tratamos:</strong> os eventos sincronizados são exibidos para você na Agenda do {LEGAL.product}, ao lado dos demais compromissos. Mantemos uma cópia dos eventos importados enquanto a conexão estiver ativa, e os eventos que você cria no {LEGAL.product} são gravados também na sua conta Google.</p>
     <p className="rounded-lg border bg-white p-4 text-sm">
       O uso e a transferência, para qualquer outro aplicativo, das informações recebidas das APIs do Google pelo {LEGAL.product} seguirão a{' '}
       <a href="https://developers.google.com/terms/api-services-user-data-policy" target="_blank" rel="noopener noreferrer">Política de Dados do Usuário dos Serviços de API do Google</a>, incluindo os requisitos de Uso Limitado.<br />
@@ -54,7 +54,7 @@ const sections: LegalSection[] = [
     <p>Não usamos seus dados para publicidade nem os vendemos.</p>
   </>) },
   { id: 'ia', title: 'Assistente de IA', body: (<>
-    <p>O assistente de IA do {LEGAL.product} usa modelos de linguagem fornecidos pela <strong>Anthropic</strong> (por meio de API comercial). Para responder a um pedido seu, trechos relevantes do conteúdo (por exemplo, dados do processo, texto de um documento ou de um e-mail que você pediu para analisar) são enviados ao provedor apenas para gerar a resposta. Pelos termos comerciais do provedor, esses dados <strong>não são usados para treinar os modelos</strong> dele.</p>
+    <p>O assistente de IA do {LEGAL.product} usa modelos de linguagem fornecidos pela <strong>Anthropic</strong> (por meio de API comercial). Para responder a um pedido seu, trechos relevantes do conteúdo (por exemplo, dados do processo ou o texto de um documento que você pediu para analisar) são enviados ao provedor apenas para gerar a resposta. Pelos termos comerciais do provedor, esses dados <strong>não são usados para treinar os modelos</strong> dele.</p>
     <p>A IA pode errar. Ela respeita as permissões de cada pessoa do escritório e pede confirmação antes de alterar dados. As respostas devem ser revisadas por um profissional habilitado.</p>
   </>) },
   { id: 'compartilhamento', title: 'Com quem compartilhamos', body: (<>
@@ -81,8 +81,8 @@ const sections: LegalSection[] = [
   { id: 'retencao', title: 'Por quanto tempo guardamos e como excluir', body: (<>
     <ul>
       <li><strong>Conta e conteúdo do escritório:</strong> enquanto a conta existir. Ao encerrar, apagamos ou anonimizamos os dados em até 30 dias, salvo o que a lei obrigue a manter (por exemplo, registros fiscais e de pagamento).</li>
-      <li><strong>Dados do Google:</strong> ao clicar em “Desconectar” em Configurações → Integrações, revogamos o acesso junto ao Google e apagamos imediatamente os tokens. Os resultados gerados a partir do Gmail (alertas e resumos) e os vínculos da Agenda são apagados em até 30 dias.</li>
-      <li>Você também pode revogar o acesso a qualquer momento em <a href="https://myaccount.google.com/permissions" target="_blank" rel="noopener noreferrer">myaccount.google.com/permissions</a>. Se o acesso for revogado, deixamos de ler seus dados e removemos os tokens.</li>
+      <li><strong>Dados do Google:</strong> ao clicar em “Desconectar” em Configurações → Integrações, revogamos o acesso junto ao Google e apagamos imediatamente os tokens. As cópias dos eventos importados do Google Agenda e os vínculos com a Agenda são apagados em até 30 dias; os eventos que já estão na sua conta Google permanecem nela.</li>
+      <li>Você também pode revogar o acesso a qualquer momento em <a href="https://myaccount.google.com/permissions" target="_blank" rel="noopener noreferrer">myaccount.google.com/permissions</a>. Se o acesso for revogado, deixamos de ler sua agenda e removemos os tokens.</li>
       <li>Para pedir a exclusão da conta ou dos seus dados, escreva para {mail}.</li>
     </ul>
   </>) },
@@ -100,6 +100,6 @@ export default function Privacidade() {
   useEffect(() => { document.title = 'Política de Privacidade — Foro' }, [])
   return (
     <LegalDoc title="Política de Privacidade" sections={sections}
-      intro={<p>Esta política explica quais dados o {LEGAL.product} trata, por que, com quem compartilha e quais são os seus direitos, em conformidade com a Lei Geral de Proteção de Dados (Lei 13.709/2018). A seção 3 descreve em detalhes como usamos os dados do Google quando você conecta sua conta.</p>} />
+      intro={<p>Esta política explica quais dados o {LEGAL.product} trata, por que, com quem compartilha e quais são os seus direitos, em conformidade com a Lei Geral de Proteção de Dados (Lei 13.709/2018). A seção 3 descreve em detalhes como usamos os dados do Google (Agenda) quando você conecta sua conta.</p>} />
   )
 }

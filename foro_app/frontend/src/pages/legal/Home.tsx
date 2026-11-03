@@ -1,6 +1,6 @@
 import { useEffect } from 'react'
 import { Link, Navigate } from 'react-router-dom'
-import { Users, Briefcase, FileText, CalendarDays, LayoutGrid, Sparkles, Mail, ShieldCheck } from 'lucide-react'
+import { Users, Briefcase, FileText, CalendarDays, LayoutGrid, Sparkles, ShieldCheck } from 'lucide-react'
 import { useAuth } from '../../context/AuthContext'
 import { PublicShell } from './LegalLayout'
 import { LEGAL } from '../../lib/legal'
@@ -50,8 +50,8 @@ export default function Home() {
 
       <section className="max-w-5xl mx-auto px-4 sm:px-6 pb-14" aria-labelledby="google">
         <div className="card p-6 sm:p-8">
-          <h2 id="google" className="text-2xl font-semibold text-slate-900 flex items-center gap-2"><Mail className="w-6 h-6 text-accent-600" /> Integração com Google (opcional)</h2>
-          <p className="mt-3 text-slate-700 max-w-3xl">Se você quiser, conecte sua conta Google para (1) <strong>sincronizar sua agenda</strong>: os compromissos criados no {LEGAL.product} vão para o Google Agenda e os eventos de lá aparecem aqui; e (2) <strong>receber alertas por IA</strong> sobre e-mails relevantes do seu Gmail, como intimações e prazos. O acesso ao Gmail é somente leitura: o {LEGAL.product} nunca envia, apaga nem altera seus e-mails.</p>
+          <h2 id="google" className="text-2xl font-semibold text-slate-900 flex items-center gap-2"><CalendarDays className="w-6 h-6 text-accent-600" /> Integração com Google Agenda (opcional)</h2>
+          <p className="mt-3 text-slate-700 max-w-3xl">Se você quiser, conecte sua conta Google para <strong>sincronizar sua agenda</strong>: as reuniões, audiências e prazos criados no {LEGAL.product} vão para o Google Agenda, e os eventos de lá aparecem na Agenda do {LEGAL.product}. O {LEGAL.product} não acessa o seu Gmail.</p>
           <p className="mt-3 text-slate-700 max-w-3xl flex gap-2"><ShieldCheck className="w-5 h-5 text-green-600 shrink-0 mt-0.5" /> <span>Você autoriza na tela do Google, escolhe a conta e pode desconectar quando quiser. Os dados do Google não são vendidos, não são usados para publicidade nem para treinar modelos de IA. Saiba mais na <Link to="/privacidade#google" className="text-brand-700 underline">Política de Privacidade</Link> e nos <Link to="/termos" className="text-brand-700 underline">Termos de Serviço</Link>.</span></p>
         </div>
       </section>

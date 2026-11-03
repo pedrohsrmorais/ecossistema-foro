@@ -41,7 +41,7 @@ const sections: LegalSection[] = [
     <li>Referências legais apresentadas nos modelos seguem uma lista curada, mas podem ficar desatualizadas; confira a fonte oficial.</li>
   </ul>) },
   { id: 'google', title: 'Integrações com terceiros (Google)', body: (<ul>
-    <li>A conexão com o Google (Gmail e Agenda) é opcional, depende da sua autorização e é regida também pelos termos do Google. Os dados do Google são tratados conforme a seção 3 da <Link to="/privacidade#google">Política de Privacidade</Link>, inclusive os requisitos de Uso Limitado.</li>
+    <li>A conexão com o Google (Agenda) é opcional, depende da sua autorização e é regida também pelos termos do Google. Os dados do Google são tratados conforme a seção 3 da <Link to="/privacidade#google">Política de Privacidade</Link>, inclusive os requisitos de Uso Limitado.</li>
     <li>Você pode desconectar a qualquer momento nas configurações do {LEGAL.product} ou em <a href="https://myaccount.google.com/permissions" target="_blank" rel="noopener noreferrer">myaccount.google.com/permissions</a>.</li>
     <li>Não controlamos a disponibilidade das APIs de terceiros; mudanças feitas por eles podem afetar a integração.</li>
   </ul>) },
