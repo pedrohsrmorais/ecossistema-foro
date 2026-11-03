@@ -27,6 +27,7 @@ const officeController = require('../controllers/office.controller');
 const { requireAccess, scoped } = require('../middlewares/office.middleware');
 const { countActions } = require('../middlewares/activity.middleware');
 const eventsController      = require('../controllers/events.controller');
+const boardsController      = require('../controllers/boards.controller');
 const aiController          = require('../controllers/ai.controller');
 const paymentsController    = require('../controllers/payments.controller');
 const webhooksController    = require('../controllers/webhooks.controller');
@@ -234,6 +235,27 @@ router.get   ('/events',               requireModule('crm'), requireAccess('agen
 router.post  ('/events',               requireModule('crm'), requireAccess('agenda'), requirePermission('create_events'), eventsController.create);
 router.put   ('/events/:id',           requireModule('crm'), requireAccess('agenda'), eventsController.update);
 router.delete('/events/:id',           requireModule('crm'), requireAccess('agenda'), eventsController.remove);
+
+// ─── Quadros personalizáveis (estilo Monday) — acesso/edição/estrutura definidos pelo admin de cada escritório ─────
+const B = [requireModule('crm'), requireAccess('boards')];
+const BE = [...B, requirePermission('boards_edit')];
+const BM = [...B, requirePermission('boards_manage')];
+router.get   ('/boards/templates',                       ...B,  boardsController.templates);
+router.get   ('/boards',                                 ...B,  boardsController.list);
+router.post  ('/boards',                                 ...BM, boardsController.create);
+router.get   ('/boards/:id',                             ...B,  boardsController.get);
+router.put   ('/boards/:id',                             ...BM, boardsController.update);
+router.delete('/boards/:id',                             ...BM, boardsController.remove);
+router.post  ('/boards/:id/columns',                     ...BM, boardsController.addColumn);
+router.put   ('/boards/:id/columns/order',               ...BM, boardsController.reorderColumns);
+router.put   ('/boards/:id/columns/:colId',              ...BM, boardsController.updateColumn);
+router.delete('/boards/:id/columns/:colId',              ...BM, boardsController.removeColumn);
+router.post  ('/boards/:id/groups',                      ...BM, boardsController.addGroup);
+router.put   ('/boards/:id/groups/:groupId',             ...BM, boardsController.updateGroup);
+router.delete('/boards/:id/groups/:groupId',             ...BM, boardsController.removeGroup);
+router.post  ('/boards/:id/items',                       ...BE, boardsController.addItem);
+router.put   ('/boards/:id/items/:itemId',               ...BE, boardsController.updateItem);
+router.delete('/boards/:id/items/:itemId',               ...BE, boardsController.removeItem);
 
 // ─── Alertas de prazo (módulo "crm") — sino do app, painel e resumo diário por e-mail ─────
 router.get ('/alerts',               requireModule('crm'), alertsController.summary);

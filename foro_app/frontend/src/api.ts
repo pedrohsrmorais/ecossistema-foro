@@ -236,6 +236,7 @@ export type Permissions = {
   templates_manage: boolean; ai_drafts: boolean; delete_records: boolean
   create_leads: boolean; delete_leads: boolean; create_cases: boolean; create_events: boolean; ai_write: boolean
   access_leads: boolean; access_cases: boolean; access_documents: boolean; access_agenda: boolean; access_ai: boolean
+  access_boards: boolean; boards_edit: boolean; boards_manage: boolean
   view_scope: 'all' | 'own'
 }
 export interface PermissionDef { key: Exclude<keyof Permissions, 'view_scope'>; label: string; default: boolean; group: 'module' | 'action' }
@@ -1362,4 +1363,36 @@ export const supportApi = {
   list: () => http.get<SupportTicket[]>('/support/tickets').then(r => r.data),
   create: (data: { category: string; subject: string; message: string; page?: string }) =>
     http.post<{ id: string; status: string; emailed: boolean; reply_to: string }>('/support/tickets', data).then(r => r.data),
+}
+
+
+// ─── QUADROS PERSONALIZÁVEIS (estilo Monday) ─────────────────────────────────
+
+export type BoardColumnType = 'text' | 'number' | 'status' | 'date' | 'person' | 'checkbox' | 'link' | 'lead' | 'case'
+export interface StatusOption { id: string; label: string; color: string }
+export interface BoardColumn { id: string; name: string; type: BoardColumnType; settings: { options: StatusOption[] } | null; position: number }
+export interface BoardGroup { id: string; name: string; color: string; position: number }
+export type BoardCell = string | number | boolean | { id: string; label: string } | null | undefined
+export interface BoardItem { id: string; group_id: string; name: string; vals: Record<string, BoardCell>; position: number; created_at: string; updated_at: string }
+export interface BoardSummary { id: string; name: string; description: string | null; color: string; items_count: number; columns_count: number; created_at: string; updated_at: string }
+export interface Board { id: string; name: string; description: string | null; color: string; columns: BoardColumn[]; groups: BoardGroup[]; items: BoardItem[] }
+export interface BoardTemplate { id: string; label: string; columns: string[]; groups: string[] }
+
+export const boardsApi = {
+  templates: () => http.get<BoardTemplate[]>('/boards/templates').then(r => r.data),
+  list: () => http.get<BoardSummary[]>('/boards').then(r => r.data),
+  get: (id: string) => http.get<Board>(`/boards/${id}`).then(r => r.data),
+  create: (data: { name: string; description?: string; template?: string; color?: string }) => http.post<Board>('/boards', data).then(r => r.data),
+  update: (id: string, data: { name?: string; description?: string | null; color?: string }) => http.put<Board>(`/boards/${id}`, data).then(r => r.data),
+  remove: (id: string) => http.delete(`/boards/${id}`).then(r => r.data),
+  addColumn: (id: string, data: { name: string; type: BoardColumnType }) => http.post<BoardColumn>(`/boards/${id}/columns`, data).then(r => r.data),
+  updateColumn: (id: string, colId: string, data: { name?: string; settings?: { options: StatusOption[] } }) => http.put<BoardColumn>(`/boards/${id}/columns/${colId}`, data).then(r => r.data),
+  reorderColumns: (id: string, ids: string[]) => http.put(`/boards/${id}/columns/order`, { ids }).then(r => r.data),
+  removeColumn: (id: string, colId: string) => http.delete(`/boards/${id}/columns/${colId}`).then(r => r.data),
+  addGroup: (id: string, data: { name?: string }) => http.post<BoardGroup>(`/boards/${id}/groups`, data).then(r => r.data),
+  updateGroup: (id: string, gid: string, data: { name?: string; color?: string }) => http.put<BoardGroup>(`/boards/${id}/groups/${gid}`, data).then(r => r.data),
+  removeGroup: (id: string, gid: string) => http.delete(`/boards/${id}/groups/${gid}`).then(r => r.data),
+  addItem: (id: string, data: { name: string; group_id?: string; vals?: Record<string, BoardCell> }) => http.post<BoardItem>(`/boards/${id}/items`, data).then(r => r.data),
+  updateItem: (id: string, itemId: string, data: { name?: string; group_id?: string; vals?: Record<string, BoardCell> }) => http.put<BoardItem>(`/boards/${id}/items/${itemId}`, data).then(r => r.data),
+  removeItem: (id: string, itemId: string) => http.delete(`/boards/${id}/items/${itemId}`).then(r => r.data),
 }

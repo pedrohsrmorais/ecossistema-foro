@@ -5,10 +5,10 @@ import { eventsApi, leadsApi, casesApi } from '../api'
 import { EVENT_TYPES } from '../lib/cases'
 
 /** Modal de novo compromisso (reunião/audiência/perícia) — usado na Agenda, no lead e no processo. */
-export default function EventForm({ onClose, leadId, caseId, defaultDate }: { onClose: () => void; leadId?: string; caseId?: string; defaultDate?: string }) {
+export default function EventForm({ onClose, leadId, caseId, defaultDate, defaultStart, defaultEnd }: { onClose: () => void; leadId?: string; caseId?: string; defaultDate?: string; defaultStart?: string; defaultEnd?: string }) {
   const qc = useQueryClient()
   const [f, setF] = useState({
-    type: 'reuniao', title: '', date: defaultDate || new Date().toISOString().slice(0, 10), start: '14:00', end: '15:00',
+    type: 'reuniao', title: '', date: defaultDate || new Date().toISOString().slice(0, 10), start: defaultStart || '14:00', end: defaultEnd || '15:00',
     meeting_url: '', location: '', notes: '', lead_id: leadId || '', case_id: caseId || '',
   })
   const [error, setError] = useState('')

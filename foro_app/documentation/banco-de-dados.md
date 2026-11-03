@@ -438,3 +438,9 @@ O `init.sql` só roda na primeira subida do MySQL (volume vazio). Toda mudança 
 - `accounts.kind` (`personal`|`office`); contas rascunho antigas (`office_configured = 0`) viram espaços pessoais utilizáveis.
 - Perfil do escritório: `legal_name`, `website`, `office_email`, `zip_code`, `address_number`, `address_complement`, `district`, `oab_society`, `founded_on`, `practice_areas` (JSON), `headcount_total`, `headcount_lawyers`, `notes`; governança em `member_defaults` (JSON).
 - Idempotente (testada duas vezes sobre um banco legado).
+
+## Migração 013 — Quadros personalizáveis
+
+- `boards` (`account_id`, `name`, `description`, `color`, `position`, `deleted_at`), `board_columns` (`type`: text|number|status|date|person|checkbox|link|lead|case; `settings` JSON com as opções de status), `board_groups` e `board_items` (`vals` JSON `{ colunaId: valor }`, exclusão lógica).
+- Todas as tabelas carregam `account_id` e as consultas filtram por ele. Valores de contato/processo guardam `{ id, label }`.
+- Permissões novas (em `configs/permissions.js`): `access_boards`, `boards_edit` e `boards_manage` (esta com padrão `false`).

@@ -407,6 +407,27 @@ Todas as rotas exigem autenticação e o módulo `crm`.
 | PUT | `/events/:id` | Atualiza evento |
 | DELETE | `/events/:id` | Remove evento |
 
+## Quadros personalizáveis (estilo Monday)
+
+Todas exigem módulo `crm` e a permissão de módulo `access_boards`. Leitura: qualquer membro com acesso. **Itens** (`/items`) exigem `boards_edit`; **estrutura** (criar/renomear/excluir quadro, colunas e grupos) exige `boards_manage` — padrão `false` para membros; o admin libera por escritório (Governança → `member_defaults`) ou por pessoa. Admin sempre pode tudo. Tudo é isolado por `account_id`.
+
+| Método | Rota | Permissão | Descrição |
+|---|---|---|---|
+| GET | `/boards/templates` | acesso | Modelos para começar (`basico`, `clientes`, `prazos`, `vazio`) |
+| GET | `/boards` | acesso | Quadros do escritório com `items_count` e `columns_count` |
+| POST | `/boards` | manage | `{ name, description?, template?, color? }` → quadro completo |
+| GET | `/boards/:id` | acesso | Quadro com `columns`, `groups` e `items` (`vals` = `{ colunaId: valor }`) |
+| PUT / DELETE | `/boards/:id` | manage | Renomear/descrever/colorir; excluir (exclusão lógica) |
+| POST | `/boards/:id/columns` | manage | `{ name, type, settings? }`; tipos: `text`, `number`, `status`, `date`, `person`, `checkbox`, `link`, `lead`, `case` |
+| PUT | `/boards/:id/columns/order` | manage | `{ ids: [...] }` nova ordem |
+| PUT / DELETE | `/boards/:id/columns/:colId` | manage | Renomear; em `status`, `settings.options = [{ id, label, color }]` (remover opção limpa o valor dos itens); excluir apaga os valores da coluna |
+| POST / PUT / DELETE | `/boards/:id/groups[/:groupId]` | manage | Grupos (excluir leva os itens; o último grupo não sai) |
+| POST | `/boards/:id/items` | edit | `{ name, group_id?, vals? }` |
+| PUT | `/boards/:id/items/:itemId` | edit | `{ name?, group_id?, vals? }` — `vals` altera só as colunas enviadas (`null` limpa); valida o tipo (data `AAAA-MM-DD`, número, opção de status existente, pessoa do escritório, contato/processo do escritório → grava `{ id, label }`) |
+| DELETE | `/boards/:id/items/:itemId` | edit | Exclusão lógica |
+
+Limites: 50 quadros por escritório, 30 colunas, 20 grupos e 3.000 itens por quadro.
+
 ## Tarefas e prazos globais
 
 `POST /tasks` cria tarefa sem exigir lead: aceita `case_id` e `is_deadline` (prazo processual). Tarefas listadas em `GET /tasks` incluem o processo vinculado.

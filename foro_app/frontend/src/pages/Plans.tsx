@@ -1,11 +1,14 @@
 import { useEffect, useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useSearchParams } from 'react-router-dom'
-import { Check, Zap, Search, FileText, AlertTriangle, Loader2, CreditCard, Lock, ArrowUp } from 'lucide-react'
+import { Check, Zap, Search, FileText, AlertTriangle, Loader2, CreditCard, Lock, ArrowUp, MessageCircle, Users } from 'lucide-react'
 import clsx from 'clsx'
 import { plansApi, settingsApi, paymentsApi, billingApi } from '../api'
 import CreditMeter from '../components/CreditMeter'
 import { useAuth } from '../context/AuthContext'
+
+// Plano Consulting: sem checkout, atendimento comercial pelo WhatsApp.
+const CONSULTING_WHATSAPP = 'https://wa.me/5551983212540?text=' + encodeURIComponent('Olá! Tenho interesse no plano Consulting do Foro.')
 
 const brl = (n: number) => n.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', minimumFractionDigits: 2 })
 const day = (iso?: string | null) => (iso ? new Date(iso).toLocaleDateString('pt-BR') : '')
@@ -133,7 +136,7 @@ export default function Plans() {
         </div>
       )}
 
-      <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
+      <div className="grid sm:grid-cols-2 xl:grid-cols-4 gap-4">
         {plans.map(p => {
           const isCurrent = isAdmin ? seat?.plan_id === p.id : current?.current === p.id
           const lower = !!targetPlan && !isCurrent && p.price < targetPrice
@@ -145,7 +148,7 @@ export default function Plans() {
               <ul className="mt-4 space-y-2 text-sm text-slate-600 flex-1">
                 <li className="flex gap-2"><Zap className="w-4 h-4 text-accent-500 shrink-0 mt-0.5" /> {p.ai_credits_week} créditos de IA por semana (por usuário)</li>
                 <li className="flex gap-2"><FileText className="w-4 h-4 text-slate-400 shrink-0 mt-0.5" /> {p.max_leads ? `Até ${p.max_leads} leads no escritório` : 'Leads ilimitados'}</li>
-                <li className="flex gap-2 text-slate-400"><Search className="w-4 h-4 shrink-0 mt-0.5" /> {p.lookups_week} consultas/semana <span className="badge bg-accent-100 text-accent-700 !py-0">em breve</span></li>
+                <li className="flex gap-2 text-slate-400"><Search className="w-4 h-4 shrink-0 mt-0.5" /> {p.lookups_week} consultas/semana <span className="badge bg-accent-100 text-accent-700 !py-0 whitespace-nowrap self-start">em breve</span></li>
               </ul>
               {isCurrent ? (
                 <button className="mt-5 btn-secondary justify-center" disabled><Check className="w-4 h-4" /> {isAdmin ? 'Plano atual desta pessoa' : 'Seu plano atual'}</button>
@@ -159,6 +162,18 @@ export default function Plans() {
             </div>
           )
         })}
+        <div className="card p-5 flex flex-col" data-testid="plan-consulting">
+          <h3 className="font-semibold text-slate-900">Consulting</h3>
+          <p className="mt-1 text-2xl font-semibold text-slate-900">Sob consulta</p>
+          <ul className="mt-4 space-y-2 text-sm text-slate-600 flex-1">
+            <li className="flex gap-2"><Users className="w-4 h-4 text-accent-500 shrink-0 mt-0.5" /> Para escritórios maiores ou com necessidades próprias</li>
+            <li className="flex gap-2"><Zap className="w-4 h-4 text-accent-500 shrink-0 mt-0.5" /> Créditos de IA, usuários e módulos sob medida</li>
+            <li className="flex gap-2"><FileText className="w-4 h-4 text-slate-400 shrink-0 mt-0.5" /> Implantação e personalização do CRM do escritório</li>
+          </ul>
+          <a className="mt-5 btn-primary justify-center" href={CONSULTING_WHATSAPP} target="_blank" rel="noopener noreferrer" data-testid="consulting-cta">
+            <MessageCircle className="w-4 h-4" /> Fale conosco
+          </a>
+        </div>
       </div>
 
       {isAdmin && seats.length > 0 && (

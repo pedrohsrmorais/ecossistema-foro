@@ -6,10 +6,11 @@
  * group 'module' = acesso à área do CRM (a aba some/bloqueia); group 'action' = ação específica.
  */
 const DEFS = [
-  { key: 'access_leads', group: 'module', label: 'Acessar Leads', default: true },
-  { key: 'access_cases', group: 'module', label: 'Acessar Processos', default: true },
-  { key: 'access_documents', group: 'module', label: 'Acessar Documentos e o Gerador', default: true },
+  { key: 'access_leads', group: 'module', label: 'Acessar o CRM Comercial', default: true },
+  { key: 'access_cases', group: 'module', label: 'Acessar o Monitoramento Processual', default: true },
+  { key: 'access_documents', group: 'module', label: 'Acessar Documentos', default: true },
   { key: 'access_agenda', group: 'module', label: 'Acessar Agenda e Tarefas', default: true },
+  { key: 'access_boards', group: 'module', label: 'Acessar os Quadros personalizados', default: true },
   { key: 'access_ai', group: 'module', label: 'Usar o Assistente de IA (gasta créditos)', default: true },
   { key: 'create_leads', group: 'action', label: 'Cadastrar leads', default: true },
   { key: 'delete_leads', group: 'action', label: 'Excluir leads', default: true },
@@ -18,6 +19,8 @@ const DEFS = [
   { key: 'ai_write', group: 'action', label: 'A IA pode criar, alterar e excluir dados em nome da pessoa (desmarcado: só consulta)', default: true },
   { key: 'templates_manage', group: 'action', label: 'Criar e editar modelos de documento do escritório', default: false },
   { key: 'ai_drafts', group: 'action', label: 'Gerar rascunhos de documentos com IA (gasta créditos)', default: true },
+  { key: 'boards_edit', group: 'action', label: 'Quadros: adicionar, editar e excluir itens', default: true },
+  { key: 'boards_manage', group: 'action', label: 'Quadros: criar quadros e montar a estrutura (colunas, grupos, excluir quadro)', default: false },
   { key: 'delete_records', group: 'action', label: 'Excluir processos e documentos', default: true },
 ];
 const KEYS = DEFS.map(d => d.key);

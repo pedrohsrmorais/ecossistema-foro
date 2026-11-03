@@ -19,6 +19,8 @@ import Cases from './pages/Cases'
 import CaseDetail from './pages/CaseDetail'
 import Agenda from './pages/Agenda'
 import Tasks from './pages/Tasks'
+import Quadros from './pages/Quadros'
+import QuadroView from './pages/QuadroView'
 import Plans from './pages/Plans'
 import Settings from './pages/Settings'
 import Support from './pages/Support'
@@ -98,6 +100,8 @@ export default function App() {
                 <Route path="/documentos/modelos" element={<OfficeTemplates />} />
                 <Route path="/documentos/:id" element={<DocumentEditor />} />
                 <Route path="/agenda"        element={<Agenda />} />
+                <Route path="/quadros"       element={<Quadros />} />
+                <Route path="/quadros/:id"   element={<QuadroView />} />
                 <Route path="/escritorio"    element={<Escritorio />} />
                 <Route path="/tasks"     element={<Tasks />} />
                 <Route path="/settings"  element={<Settings />} />

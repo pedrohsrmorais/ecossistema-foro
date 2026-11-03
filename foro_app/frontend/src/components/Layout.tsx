@@ -2,7 +2,7 @@ import { Outlet, NavLink, useNavigate, useLocation } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import {
   MessageSquare, Users, LayoutDashboard, CheckSquare, Settings, LogOut, Scale,
-  GraduationCap, FileText, Sparkles, Landmark, CreditCard, LifeBuoy, Clock, Briefcase, CalendarDays, FlaskConical, Trophy, Users2, Menu,
+  GraduationCap, FileText, LayoutGrid, Sparkles, Landmark, CreditCard, LifeBuoy, Clock, Briefcase, CalendarDays, FlaskConical, Trophy, Users2, Menu,
 } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
 import { modulesApi, settingsApi, officeApi, usersApi } from '../api'
@@ -34,6 +34,7 @@ const NAV_TOP: NavItem[] = [
   { to: '/documentos', label: 'Documentos', icon: FileText,   module: 'crm', access: 'documents', crm: true },
   { to: '/agenda',    label: 'Agenda',    icon: CalendarDays, module: 'crm', access: 'agenda', crm: true },
   { to: '/tasks',     label: 'Tarefas', icon: CheckSquare,     module: 'crm', access: 'agenda', crm: true },
+  { to: '/quadros',   label: 'Quadros', icon: LayoutGrid,       module: 'crm', access: 'boards', crm: true },
   { to: '/chat',      label: 'IA',      icon: MessageSquare,   module: 'crm', access: 'ai', crm: true },
   { to: '/escritorio', label: 'Escritório', icon: Landmark,    module: null },
 ]
