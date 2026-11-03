@@ -66,6 +66,9 @@ export default function Register() {
             <p className="text-xs text-slate-500 bg-slate-50 border border-slate-200 rounded-lg p-2.5">
               📬 Vamos enviar um código para confirmar seu e-mail. Se não chegar, <strong>confira o spam, o lixo eletrônico e a lixeira</strong>.
             </p>
+            <p className="text-xs text-slate-500">
+              Ao criar a conta, você concorda com os <Link to="/termos" target="_blank" className="text-brand-600 hover:underline">Termos de Serviço</Link> e com a <Link to="/privacidade" target="_blank" className="text-brand-600 hover:underline">Política de Privacidade</Link>.
+            </p>
             <button type="submit" className="btn-primary w-full justify-center" disabled={loading}>
               {loading ? 'Criando conta...' : 'Criar conta'}
             </button>

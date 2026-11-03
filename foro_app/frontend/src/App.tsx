@@ -20,6 +20,9 @@ import CaseDetail from './pages/CaseDetail'
 import Agenda from './pages/Agenda'
 import Tasks from './pages/Tasks'
 import Quadros from './pages/Quadros'
+import Home from './pages/legal/Home'
+import Privacidade from './pages/legal/Privacidade'
+import Termos from './pages/legal/Termos'
 import QuadroView from './pages/QuadroView'
 import Plans from './pages/Plans'
 import Settings from './pages/Settings'
@@ -62,7 +65,12 @@ export default function App() {
     <AuthProvider>
       <AdminAuthProvider>
         <Routes>
-          {/* Públicas (app do escritório) */}
+          {/* Públicas (app do escritório) — a inicial, a Privacidade e os Termos também são exigidos pelo Google (OAuth) */}
+          <Route path="/" element={<Home />} />
+          <Route path="/privacidade" element={<Privacidade />} />
+          <Route path="/termos" element={<Termos />} />
+          <Route path="/politica-de-privacidade" element={<Navigate to="/privacidade" replace />} />
+          <Route path="/termos-de-servico" element={<Navigate to="/termos" replace />} />
           <Route path="/login"    element={<Login />} />
           <Route path="/register" element={<Register />} />
           <Route path="/forgot-password" element={<ForgotPassword />} />
@@ -75,7 +83,6 @@ export default function App() {
             {/* Logado + e-mail confirmado */}
             <Route element={<RequireVerified />}>
               <Route element={<Layout />}>
-                <Route index element={<Navigate to="/dashboard" replace />} />
                 <Route path="/dashboard" element={<Dashboard />} />
                 <Route path="/chat"      element={<Chat />} />
                 <Route path="/crm-comercial"     element={<Leads />} />

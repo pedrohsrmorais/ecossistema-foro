@@ -15,6 +15,11 @@ foro_app/backend/dist/
 .env.test.local
 .env.production.local
 
+# Credenciais do OAuth do Google (baixadas do Google Cloud) — NUNCA versionar
+google_cliente.json
+**/google_cliente.json
+**/client_secret*.json
+
 # Logs
 logs/
 *.log

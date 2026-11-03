@@ -227,3 +227,7 @@ Veja: [api-reference.md](./api-reference.md)
 ## Banco de dados
 
 Schema único e versionado em `backend/configs/init.sql` — executado automaticamente pelo Docker. Ver documentação completa (tabelas, relacionamentos, seeds): [banco-de-dados.md](./banco-de-dados.md)
+
+## Credenciais do Google (OAuth)
+
+O JSON do cliente OAuth baixado do Google Cloud fica em `backend/configs/google_cliente.json` — **ignorado pelo git** (`.gitignore`) e lido por `backend/configs/google.config.js`. Como o `Dockerfile` copia `backend/`, coloque o arquivo na VPS antes de `docker compose up -d --build`. Alternativas: `GOOGLE_CLIENT_FILE` (outro nome/caminho) ou `GOOGLE_CLIENT_ID`/`GOOGLE_CLIENT_SECRET`/`GOOGLE_REDIRECT_URI` no `.env`. Redirect URI: `https://app.foro-os.com.br/api/integrations/google/callback`.

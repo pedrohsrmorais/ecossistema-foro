@@ -89,6 +89,9 @@ export default function Login() {
             </Link>
           </p>
         </div>
+        <p className="mt-4 text-center text-xs text-slate-400">
+          <Link to="/privacidade" className="hover:text-brand-700">Privacidade</Link> · <Link to="/termos" className="hover:text-brand-700">Termos de Serviço</Link>
+        </p>
       </div>
     </div>
   )
