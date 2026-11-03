@@ -58,3 +58,6 @@ coverage/
 # Misc
 .cache/
 .parcel-cache/
+
+# Saída temporária do build SSR
+.prerender-build/

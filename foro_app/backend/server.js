@@ -82,6 +82,31 @@ app.use('/api', (req, res) => res.status(404).json({ error: 'Rota não encontrad
 // ─── Serve React SPA (dist built by: cd frontend && npm run build) ────────────
 const distPath = path.join(__dirname, 'dist');
 app.use('/assets', express.static(path.join(distPath, 'assets'), { maxAge: '1y', immutable: true }));
+
+// Páginas públicas (início, privacidade, termos): o HTML cru já traz texto e links (gerado no build por frontend/scripts/prerender.mjs),
+// porque robôs e os verificadores do Google (OAuth) não executam JavaScript. O React substitui esse conteúdo ao carregar.
+const PUBLIC_PAGES = { '/': 'home', '/privacidade': 'privacidade', '/termos': 'termos' };
+let _prerender;
+function loadPrerender() {
+  if (_prerender !== undefined) return _prerender;
+  try {
+    _prerender = JSON.parse(require('fs').readFileSync(path.join(distPath, 'prerender.json'), 'utf8'));
+    _prerender.__template = require('fs').readFileSync(path.join(distPath, 'index.html'), 'utf8');
+  } catch { _prerender = null; }
+  return _prerender;
+}
+const _attr = (v) => String(v).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
+app.get(Object.keys(PUBLIC_PAGES), (req, res, next) => {
+  const pre = loadPrerender();
+  const page = pre && pre[PUBLIC_PAGES[req.path]];
+  if (!page) return next();
+  const html = pre.__template
+    .replace('<div id="root"></div>', () => `<div id="root">${page.html}</div>`)
+    .replace(/<title>[^<]*<\/title>/, () => `<title>${_attr(page.title)}</title>`)
+    .replace(/<meta name="description" content="[^"]*" \/>/, () => `<meta name="description" content="${_attr(page.description)}" />`);
+  res.set('Cache-Control', 'no-cache').type('html').send(html);
+});
+
 app.use(express.static(distPath));
 app.get('*', (req, res) => {
   res.sendFile(path.join(distPath, 'index.html'));
