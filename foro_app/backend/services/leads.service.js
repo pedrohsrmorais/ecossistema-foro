@@ -1,6 +1,7 @@
 const { query, transaction } = require('../configs/db.config');
 const { v4: uuidv4 } = require('uuid');
 const { AppError } = require('../middlewares/error.middleware');
+const leadStages = require('./lead-stages.service');
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -63,7 +64,7 @@ async function list(accountId, { stage, search, assigned, page = 1, limit = 50, 
   const params = [accountId];
 
   if (viewer)   { conditions.push('l.assigned_user_id = ?');   params.push(viewer); }
-  if (stage)    { conditions.push('l.stage = ?');              params.push(stage); }
+  if (stage)    { const st = await leadStages.resolve(accountId, stage); conditions.push('l.stage = ?'); params.push(st ? st.stage_key : stage); }
   if (assigned) { conditions.push('l.assigned_user_id = ?');   params.push(assigned); }
   if (search)   {
     conditions.push('(l.name LIKE ? OR l.phone LIKE ? OR l.email LIKE ?)');
@@ -107,8 +108,10 @@ async function _assertLeadLimit(accountId) {
 }
 
 async function create(accountId, userId, data, channel = 'ui') {
-  const { name, phone, email, stage = 'novo', source, assigned_user_id, custom_fields } = data;
+  const { name, phone, email, source, assigned_user_id, custom_fields } = data;
   await _assertLeadLimit(accountId);
+  // etapa do escritório (aceita chave ou nome); sem etapa informada, entra na primeira do funil
+  const stage = data.stage ? (await leadStages.mustResolve(accountId, data.stage)).stage_key : await leadStages.firstKey(accountId);
   const leadId = uuidv4();
 
   return transaction(async (conn) => {
@@ -161,10 +164,8 @@ async function update(leadId, accountId, userId, data, channel = 'ui') {
   return getById(leadId, accountId);
 }
 
-const VALID_STAGES = ['novo', 'em_contato', 'proposta', 'convertido', 'encerrado'];
-
-async function moveStage(leadId, accountId, userId, stage, channel = 'ui') {
-  if (!VALID_STAGES.includes(stage)) throw new AppError(`Etapa inválida. Use: ${VALID_STAGES.join(', ')}.`, 400);
+async function moveStage(leadId, accountId, userId, stageInput, channel = 'ui') {
+  const stage = (await leadStages.mustResolve(accountId, stageInput)).stage_key;
   const [[old]] = await query('SELECT stage FROM leads WHERE id = ? AND account_id = ? AND deleted_at IS NULL LIMIT 1', [leadId, accountId]);
   if (!old) throw new AppError('Lead não encontrado.', 404);
 

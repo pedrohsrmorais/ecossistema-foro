@@ -50,6 +50,7 @@ async function createPersonalSpace(conn, { userId, personId, name, email, phone,
   await conn.execute('UPDATE accounts SET owner_user_id = ? WHERE id = ?', [userId, accountId]);
   await _seedDefaultFields(conn, accountId);
   await caseStages.seedAccount((sql, p) => conn.execute(sql, p), accountId);
+  await require('./lead-stages.service').seedAccount((sql, p) => conn.execute(sql, p), accountId);
   return accountId;
 }
 
@@ -349,7 +350,7 @@ async function _seedDefaultFields(conn, accountId) {
 }
 
 module.exports = {
-  register, login, refreshToken, generateToken, createPersonalSpace, seedAccount: async (conn, accountId) => { await _seedDefaultFields(conn, accountId); await caseStages.seedAccount((sql, p) => conn.execute(sql, p), accountId); },
+  register, login, refreshToken, generateToken, createPersonalSpace, seedAccount: async (conn, accountId) => { await _seedDefaultFields(conn, accountId); await caseStages.seedAccount((sql, p) => conn.execute(sql, p), accountId); await require('./lead-stages.service').seedAccount((sql, p) => conn.execute(sql, p), accountId); },
   sendVerificationCode, verifyCode,
   forgotPassword, resetPassword, sendInvite,
   platformLogin,

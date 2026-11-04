@@ -1,11 +1,13 @@
 import { useState, useMemo, useRef } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { Link } from 'react-router-dom'
-import { Plus, Search, ChevronDown, ChevronRight, ExternalLink, Trash2, LayoutList, Columns3, Sparkles } from 'lucide-react'
+import { Plus, Search, ChevronDown, ChevronRight, ExternalLink, Trash2, LayoutList, Columns3, Sparkles, Settings2 } from 'lucide-react'
 import clsx from 'clsx'
 import { leadsApi, type Lead, type PaginatedResult } from '../api'
 import { useChat } from '../context/ChatContext'
-import { STAGES, stageOf } from '../lib/stages'
+import { useLeadStages } from '../lib/stages'
+import LeadStagesEditor from '../components/LeadStagesEditor'
+import { useAuth } from '../context/AuthContext'
 import { EditableCell, StagePill } from '../components/crm'
 import { useCan } from '../hooks/useCan'
 
@@ -37,6 +39,7 @@ function useBoardMutations() {
 
 function AddRow({ stage, onCreate }: { stage: string; onCreate: (name: string) => void }) {
   const canCreate = useCan('create_leads')
+  const { stageOf } = useLeadStages()
   const [name, setName] = useState('')
   const input = useRef<HTMLInputElement>(null)
   if (!canCreate) return null
@@ -63,6 +66,9 @@ export default function Leads() {
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({})
   const [dragId, setDragId] = useState<string | null>(null)
   const { setOpen } = useChat()
+  const { stages: STAGES, firstKey } = useLeadStages()
+  const { user: me } = useAuth()
+  const [editingStages, setEditingStages] = useState(false)
   const { update, move, create, remove } = useBoardMutations()
 
   const { data, isLoading } = useQuery({ queryKey: ['leads', 'board'], queryFn: () => leadsApi.list({ limit: 500 }), staleTime: 15_000 })
@@ -93,8 +99,9 @@ export default function Leads() {
               </button>
             ))}
           </div>
+          {me?.role === 'admin' && <button className="btn-secondary text-sm" onClick={() => setEditingStages(true)} data-testid="etapas-editar"><Settings2 className="w-4 h-4" /> Etapas</button>}
           <button className="btn-secondary text-sm" onClick={() => setOpen(true)}><Sparkles className="w-4 h-4 text-accent-500" /> Pedir à IA</button>
-          {canCreate && <button className="btn-primary text-sm" onClick={() => create.mutate({ name: 'Novo lead', stage: 'novo' })}><Plus className="w-4 h-4" /> Novo lead</button>}
+          {canCreate && <button className="btn-primary text-sm" onClick={() => create.mutate({ name: 'Novo lead', stage: firstKey })}><Plus className="w-4 h-4" /> Novo lead</button>}
         </div>
       </div>
 
@@ -108,14 +115,14 @@ export default function Leads() {
       ) : view === 'board' ? (
         <div className="space-y-5 overflow-x-auto">
           {STAGES.map(st => {
-            const rows = filtered.filter(l => l.stage === st.key)
-            const isCollapsed = collapsed[st.key]
+            const rows = filtered.filter(l => (STAGES.some(x => x.stage_key === l.stage) ? l.stage : firstKey) === st.stage_key)
+            const isCollapsed = collapsed[st.stage_key]
             return (
-              <section key={st.key} className="card overflow-hidden min-w-[860px]">
-                <button onClick={() => setCollapsed(c => ({ ...c, [st.key]: !c[st.key] }))}
+              <section key={st.id} className="card overflow-hidden min-w-[860px]" data-testid="etapa-secao">
+                <button onClick={() => setCollapsed(c => ({ ...c, [st.stage_key]: !c[st.stage_key] }))}
                   className="w-full flex items-center gap-2 px-3 py-2.5 hover:bg-slate-50 text-left">
                   {isCollapsed ? <ChevronRight className="w-4 h-4 text-slate-500" /> : <ChevronDown className="w-4 h-4 text-slate-500" />}
-                  <span className={clsx('w-1 h-5 rounded-full', st.bar)} />
+                  <span className="w-1 h-5 rounded-full" style={{ backgroundColor: st.color }} />
                   <span className="font-semibold text-slate-900">{st.label}</span>
                   <span className="text-xs text-slate-400">{rows.length} {rows.length === 1 ? 'lead' : 'leads'}</span>
                 </button>
@@ -126,7 +133,7 @@ export default function Leads() {
                     </div>
                     {rows.map(l => (
                       <div key={l.id} className={clsx('group grid items-center gap-2 px-3 py-1 border-b last:border-b-0 hover:bg-slate-50/70', COLS)}>
-                        <span className={clsx('w-1 h-6 rounded-full', st.bar)} />
+                        <span className="w-1 h-6 rounded-full" style={{ backgroundColor: st.color }} />
                         <EditableCell bold value={l.name} placeholder="Sem nome" onSave={v => update.mutate({ id: l.id, data: { name: v } })} />
                         <EditableCell value={l.phone} placeholder="Telefone" onSave={v => update.mutate({ id: l.id, data: { phone: v } })} />
                         <EditableCell value={l.email} placeholder="E-mail" onSave={v => update.mutate({ id: l.id, data: { email: v } })} />
@@ -139,7 +146,7 @@ export default function Leads() {
                         </span>
                       </div>
                     ))}
-                    <AddRow stage={st.key} onCreate={addLead(st.key)} />
+                    <AddRow stage={st.stage_key} onCreate={addLead(st.stage_key)} />
                   </>
                 )}
               </section>
@@ -149,13 +156,13 @@ export default function Leads() {
       ) : (
         <div className="flex gap-3 overflow-x-auto pb-4">
           {STAGES.map(st => {
-            const rows = filtered.filter(l => l.stage === st.key)
+            const rows = filtered.filter(l => (STAGES.some(x => x.stage_key === l.stage) ? l.stage : firstKey) === st.stage_key)
             return (
-              <div key={st.key} className="w-72 shrink-0 bg-slate-100/70 rounded-xl p-2"
+              <div key={st.id} data-testid="etapa-coluna" className="w-72 shrink-0 bg-slate-100/70 rounded-xl p-2"
                 onDragOver={e => e.preventDefault()}
-                onDrop={() => { if (dragId) move.mutate({ id: dragId, stage: st.key }); setDragId(null) }}>
+                onDrop={() => { if (dragId) move.mutate({ id: dragId, stage: st.stage_key }); setDragId(null) }}>
                 <div className="flex items-center gap-2 px-2 py-1.5">
-                  <span className={clsx('w-2.5 h-2.5 rounded-full', st.bar)} />
+                  <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: st.color }} />
                   <span className="text-sm font-semibold text-slate-800">{st.label}</span>
                   <span className="text-xs text-slate-400">{rows.length}</span>
                 </div>
@@ -169,12 +176,13 @@ export default function Leads() {
                     </Link>
                   ))}
                 </div>
-                <div className="mt-2 rounded-lg overflow-hidden border bg-white"><AddRow stage={st.key} onCreate={addLead(st.key)} /></div>
+                <div className="mt-2 rounded-lg overflow-hidden border bg-white"><AddRow stage={st.stage_key} onCreate={addLead(st.stage_key)} /></div>
               </div>
             )
           })}
         </div>
       )}
+      {editingStages && <LeadStagesEditor onClose={() => setEditingStages(false)} />}
     </div>
   )
 }

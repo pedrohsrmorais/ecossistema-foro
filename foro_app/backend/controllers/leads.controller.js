@@ -1,5 +1,6 @@
 const { paging } = require('../utils/paging');
 const leadsService = require('../services/leads.service');
+const leadStages = require('../services/lead-stages.service');
 
 async function list(req, res) {
   const { stage, search, assigned } = req.query;
@@ -93,7 +94,16 @@ async function listAllTasks(req, res) {
   res.json(tasks);
 }
 
+// Etapas do funil (editáveis pelo administrador do escritório)
+async function stagesList(req, res) { res.json(await leadStages.list(req.account.id)); }
+async function stagesCreate(req, res) { res.status(201).json(await leadStages.create(req.account.id, req.body)); }
+async function stagesUpdate(req, res) { res.json(await leadStages.update(req.params.id, req.account.id, req.body)); }
+async function stagesReorder(req, res) { res.json(await leadStages.reorder(req.account.id, req.body.ids)); }
+async function stagesRemove(req, res) { await leadStages.remove(req.params.id, req.account.id, req.body?.move_to || req.query.move_to); res.json({ message: 'Etapa removida.' }); }
+async function stagesReset(req, res) { res.json(await leadStages.reset(req.account.id)); }
+
 module.exports = {
+  stagesList, stagesCreate, stagesUpdate, stagesReorder, stagesRemove, stagesReset,
   list, create, getById, update, moveStage, archive, softDelete, getFunnelSummary,
   listNotes, addNote, deleteNote,
   listTasks, createTask, createGlobalTask, completeTask, listAllTasks,

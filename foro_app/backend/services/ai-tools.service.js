@@ -29,7 +29,7 @@ const TOOL_DEFINITIONS = [
         name:           { type: 'string', description: 'Nome completo do lead.' },
         phone:          { type: 'string', description: 'Telefone do lead (com DDD).' },
         email:          { type: 'string', description: 'E-mail do lead.' },
-        stage:          { type: 'string', description: 'Etapa no funil. Padrão: novo.' },
+        stage:          { type: 'string', description: 'Etapa do funil (nome da etapa do escritório). Padrão: a primeira etapa.' },
         custom_fields:  { type: 'object', description: 'Campos personalizados da conta. Chave = nome do campo.' },
       },
       required: [],
@@ -57,7 +57,7 @@ const TOOL_DEFINITIONS = [
       type: 'object',
       properties: {
         lead_id: { type: 'string', description: 'ID do lead.' },
-        stage:   { type: 'string', description: 'Nova etapa (ex: novo, em_contato, proposta, convertido, encerrado).' },
+        stage:   { type: 'string', description: 'Nome da nova etapa, exatamente como no funil do escritório (ex.: Em contato, Proposta, Em análise).' },
       },
       required: ['lead_id', 'stage'],
     },
@@ -105,7 +105,7 @@ const TOOL_DEFINITIONS = [
       type: 'object',
       properties: {
         search:   { type: 'string',  description: 'Texto livre para busca por nome, telefone ou e-mail.' },
-        stage:    { type: 'string',  description: 'Filtrar por etapa do funil.' },
+        stage:    { type: 'string',  description: 'Filtrar por etapa do funil (nome da etapa).' },
         assigned: { type: 'string',  description: 'ID do usuário responsável.' },
         limit:    { type: 'integer', description: 'Máximo de resultados. Padrão: 20.' },
       },

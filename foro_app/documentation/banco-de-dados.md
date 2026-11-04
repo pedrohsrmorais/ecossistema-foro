@@ -439,6 +439,10 @@ O `init.sql` só roda na primeira subida do MySQL (volume vazio). Toda mudança 
 - Perfil do escritório: `legal_name`, `website`, `office_email`, `zip_code`, `address_number`, `address_complement`, `district`, `oab_society`, `founded_on`, `practice_areas` (JSON), `headcount_total`, `headcount_lawyers`, `notes`; governança em `member_defaults` (JSON).
 - Idempotente (testada duas vezes sobre um banco legado).
 
+## Migração 015 — Etapas do CRM editáveis
+
+- `lead_stages` (`account_id`, `stage_key` UNIQUE por conta, `label`, `color`, `position`, `kind` open|proposal|won|closed). Criada com as 5 etapas padrão para todos os escritórios existentes (idempotente) e semeada em contas novas (`lead-stages.service.js::seedAccount`). `leads.stage` continua guardando a chave; nenhum lead é migrado.
+
 ## Migração 014 — Google Agenda
 
 - `google_connections` (uma por usuário, `user_id` UNIQUE): `google_sub`, `google_email`, `scopes`, `access_token_enc`, `refresh_token_enc` (AES-256-GCM, formato `v1:iv:tag:ct`), `token_expires_at`, `status` (`active`/`revoked`), `status_reason`, `last_sync_at`, `last_sync_error`.

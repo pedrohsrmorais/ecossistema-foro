@@ -409,6 +409,21 @@ Todas as rotas exigem autenticação e o módulo `crm`.
 
 Campos extras: `sync_google` (boolean, padrão `true`) no POST envia o compromisso também ao Google Agenda se o usuário estiver conectado. Eventos importados do Google têm `source: "google"` e `google_event_id`; são **privados do dono** (`user_id`), somente leitura (PUT/DELETE → 400) e não entram em alertas/resumo.
 
+### Etapas do funil do CRM (`/lead-stages`)
+
+Cada escritório tem as próprias etapas (padrão: Novo, Em contato, Proposta, Convertido, Encerrado). `leads.stage` guarda a **chave** (`stage_key`), que não muda ao renomear. Qualquer membro do CRM lê; **só administrador** altera.
+
+| Método | Rota | Descrição |
+|--------|------|-----------|
+| GET | `/lead-stages` | Lista em ordem: `id`, `stage_key`, `label`, `color` (#RRGGBB), `position`, `kind`, `leads_count` |
+| POST | `/lead-stages` | Cria (`label`, `color?`, `kind?`); nome repetido (sem acento/caixa) → 409; máx. 15 |
+| PUT | `/lead-stages/:id` | Renomeia / muda `color` / `kind` |
+| PUT | `/lead-stages/reorder` | `{ ids: [...] }` com **todos** os ids na nova ordem |
+| DELETE | `/lead-stages/:id?move_to=<id>` | Remove; com leads na etapa o `move_to` é obrigatório (409 `STAGE_IN_USE`); a última etapa não pode ser removida (409 `LAST_STAGE`) |
+| POST | `/lead-stages/reset` | Volta às 5 padrão (409 se houver leads em etapas personalizadas) |
+
+`kind`: `open` (em andamento) · `proposal` (em negociação: entra no *previsto* de honorários) · `won` (convertido) · `closed` (encerrado). O Painel usa o tipo, não o nome. `POST /leads`, `PATCH /leads/:id/stage`, `GET /leads?stage=` e as ferramentas da IA aceitam a chave **ou o nome** da etapa; etapa inexistente → 400 com a lista das válidas.
+
 ### Integração Google Agenda
 
 | Método | Rota | Descrição |

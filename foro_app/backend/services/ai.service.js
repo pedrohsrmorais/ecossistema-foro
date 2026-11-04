@@ -171,6 +171,7 @@ async function _chat({ accountId, userId, conversationId, userMessage }) {
   const convId = await _getOrCreateConversation(accountId, userId, conversationId);
   const history = await _loadHistory(convId);
   const fieldSchema = await _loadFieldSchema(accountId);
+  const stageLine = (await require('./lead-stages.service').list(accountId)).map(s => s.label).join(', ');
   const [[ws]] = await query('SELECT name, kind FROM accounts WHERE id = ? LIMIT 1', [accountId]);
   const wsLine = ws?.kind === 'office' ? `Workspace ativo: escritório "${ws.name}". Você só enxerga e altera dados DESTE escritório e deve respeitar as regras dele.` : 'Workspace ativo: espaço pessoal do usuário (dados privados, só dele).';
 
@@ -184,7 +185,7 @@ Você tem ferramentas para criar, atualizar e buscar tudo isso. Hoje é ${today}
 CAMPOS CUSTOMIZADOS DESTA CONTA:
 ${fieldSchema}
 
-ETAPAS DO FUNIL DE LEADS (use exatamente estes códigos): novo, em_contato, proposta, convertido, encerrado.
+ETAPAS DO FUNIL DE LEADS DESTE ESCRITÓRIO (use o nome da etapa, como aparece aqui): ${stageLine}.
 ÁREAS DE PROCESSO: geral, civel, trabalhista, criminal, contratacoes_publicas, consultivo. Cada área tem etapas de kanban e campos próprios; get_case mostra os campos da área e quais faltam.
 
 REGRAS IMPORTANTES:

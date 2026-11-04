@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom'
 import { AlertTriangle, CalendarClock, Briefcase, Users, Banknote, UserX, FileWarning, Video } from 'lucide-react'
 import clsx from 'clsx'
 import { dashboardApi, type AlertItem } from '../api'
-import { STAGES } from '../lib/stages'
+import { useLeadStages } from '../lib/stages'
 import { ALERT_KIND, alertLink, relDays } from '../lib/alerts'
 import { fmtDate, fmtTime } from '../lib/cases'
 import CreditMeter from '../components/CreditMeter'
@@ -45,6 +45,7 @@ function AlertRow({ a }: { a: AlertItem }) {
 }
 
 export default function Dashboard() {
+  const { stages } = useLeadStages()
   const { data: d, isLoading, isError } = useQuery({ queryKey: ['dashboard'], queryFn: dashboardApi.get, refetchInterval: 5 * 60_000 })
 
   if (isLoading) return <div className="p-6 text-slate-400">Carregando painel…</div>
@@ -102,12 +103,12 @@ export default function Dashboard() {
               <p className="text-sm text-slate-400">Nenhum lead cadastrado ainda. Peça à IA ou adicione em <Link to="/crm-comercial" className="text-brand-600 underline">CRM Comercial</Link>.</p>
             ) : (
               <div className="space-y-3">
-                {STAGES.map(st => {
-                  const n = leads.funnel.find(f => f.stage === st.key)?.total || 0
+                {stages.map(st => {
+                  const n = leads.funnel.find(f => f.stage === st.stage_key)?.total || 0
                   return (
-                    <div key={st.key} className="flex items-center gap-3">
+                    <div key={st.id} className="flex items-center gap-3">
                       <span className="text-sm text-slate-600 w-24 sm:w-28">{st.label}</span>
-                      <div className="flex-1 bg-slate-100 rounded-full h-2.5 overflow-hidden"><div className={`h-2.5 rounded-full ${st.bar}`} style={{ width: `${(n / totalLeads) * 100}%` }} /></div>
+                      <div className="flex-1 bg-slate-100 rounded-full h-2.5 overflow-hidden"><div className="h-2.5 rounded-full" style={{ width: `${(n / totalLeads) * 100}%`, backgroundColor: st.color }} /></div>
                       <span className="text-sm font-medium text-slate-900 w-8 text-right">{n}</span>
                     </div>
                   )

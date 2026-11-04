@@ -555,6 +555,17 @@ export const casesApi = {
 
 export const areasApi = { list: () => http.get<AreaMeta[]>('/areas').then(r => r.data) }
 
+export type LeadStageKind = 'open' | 'proposal' | 'won' | 'closed'
+export interface LeadStage { id: string; stage_key: string; label: string; color: string; position: number; kind: LeadStageKind; leads_count?: number }
+export const leadStagesApi = {
+  list: () => http.get<LeadStage[]>('/lead-stages').then(r => r.data),
+  create: (d: { label: string; color?: string; kind?: LeadStageKind }) => http.post<LeadStage>('/lead-stages', d).then(r => r.data),
+  update: (id: string, d: Partial<{ label: string; color: string; kind: LeadStageKind }>) => http.put<LeadStage>(`/lead-stages/${id}`, d).then(r => r.data),
+  reorder: (ids: string[]) => http.put<LeadStage[]>('/lead-stages/reorder', { ids }).then(r => r.data),
+  remove: (id: string, move_to?: string) => http.delete(`/lead-stages/${id}`, { params: { move_to } }).then(r => r.data),
+  reset: () => http.post<LeadStage[]>('/lead-stages/reset', {}).then(r => r.data),
+}
+
 export const stagesApi = {
   list: (area_key?: string) => http.get<CaseStage[]>('/case-stages', { params: { area_key } }).then(r => r.data),
   create: (d: { area_key: string; label: string; color?: string; is_final?: boolean }) => http.post<CaseStage>('/case-stages', d).then(r => r.data),

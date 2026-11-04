@@ -4,19 +4,24 @@
  */
 const { query } = require('../configs/db.config');
 const deadlines = require('./deadlines.service');
+const leadStages = require('./lead-stages.service');
 
-const OPEN_STAGES = "('novo','em_contato','proposta')";
+// Etapas por TIPO (o escritório pode renomear/criar etapas): em andamento = open+proposal; convertido = won.
+const stageKeys = (kinds) => `(SELECT stage_key FROM lead_stages WHERE account_id = ? AND kind IN (${kinds.map(k => `'${k}'`).join(',')}))`;
+const OPEN_STAGES = stageKeys(['open', 'proposal']);
+const WON_STAGES = stageKeys(['won']);
 
 async function overview(accountId, user) {
+  await leadStages.list(accountId); // garante as etapas padrão em contas antigas
   const alerts = await deadlines.forUser(accountId, user, { days: 7 });
   const [[leadStats]] = await query(
     `SELECT COUNT(*) AS total,
             SUM(created_at >= DATE_SUB(NOW(), INTERVAL 30 DAY)) AS new_30d,
-            SUM(stage = 'convertido') AS converted,
-            SUM(stage = 'convertido' AND NOT EXISTS (SELECT 1 FROM cases c WHERE c.lead_id = leads.id AND c.deleted_at IS NULL)) AS converted_no_case,
+            SUM(stage IN ${WON_STAGES}) AS converted,
+            SUM(stage IN ${WON_STAGES} AND NOT EXISTS (SELECT 1 FROM cases c WHERE c.lead_id = leads.id AND c.deleted_at IS NULL)) AS converted_no_case,
             SUM(stage IN ${OPEN_STAGES} AND COALESCE(last_contact_at, updated_at, created_at) < DATE_SUB(NOW(), INTERVAL 7 DAY)) AS stale
      FROM leads WHERE account_id = ? AND deleted_at IS NULL AND archived_at IS NULL`,
-    [accountId]
+    [accountId, accountId, accountId, accountId]
   );
   const [funnel] = await query(
     `SELECT stage, COUNT(*) AS total FROM leads WHERE account_id = ? AND deleted_at IS NULL AND archived_at IS NULL GROUP BY stage`,
@@ -47,28 +52,29 @@ async function overview(accountId, user) {
   );
   // Honorários: campo personalizado "honorarios" do lead — previsto (em proposta) × fechado (convertido).
   const [fees] = await query(
-    `SELECT l.stage, COALESCE(SUM(v.value_number), 0) AS total
+    `SELECT s.kind, COALESCE(SUM(v.value_number), 0) AS total
      FROM lead_field_values v
      JOIN field_definitions f ON f.id = v.field_definition_id AND f.name = 'honorarios'
      JOIN leads l ON l.id = v.lead_id
-     WHERE l.account_id = ? AND l.deleted_at IS NULL AND l.archived_at IS NULL AND l.stage IN ('proposta','convertido')
-     GROUP BY l.stage`,
+     JOIN lead_stages s ON s.account_id = l.account_id AND s.stage_key = l.stage AND s.kind IN ('proposal','won')
+     WHERE l.account_id = ? AND l.deleted_at IS NULL AND l.archived_at IS NULL
+     GROUP BY s.kind`,
     [accountId]
   );
-  const fee = (stage) => Number(fees.find(r => r.stage === stage)?.total || 0);
+  const fee = (kind) => Number(fees.find(r => r.kind === kind)?.total || 0);
 
   const [stale] = await query(
     `SELECT id, name, stage, COALESCE(last_contact_at, updated_at, created_at) AS last_touch
      FROM leads WHERE account_id = ? AND deleted_at IS NULL AND archived_at IS NULL AND stage IN ${OPEN_STAGES}
        AND COALESCE(last_contact_at, updated_at, created_at) < DATE_SUB(NOW(), INTERVAL 7 DAY)
      ORDER BY last_touch ASC LIMIT 5`,
-    [accountId]
+    [accountId, accountId]
   );
   const [convertedNoCase] = await query(
-    `SELECT id, name FROM leads l WHERE account_id = ? AND deleted_at IS NULL AND archived_at IS NULL AND stage = 'convertido'
+    `SELECT id, name FROM leads l WHERE account_id = ? AND deleted_at IS NULL AND archived_at IS NULL AND stage IN ${WON_STAGES}
        AND NOT EXISTS (SELECT 1 FROM cases c WHERE c.lead_id = l.id AND c.deleted_at IS NULL)
      ORDER BY updated_at DESC LIMIT 5`,
-    [accountId]
+    [accountId, accountId]
   );
 
   const n = (v) => Number(v || 0);
@@ -83,7 +89,7 @@ async function overview(accountId, user) {
     },
     cases: { total: n(caseStats.total), active: n(caseStats.active), active_value: n(caseStats.active_value), active_no_deadline: n(caseStats.active_no_deadline), by_area: byArea },
     tasks: { pending: n(taskStats.pending) },
-    fees: { projected: fee('proposta'), closed: fee('convertido') },
+    fees: { projected: fee('proposal'), closed: fee('won') },
   };
 }
 

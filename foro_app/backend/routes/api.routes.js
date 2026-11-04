@@ -168,6 +168,12 @@ router.put   ('/fields/:id',           requireModule('crm'), requireAdmin, valid
 router.delete('/fields/:id',           requireModule('crm'), requireAdmin, fieldsController.remove);
 
 // ─── Leads (módulo "crm") ──────────────────────────────────────────────────────
+router.get   ('/lead-stages',          requireModule('crm'), leadsController.stagesList);
+router.post  ('/lead-stages',          requireModule('crm'), requireAdmin, leadsController.stagesCreate);
+router.put   ('/lead-stages/reorder',  requireModule('crm'), requireAdmin, leadsController.stagesReorder);
+router.post  ('/lead-stages/reset',    requireModule('crm'), requireAdmin, leadsController.stagesReset);
+router.put   ('/lead-stages/:id',      requireModule('crm'), requireAdmin, leadsController.stagesUpdate);
+router.delete('/lead-stages/:id',      requireModule('crm'), requireAdmin, leadsController.stagesRemove);
 router.get   ('/leads',                requireModule('crm'), requireAccess('leads'), scoped('leads'), leadsController.list);
 router.post  ('/leads',                requireModule('crm'), requireAccess('leads'), requirePermission('create_leads'), validate(leadValidations.create), leadsController.create);
 router.get   ('/leads/funnel',         requireModule('crm'), requireAccess('leads'), scoped('leads'), leadsController.getFunnelSummary);

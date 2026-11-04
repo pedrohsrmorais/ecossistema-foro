@@ -8,7 +8,7 @@ import EventForm from '../components/EventForm'
 import { EVENT_TYPES, fmtDate, fmtTime } from '../lib/cases'
 import { EditableCell, StagePill } from '../components/crm'
 import { useChat } from '../context/ChatContext'
-import { stageOf } from '../lib/stages'
+import { useLeadStages } from '../lib/stages'
 
 function Row({ label, children }: { label: string; children: React.ReactNode }) {
   return (
@@ -22,6 +22,7 @@ function Row({ label, children }: { label: string; children: React.ReactNode }) 
 export default function LeadDetail() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
+  const { stageOf, isWon } = useLeadStages()
   const qc = useQueryClient()
   const { setOpen } = useChat()
   const [showEvent, setShowEvent] = useState(false)
@@ -88,7 +89,7 @@ export default function LeadDetail() {
     <div className="p-6 max-w-5xl">
       <div className="flex items-center gap-3 mb-5">
         <button onClick={() => navigate('/crm-comercial')} className="btn-ghost p-1.5" title="Voltar"><ArrowLeft className="w-4 h-4" /></button>
-        <span className={clsx('w-1 h-9 rounded-full', st.bar)} />
+        <span className="w-1 h-9 rounded-full" style={{ backgroundColor: st.color }} />
         <div className="flex-1 min-w-0">
           <EditableCell bold value={lead.name} placeholder="Lead sem nome" className="!text-xl !py-0.5" onSave={v => update.mutate({ name: v })} />
           <p className="text-xs text-slate-400 px-1.5">Criado em {new Date(lead.created_at).toLocaleDateString('pt-BR')}{lead.assigned_name ? ` · ${lead.assigned_name}` : ''}</p>
@@ -143,7 +144,7 @@ export default function LeadDetail() {
             <h2 className="font-medium text-slate-900 flex items-center gap-1.5"><Briefcase className="w-4 h-4 text-slate-400" /> Processos ({cases?.total ?? 0})</h2>
             <Link to="/monitoramento-processual" className="text-xs text-brand-600 hover:underline">Ver todos</Link>
           </div>
-          {lead?.stage === 'convertido' && !cases?.data.length && (
+          {lead && isWon(lead.stage) && !cases?.data.length && (
             <p className="mb-3 text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded-lg p-2">Cliente convertido sem processo. Cadastre abaixo para acompanhar prazos e andamentos.</p>
           )}
           {!cases?.data.length ? <p className="text-sm text-slate-400 mb-3">Nenhum processo ligado a este contato.</p> : (
