@@ -1,5 +1,7 @@
 # Armazenamento S3 e processos salvos
 
+> **Novo (migração 016):** com `PROCESS_SEARCH_PROVIDER=cnj` o processo salvo é o **retrato dos dados** (DataJud + DJEN) e o **PDF é opcional** — anexado à mão em Salvos (`PUT /saved-processes/:id/file`). Substituir/remover o PDF ou o processo **apaga o objeto do S3**. O fluxo abaixo (PDF obtido na pesquisa) vale para o provedor `mock`. Ver `consulta-processual.md`.
+
 Arquivos (hoje: o PDF dos processos salvos) ficam num armazenamento **compatível com S3**; os **metadados** ficam no MySQL (`saved_processes`).
 Na fase de teste o S3 é um **MinIO** no próprio `docker compose`. Para a AWS, só mudam variáveis de ambiente — o código é o mesmo (`@aws-sdk/client-s3`).
 
@@ -49,4 +51,4 @@ Console web só em `127.0.0.1:9001` (túnel: `ssh -L 9001:127.0.0.1:9001 usuario
 
 ## Banco
 
-Migrações `010_processos_salvos` e `011_processos_salvos_busca` (colunas/índices de busca): tabela `saved_processes` (conta, quem salvou, número CNJ, tribunal, classe, assunto, partes JSON, última movimentação, `s3_bucket`, `s3_key`, `file_name`, `size_bytes`, `sha256`, `pages`, `case_id` opcional, `created_at`, `deleted_at`).
+Migrações `010_processos_salvos`, `011_processos_salvos_busca` e `016_processos_snapshot` (colunas `s3_bucket`, `s3_key`, `file_name`, `sha256` passam a aceitar NULL = processo sem PDF; novas `snapshot` JSON, `snapshot_at`, `movements_count`, `communications_count`, `file_attached_at`) (colunas/índices de busca): tabela `saved_processes` (conta, quem salvou, número CNJ, tribunal, classe, assunto, partes JSON, última movimentação, `s3_bucket`, `s3_key`, `file_name`, `size_bytes`, `sha256`, `pages`, `case_id` opcional, `created_at`, `deleted_at`).

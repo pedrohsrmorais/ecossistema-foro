@@ -86,7 +86,13 @@ services:
       PROCESS_PROVIDER_BASE_URL: ${PROCESS_PROVIDER_BASE_URL:-}
       PROCESS_PROVIDER_API_KEY: ${PROCESS_PROVIDER_API_KEY:-}
       # Pesquisa de processos: "mock" devolve processos/PDF de teste. Armazenamento S3 (MinIO agora, AWS depois).
-      PROCESS_SEARCH_PROVIDER: ${PROCESS_SEARCH_PROVIDER:-mock}
+      PROCESS_SEARCH_PROVIDER: ${PROCESS_SEARCH_PROVIDER:-mock}   # cnj = DataJud + DJEN (ver documentation/consulta-processual.md)
+      DATAJUD_API_KEY: ${DATAJUD_API_KEY:-}
+      DATAJUD_BASE_URL: ${DATAJUD_BASE_URL:-https://api-publica.datajud.cnj.jus.br}
+      DJEN_BASE_URL: ${DJEN_BASE_URL:-https://comunicaapi.pje.jus.br}
+      DATAJUD_TIMEOUT_MS: ${DATAJUD_TIMEOUT_MS:-30000}
+      DJEN_TIMEOUT_MS: ${DJEN_TIMEOUT_MS:-20000}
+      MAX_PDF_MB: ${MAX_PDF_MB:-25}
       S3_ENDPOINT: ${S3_ENDPOINT-http://minio:9000}   # vazio (S3_ENDPOINT=) = AWS S3 de verdade
       S3_REGION: ${S3_REGION:-us-east-1}
       S3_BUCKET: ${S3_BUCKET:-foro-arquivos}

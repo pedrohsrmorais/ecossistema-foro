@@ -439,6 +439,11 @@ O `init.sql` só roda na primeira subida do MySQL (volume vazio). Toda mudança 
 - Perfil do escritório: `legal_name`, `website`, `office_email`, `zip_code`, `address_number`, `address_complement`, `district`, `oab_society`, `founded_on`, `practice_areas` (JSON), `headcount_total`, `headcount_lawyers`, `notes`; governança em `member_defaults` (JSON).
 - Idempotente (testada duas vezes sobre um banco legado).
 
+## Migração 016 — Retrato do processo (DataJud/DJEN) e PDF opcional
+
+- `saved_processes`: `s3_bucket`, `s3_key`, `file_name`, `sha256` agora **nulos** (processo salvo sem PDF); novas colunas `snapshot` (JSON: capa, partes, movimentos, comunicacoes, fontes, consultado_em), `snapshot_at`, `movements_count`, `communications_count`, `file_attached_at`.
+- `source = 'cnj'` marca os processos vindos das fontes públicas (únicos que podem ser atualizados). Ao remover o processo o retrato e os campos do arquivo são zerados.
+
 ## Migração 015 — Etapas do CRM editáveis
 
 - `lead_stages` (`account_id`, `stage_key` UNIQUE por conta, `label`, `color`, `position`, `kind` open|proposal|won|closed). Criada com as 5 etapas padrão para todos os escritórios existentes (idempotente) e semeada em contas novas (`lead-stages.service.js::seedAccount`). `leads.stage` continua guardando a chave; nenhum lead é migrado.

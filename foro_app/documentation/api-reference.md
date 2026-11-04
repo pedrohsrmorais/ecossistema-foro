@@ -705,19 +705,26 @@ Response 200: { transactions: [{ id, type, amount_cents, balance_after_cents, se
 ---
 
 
-### Pesquisa de processos e processos salvos (S3 + MySQL)
-Detalhes, variáveis e migração para AWS em `armazenamento-s3.md`.
+### Pesquisa de processos e processos salvos (DataJud + DJEN + S3 + MySQL)
+Fluxo e configuração em `consulta-processual.md`; PDF/S3 em `armazenamento-s3.md`.
 
 ```
-POST   /process-search            Body: { q }  → { provider, query, results[{ref, numero_cnj, tribunal, classe, assunto, partes, ...}] }
-GET    /process-search/preview?ref=   → application/pdf (não grava)
-POST   /process-search/save       Body: { ref } (permissão create_cases) → 201 metadados | 200 { already_saved:true }
+POST   /process-search            Body: { q }  (número CNJ, OAB ou nome; CPF/CNPJ → 422)
+                                  → { provider, query, capabilities:{documento}, kind: cnj|oab|nome, aviso, fontes, results[{ref, numero_cnj, tribunal, tribunal_nome, classe, assunto, orgao, partes, data_distribuicao, ultima_movimentacao, data_ultima_movimentacao, movimentos_total, comunicacoes_total, fontes}] }
+GET    /process-search/detail?ref=    → retrato completo { capa, partes, movimentos[], comunicacoes[], fontes, consultado_em } (não grava; só provedor cnj)
+GET    /process-search/preview?ref=   → application/pdf (só provedor mock; no cnj → 404 NO_DOCUMENT)
+POST   /process-search/save       Body: { ref } (create_cases) → 201 | 200 { already_saved:true, refreshed:true } (cnj: atualiza o retrato se já salvo)
 GET    /saved-processes?q=&tribunal=&from=&to=&sort=&page=&limit=
 GET    /saved-processes/summary   → { total, bytes, pages, last_saved, bucket, tribunais[] }
-GET    /saved-processes/:id
-GET    /saved-processes/:id/file[?download=1]   → PDF vindo do S3
-DELETE /saved-processes/:id       (permissão delete_records; exclusão lógica)
+GET    /saved-processes/:id       → metadados + snapshot, has_file, snapshot_at, movements_count, communications_count
+POST   /saved-processes/:id/refresh   (create_cases) → { process, novos_movimentos, novas_comunicacoes, novos:{movimentos[],comunicacoes[]} }  (409 se salvo no modo mock)
+PUT    /saved-processes/:id/file[?name=]   (create_cases) corpo = PDF cru, Content-Type: application/pdf, até MAX_PDF_MB → processo com has_file:true (substitui e apaga o anterior)
+DELETE /saved-processes/:id/file      (delete_records) apaga o PDF do S3; os dados continuam
+GET    /saved-processes/:id/file[?download=1]   → PDF vindo do S3 (404 NO_FILE se não houver)
+DELETE /saved-processes/:id       (delete_records; exclusão lógica, mas apaga o PDF do S3 e zera o retrato)
 ```
+
+Erros: `422` termo inválido/CPF/CNPJ · `502 SOURCES_UNAVAILABLE` nenhuma fonte respondeu · `404 NO_DATA` nenhuma fonte tem o processo · `422 NOT_PDF` arquivo não é PDF · `413 FILE_TOO_LARGE` PDF acima do limite.
 
 ## Consultas pagas (CPF, CNPJ, processual) e resumo por IA
 

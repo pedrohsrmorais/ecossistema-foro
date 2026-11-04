@@ -53,6 +53,8 @@ const corsOrigin = process.env.CORS_ORIGIN || (isProd && process.env.FRONTEND_UR
 app.use(cors({ origin: corsOrigin === '*' ? '*' : corsOrigin.split(',').map(s => s.trim()), credentials: corsOrigin !== '*' }));
 app.use(compression());
 // rawBody fica disponível p/ validar assinatura de webhooks (ex.: Stripe-Signature) sobre os bytes originais.
+// PDF opcional do processo salvo: corpo binário (application/pdf), limite = MAX_PDF_MB (padrão 25) + folga
+app.put('/api/saved-processes/:id/file', express.raw({ type: 'application/pdf', limit: `${(Number(process.env.MAX_PDF_MB) || 25) + 1}mb` }));
 app.use('/api/office-templates/extract', express.json({ limit: '5mb' })); // upload .docx em base64 (3 MB de arquivo)
 app.use(express.json({ limit: '1mb', verify: (req, res, buf) => { req.rawBody = buf; } }));
 app.use(express.urlencoded({ extended: true, limit: '1mb' }));

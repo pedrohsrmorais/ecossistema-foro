@@ -133,6 +133,7 @@ foro_app/
 │   ├── google-agenda.md        # Integração com o Google Agenda (OAuth, sincronização, verificação)
 │   ├── banco-de-dados.md       # Schema completo, tabelas e relacionamentos
 │   ├── pagamentos.md           # Stripe + NFS-e
+│   ├── consulta-processual.md  # Pesquisa de processos: DataJud + DJEN, retrato salvo, PDF opcional
 │   ├── armazenamento-s3.md     # MinIO/S3 + processos salvos (migração para AWS)
 │   ├── mercado-requisitos.md   # pesquisa de mercado jurídico e Must-Have
 │   ├── api-reference.md        # Referência de todas as rotas

@@ -809,17 +809,60 @@ export const lookupApi = {
 
 // ─── PESQUISA DE PROCESSOS + PROCESSOS SALVOS (S3/MinIO + MySQL) ─────────────
 
+export type SourceStatus = 'ok' | 'vazio' | 'erro' | 'nao_configurado' | 'nao_suportado' | 'nao_consultado'
+export interface SourceInfo { status: SourceStatus; mensagem: string | null; atualizado_em?: string | null }
+export interface SourcesInfo { datajud: SourceInfo; djen: SourceInfo }
+
 export interface ProcessSearchResult {
   ref: string
   numero_cnj: string
   tribunal: string
-  tribunal_nome: string
+  tribunal_nome: string | null
   classe: string
   assunto: string
+  orgao?: string | null
   partes: { papel: string; nome: string }[]
-  data_distribuicao: string
+  data_distribuicao: string | null
   ultima_movimentacao: string
-  data_ultima_movimentacao: string
+  data_ultima_movimentacao: string | null
+  movimentos_total?: number | null
+  comunicacoes_total?: number | null
+  fontes?: SourcesInfo
+}
+
+export interface ProcessSearchResponse {
+  provider: string
+  query: string
+  capabilities?: { documento: boolean }
+  kind?: 'cnj' | 'oab' | 'nome'
+  aviso?: string | null
+  fontes?: SourcesInfo | null
+  results: ProcessSearchResult[]
+}
+
+export interface SnapshotMovimento {
+  data: string | null; codigo: number | string | null; nome: string; complementos: string[]; grau: string | null
+}
+export interface SnapshotComunicacao {
+  id: number | string | null; data: string | null; tribunal: string | null; tipo: string | null; tipo_documento: string | null
+  orgao: string | null; classe: string | null; texto: string; link: string | null
+  destinatarios: { nome: string; polo: string | null }[]
+  advogados: { nome: string; oab: string | null }[]
+}
+export interface ProcessSnapshot {
+  numero_cnj: string
+  capa: {
+    numero_cnj: string; tribunal: string | null; tribunal_nome: string | null; grau: string | null; graus: string[]
+    classe: string | null; assuntos: string[]; orgao_julgador: string | null; sistema: string | null; formato: string | null
+    data_ajuizamento: string | null; nivel_sigilo: number
+  }
+  partes: { papel: string; nome: string }[]
+  movimentos: SnapshotMovimento[]
+  movimentos_total: number
+  comunicacoes: SnapshotComunicacao[]
+  comunicacoes_total: number
+  fontes: SourcesInfo
+  consultado_em: string
 }
 
 export interface SavedProcess {
@@ -834,15 +877,29 @@ export interface SavedProcess {
   last_movement_at: string | null
   source: string
   search_query: string | null
-  file_name: string
-  size_bytes: number
-  sha256: string
+  file_name: string | null
+  size_bytes: number | null
+  sha256: string | null
   pages: number | null
-  s3_bucket: string
-  s3_key: string
+  s3_bucket: string | null
+  s3_key: string | null
+  has_file: boolean
+  file_attached_at?: string | null
+  snapshot_at?: string | null
+  movements_count?: number | null
+  communications_count?: number | null
+  snapshot?: ProcessSnapshot | null
   created_at: string
   saved_by_name?: string | null
   already_saved?: boolean
+  refreshed?: boolean
+}
+
+export interface RefreshResult {
+  process: SavedProcess
+  novos_movimentos: number
+  novas_comunicacoes: number
+  novos: { movimentos: SnapshotMovimento[]; comunicacoes: SnapshotComunicacao[] }
 }
 
 export interface SavedProcessesSummary {
@@ -853,11 +910,14 @@ export interface SavedProcessesSummary {
 export const processSearchApi = {
   /** POST /process-search */
   search: (q: string) =>
-    http.post<{ provider: string; query: string; results: ProcessSearchResult[] }>('/process-search', { q }).then(r => r.data),
-  /** GET /process-search/preview?ref= → PDF (blob) */
+    http.post<ProcessSearchResponse>('/process-search', { q }).then(r => r.data),
+  /** GET /process-search/detail?ref= → retrato completo (DataJud + DJEN), sem salvar */
+  detail: (ref: string) =>
+    http.get<ProcessSnapshot>('/process-search/detail', { params: { ref } }).then(r => r.data),
+  /** GET /process-search/preview?ref= → PDF (blob). Só existe no provedor de teste (mock). */
   preview: (ref: string) =>
     http.get<Blob>('/process-search/preview', { params: { ref }, responseType: 'blob' }).then(r => r.data),
-  /** POST /process-search/save — grava o PDF no S3 e os metadados no MySQL */
+  /** POST /process-search/save — grava o estado atual (e, no mock, o PDF) */
   save: (ref: string) => http.post<SavedProcess>('/process-search/save', { ref }).then(r => r.data),
 }
 
@@ -867,6 +927,16 @@ export const savedProcessesApi = {
     http.get<{ data: SavedProcess[]; total: number; page: number; limit: number }>('/saved-processes', { params }).then(r => r.data),
   get: (id: string) => http.get<SavedProcess>(`/saved-processes/${id}`).then(r => r.data),
   file: (id: string) => http.get<Blob>(`/saved-processes/${id}/file`, { responseType: 'blob' }).then(r => r.data),
+  /** POST /saved-processes/:id/refresh — consulta as fontes de novo e grava o novo estado */
+  refresh: (id: string) => http.post<RefreshResult>(`/saved-processes/${id}/refresh`).then(r => r.data),
+  /** PUT /saved-processes/:id/file — corpo = bytes do PDF (substitui o anterior) */
+  attachFile: (id: string, file: File) =>
+    http.put<SavedProcess>(`/saved-processes/${id}/file`, file, {
+      params: { name: file.name },
+      headers: { 'Content-Type': 'application/pdf' },
+      transformRequest: [(d: unknown) => d],
+    }).then(r => r.data),
+  removeFile: (id: string) => http.delete<SavedProcess>(`/saved-processes/${id}/file`).then(r => r.data),
   remove: (id: string) => http.delete(`/saved-processes/${id}`).then(r => r.data),
 }
 

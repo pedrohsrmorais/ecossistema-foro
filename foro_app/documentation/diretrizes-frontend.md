@@ -126,6 +126,7 @@ Essas regras vieram de decisão explícita do dono da plataforma. Não são suge
 ### 4.8 Consultas pagas — CPF / CNPJ / processual + resumo por IA (✅ telas construídas, 🔒 travadas por flag de produto — ver seção 4.12)
 - `pages/aplicativos/ConsultaCnpj.tsx` (`POST /lookup/cnpj`) e `ConsultaCpf.tsx` (`POST /lookup/cpf`), mostrando o custo em créditos (via `GET /credits/prices`) antes de confirmar.
 - `ConsultaProcessual.tsx`: busca de processos por CPF/CNPJ (`POST /lookup/processo`) e, a partir do resultado, botão para gerar o resumo por IA (`POST /lookup/processo/summary`, passando o objeto retornado pela busca).
+- **Monitoramento Processual → Pesquisar/Salvos** (`pages/aplicativos/ConsultaProcessual.tsx` e `ProcessosSalvos.tsx`, ✅ funcionais com DataJud + DJEN): busca por número CNJ, OAB ou nome; status de cada fonte; janela *Ver andamentos*; *Salvar estado atual*; em Salvos, detalhe com atualização e PDF opcional. O retrato é exibido por `components/ProcessSnapshotView.tsx` (capa, partes por polo, abas Movimentações/Publicações). Ver `consulta-processual.md`.
 - Tratamento de erro via `err.response.data.error` (mensagem pronta da API), seguindo o padrão do resto do projeto — ainda não há tratamento visual **diferenciado** para `402`/`502` (hoje cai no mesmo bloco de erro genérico); isso é o que falta antes de destravar essas telas, ver seção 7.
 - Enquanto nenhum provedor externo estiver contratado, essas rotas respondem com dado **mock** (tem um campo `_mock: true`/`aviso` no retorno) — ainda não há aviso visual de "dados de exemplo" nas telas novas.
 

@@ -319,12 +319,16 @@ router.get   ('/credits/transactions',     creditsController.listTransactions);
 
 // ─── Consulta processual: pesquisar → visualizar o PDF → salvar (S3/MinIO + metadados no MySQL) ───
 router.post  ('/process-search',               requireModule('crm'), requireModule('pesquisa_processual'), requireAccess('cases'), aiLimiter, processSearch.search);
+router.get   ('/process-search/detail',        requireModule('crm'), requireModule('pesquisa_processual'), requireAccess('cases'), processSearch.detail);
 router.get   ('/process-search/preview',       requireModule('crm'), requireModule('pesquisa_processual'), requireAccess('cases'), processSearch.preview);
 router.post  ('/process-search/save',          requireModule('crm'), requireModule('pesquisa_processual'), requireAccess('cases'), requirePermission('create_cases'), processSearch.save);
 router.get   ('/saved-processes',              requireModule('crm'), requireAccess('cases'), processSearch.list);
 router.get   ('/saved-processes/summary',         requireModule('crm'), requireAccess('cases'), processSearch.summary);
 router.get   ('/saved-processes/:id',          requireModule('crm'), requireAccess('cases'), processSearch.get);
 router.get   ('/saved-processes/:id/file',     requireModule('crm'), requireAccess('cases'), processSearch.file);
+router.put   ('/saved-processes/:id/file',     requireModule('crm'), requireAccess('cases'), requirePermission('create_cases'), processSearch.attachFile);
+router.delete('/saved-processes/:id/file',     requireModule('crm'), requireAccess('cases'), requirePermission('delete_records'), processSearch.removeFile);
+router.post  ('/saved-processes/:id/refresh',  requireModule('crm'), requireModule('pesquisa_processual'), requireAccess('cases'), requirePermission('create_cases'), aiLimiter, processSearch.refresh);
 router.delete('/saved-processes/:id',          requireModule('crm'), requireAccess('cases'), requirePermission('delete_records'), processSearch.remove);
 
 // ─── Consultas pagas (CPF/CNPJ/processual) e resumo por IA ────────────────────

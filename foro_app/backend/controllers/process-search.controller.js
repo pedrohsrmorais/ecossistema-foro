@@ -15,6 +15,7 @@ function sendPdf(res, { buffer, stream, contentType, fileName, size, download })
 
 module.exports = {
   search: async (req, res) => res.json(await svc.search(req.account.id, req.user.id, req.body?.q)),
+  detail: async (req, res) => res.json(await svc.detail(req.account.id, req.user.id, req.query.ref)),
   preview: async (req, res) => {
     const d = await svc.preview(req.account.id, req.user.id, req.query.ref);
     sendPdf(res, { buffer: d.buffer, contentType: d.contentType, fileName: d.fileName, size: d.buffer.length });
@@ -25,7 +26,10 @@ module.exports = {
   },
   list: async (req, res) => res.json(await svc.list(req.account.id, { ...req.query, viewerId: viewer(req) })),
   summary: async (req, res) => res.json(await svc.summary(req.account.id, { viewerId: viewer(req) })),
-  get: async (req, res) => res.json(await svc.get(req.account.id, req.params.id, viewer(req))),
+  get: async (req, res) => res.json(await svc.get(req.account.id, req.params.id, viewer(req), { withSnapshot: true })),
+  refresh: async (req, res) => res.json(await svc.refresh(req.account.id, req.params.id, viewer(req))),
+  attachFile: async (req, res) => res.json(await svc.attachFile(req.account.id, req.user.id, req.params.id, viewer(req), { buffer: Buffer.isBuffer(req.body) ? req.body : null, name: req.query.name })),
+  removeFile: async (req, res) => res.json(await svc.removeFile(req.account.id, req.params.id, viewer(req))),
   file: async (req, res) => {
     const f = await svc.file(req.account.id, req.params.id, viewer(req));
     sendPdf(res, { stream: f.stream, contentType: f.meta.content_type, fileName: f.meta.file_name, size: f.contentLength, download: req.query.download === '1' });
