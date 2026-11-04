@@ -369,7 +369,7 @@ async function executeTool(toolName, toolInput, context) {
     case 'list_events': {
       const from = toolInput.from || new Date().toISOString();
       const to = toolInput.to || new Date(Date.now() + 14 * 864e5).toISOString();
-      return eventsService.list(accountId, { from, to, viewerId: userId });
+      return eventsService.list(accountId, { from, to });
     }
 
     default:

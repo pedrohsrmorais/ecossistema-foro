@@ -39,7 +39,7 @@ async function _assertRefs(accountId, { lead_id, case_id }) {
 
 async function list(accountId, { from, to, lead_id, case_id, include_cancelled = false, limit = 200, viewerId } = {}) {
   const cond = ['e.account_id = ?']; const params = [accountId];
-  // eventos importados do Google são privados do dono: só aparecem para ele (sem viewerId, não aparecem)
+  // eventos importados do Google são privados do dono: só aparecem para ele (sem viewerId, não aparecem; a IA chama sem viewerId de propósito: esses dados não vão ao provedor de IA)
   if (viewerId) { cond.push("(e.source <> 'google' OR e.user_id = ?)"); params.push(viewerId); } else cond.push("e.source <> 'google'");
   if (from) { cond.push('e.starts_at >= ?'); params.push(_date(from, 'Data inicial')); }
   if (to)   { cond.push('e.starts_at < ?');  params.push(_date(to, 'Data final')); }

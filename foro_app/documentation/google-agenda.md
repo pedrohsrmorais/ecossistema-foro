@@ -9,7 +9,7 @@ Botão **Conectar Google** em *Configurações → Integrações*. Escopos: `ope
 4. Falha ao renovar token (`invalid_grant`) marca a conexão como `revoked`; a tela pede "Reconectar".
 
 ## Sincronização
-- **Google → Foro** (job a cada 15 min + botão *Sincronizar agora*): janela −30 a +180 dias; importa título, horário, local e link de reunião; atualiza e remove o que mudou/sumiu. Eventos importados são privados do usuário, somente leitura e fora dos alertas/resumo.
+- **Google → Foro** (job a cada 15 min + botão *Sincronizar agora*): janela −30 a +180 dias; importa título, horário, local e link de reunião; atualiza e remove o que mudou/sumiu. Eventos importados são privados do usuário, somente leitura, fora dos alertas/resumo e **invisíveis para a IA** (`list_events` chama o serviço sem `viewerId`; nada do Google vai ao provedor de IA).
 - **Foro → Google**: criar/editar/cancelar/excluir compromissos reflete no Google (desmarque *Adicionar também ao Google Agenda* para manter só no Foro). Observações internas nunca são enviadas. Compromissos criados antes de conectar não são reenviados.
 - **Desconectar**: revoga o acesso no Google, apaga tokens e eventos importados na hora e solta o vínculo dos eventos do Foro.
 
