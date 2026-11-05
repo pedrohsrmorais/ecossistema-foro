@@ -706,7 +706,7 @@ Response 200: { transactions: [{ id, type, amount_cents, balance_after_cents, se
 
 
 ### Pesquisa de processos e processos salvos (DataJud + DJEN + S3 + MySQL)
-Fluxo e configuração em `consulta-processual.md`; PDF/S3 em `armazenamento-s3.md`.
+Fluxo e configuração em `consulta-processual.md`; PDF/S3 em `armazenamento-s3.md`. **Hoje o front só usa `POST /process-search` e `GET /process-search/detail`**; `save`, `refresh` e `/saved-processes/*` seguem disponíveis, mas sem tela.
 
 ```
 POST   /process-search            Body: { q }  (número CNJ, OAB ou nome; CPF/CNPJ → 422)

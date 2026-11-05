@@ -1,5 +1,7 @@
 # Armazenamento S3 e processos salvos
 
+> **Sem uso na interface (05/11/2026):** o front não salva mais processos/PDFs. O MinIO/S3, as rotas e o código continuam prontos — nada foi removido do backend nem do compose. Ver `consulta-processual.md`.
+
 > **Novo (migração 016):** com `PROCESS_SEARCH_PROVIDER=cnj` o processo salvo é o **retrato dos dados** (DataJud + DJEN) e o **PDF é opcional** — anexado à mão em Salvos (`PUT /saved-processes/:id/file`). Substituir/remover o PDF ou o processo **apaga o objeto do S3**. O fluxo abaixo (PDF obtido na pesquisa) vale para o provedor `mock`. Ver `consulta-processual.md`.
 
 Arquivos (hoje: o PDF dos processos salvos) ficam num armazenamento **compatível com S3**; os **metadados** ficam no MySQL (`saved_processes`).

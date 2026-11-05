@@ -15,7 +15,6 @@ const sections: LegalSection[] = [
     <ul>
       <li><strong>Conta e perfil:</strong> nome, e-mail, telefone, número da OAB (opcional), senha (armazenada somente em forma criptografada com hash) e dados do escritório.</li>
       <li><strong>Conteúdo que você cadastra:</strong> contatos e leads, processos, partes, andamentos, prazos, documentos, compromissos, tarefas e quadros.</li>
-      <li><strong>Dados públicos de processos:</strong> quando você consulta e salva um processo, guardamos o retrato obtido das bases públicas do CNJ (capa, partes, movimentações e publicações) e, se você anexar, o PDF do processo.</li>
       <li><strong>Uso da plataforma:</strong> registros de acesso e de ações (por exemplo, o que a IA fez em seu nome), consumo de créditos de IA e informações técnicas de segurança (endereço IP, navegador).</li>
       <li><strong>Pagamento:</strong> processado pelo Stripe. O {LEGAL.product} <strong>não vê nem armazena o número do cartão</strong>; guardamos apenas identificadores da assinatura e o status do pagamento.</li>
       <li><strong>Dados do Google</strong>, somente se você conectar sua conta Google (seção 3).</li>
@@ -66,7 +65,7 @@ const sections: LegalSection[] = [
       <li><strong>Resend</strong> — envio de e-mails do sistema (confirmação, recuperação de senha, resumo diário);</li>
       <li><strong>DataJud (CNJ) e DJEN (Comunica PJe)</strong> — bases públicas do Poder Judiciário consultadas quando você pesquisa um processo; elas recebem apenas o termo pesquisado (número do processo, OAB ou nome da parte), nunca o conteúdo do seu escritório;</li>
       <li><strong>NFE.io</strong> — emissão de notas fiscais de serviço;</li>
-      <li><strong>Provedores de infraestrutura e armazenamento em nuvem</strong> — hospedagem do servidor, do banco de dados e dos arquivos (por exemplo, documentos e PDFs de processos salvos);</li>
+      <li><strong>Provedores de infraestrutura e armazenamento em nuvem</strong> — hospedagem do servidor, do banco de dados e dos arquivos (por exemplo, documentos do escritório);</li>
       <li><strong>Autoridades</strong>, quando houver obrigação legal ou ordem judicial.</li>
     </ul>
     <p>Alguns desses operadores estão fora do Brasil (por exemplo, nos Estados Unidos). Nesses casos, a transferência internacional ocorre conforme o art. 33 da LGPD, com cláusulas contratuais e medidas de segurança adequadas.</p>

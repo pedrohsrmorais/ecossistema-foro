@@ -1,15 +1,14 @@
 import { NavLink, Navigate, Outlet, useLocation } from 'react-router-dom'
 import { useModuleEnabled } from '../hooks/useModuleEnabled'
-import { Briefcase, Search, Archive } from 'lucide-react'
+import { Briefcase, Search } from 'lucide-react'
 import clsx from 'clsx'
 
 const TABS = [
   { to: '/monitoramento-processual', label: 'Meus processos', icon: Briefcase, end: true, module: null as string | null },
   { to: '/monitoramento-processual/pesquisar', label: 'Pesquisar', icon: Search, end: false, module: 'pesquisa_processual' },
-  { to: '/monitoramento-processual/salvos', label: 'Salvos', icon: Archive, end: false, module: null as string | null },
 ]
 
-/** Área "Monitoramento Processual": meus processos + pesquisa + processos salvos, na mesma tela com abas. */
+/** Área "Monitoramento Processual": meus processos + pesquisa, na mesma tela com abas. */
 export default function MonitoramentoLayout() {
   const enabled = useModuleEnabled()
   const { pathname } = useLocation()

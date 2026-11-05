@@ -31,7 +31,6 @@ import Education from './pages/Education'
 import TrilhaDetail from './pages/TrilhaDetail'
 import ModuloDesativado from './pages/ModuloDesativado'
 import ConsultaProcessual from './pages/aplicativos/ConsultaProcessual'
-import ProcessosSalvos from './pages/aplicativos/ProcessosSalvos'
 import PesquisaInteligente from './pages/aplicativos/PesquisaInteligente'
 import ProvasDeConceito from './pages/inteligencia/ProvasDeConceito'
 import QuizTake from './pages/inteligencia/QuizTake'
@@ -90,7 +89,7 @@ export default function App() {
                 <Route path="/monitoramento-processual" element={<MonitoramentoLayout />}>
                   <Route index element={<Cases />} />
                   <Route path="pesquisar" element={<ConsultaProcessual />} />
-                  <Route path="salvos"    element={<ProcessosSalvos />} />
+                  <Route path="salvos"    element={<Navigate to="/monitoramento-processual" replace />} />   {/* aba removida: evita cair em :id */}
                   <Route path=":id"       element={<CaseDetail />} />
                 </Route>
                 {/* nomes antigos continuam funcionando (links salvos, e-mails de alerta) */}
@@ -98,7 +97,7 @@ export default function App() {
                 <Route path="/leads/:id"     element={<Redirect to={id => `/crm-comercial/${id}`} />} />
                 <Route path="/processos"     element={<Navigate to="/monitoramento-processual" replace />} />
                 <Route path="/processos/:id" element={<Redirect to={id => `/monitoramento-processual/${id}`} />} />
-                <Route path="/processos-salvos"     element={<Navigate to="/monitoramento-processual/salvos" replace />} />
+                <Route path="/processos-salvos"     element={<Navigate to="/monitoramento-processual" replace />} />
                 <Route path="/consulta-processual"  element={<Navigate to="/monitoramento-processual/pesquisar" replace />} />
                 <Route path="/consulta-cnpj"        element={<Navigate to="/pesquisa-inteligente?tipo=cnpj" replace />} />
                 <Route path="/consulta-cpf"         element={<Navigate to="/pesquisa-inteligente?tipo=cpf" replace />} />

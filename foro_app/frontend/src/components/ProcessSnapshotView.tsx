@@ -52,7 +52,7 @@ function Field({ label, value }: { label: string; value?: string | null }) {
   )
 }
 
-/** Retrato do processo: capa, partes e abas Movimentações / Publicações. Serve para a pesquisa e para os salvos. */
+/** Retrato do processo: capa, partes e abas Movimentações / Publicações. Usado na pesquisa (e pronto para o monitoramento). */
 export default function ProcessSnapshotView({ snap }: { snap: ProcessSnapshot }) {
   const [tab, setTab] = useState<'mov' | 'pub'>(snap.movimentos.length || !snap.comunicacoes.length ? 'mov' : 'pub')
   const [open, setOpen] = useState<Record<string, boolean>>({})

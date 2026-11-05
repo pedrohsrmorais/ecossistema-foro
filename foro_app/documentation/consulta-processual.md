@@ -1,5 +1,7 @@
 # Consulta processual (DataJud + DJEN)
 
+> **Estado atual (05/11/2026):** a interface **não oferece mais salvar processo nem anexar PDF** — a aba *Salvos* foi removida (`/monitoramento-processual/salvos` e `/processos-salvos` redirecionam para *Meus processos*) e *Pesquisar* é só consulta (resultados + *Ver andamentos*, nada é gravado). O backend (`/process-search/save`, `/saved-processes/*`, PDF no S3), a tabela `saved_processes` e o MinIO continuam no ar e testados, prontos para reativar; só falta o front. O foco passa a ser o **monitoramento** dos processos.
+
 Tela **Monitoramento Processual → Pesquisar** (`/monitoramento-processual/pesquisar`) e **Salvos** (`/monitoramento-processual/salvos`).
 Consulta gratuita às duas bases públicas do Poder Judiciário, junta o resultado, guarda o **estado atual** do processo e permite **anexar o PDF** manualmente.
 
@@ -27,6 +29,8 @@ O campo aceita:
 Se uma fonte cair, a outra continua valendo (fallback), e a tela mostra o status de cada uma (`ok`, `sem registros`, `indisponível` + motivo, `não configurado`). Só devolve erro 502 se **nenhuma** fonte responder e ao menos uma tiver falhado.
 
 ## Fluxo na tela
+
+> Os itens 3 a 5 abaixo descrevem a funcionalidade que está **desligada no front** (ver aviso no topo).
 
 1. **Pesquisar** → cartões com capa resumida, partes, última movimentação e contagens.
 2. **Ver andamentos** → janela com status das fontes, capa, partes por polo e abas *Movimentações* / *Publicações* (texto limpo, advogados, link do tribunal). Nada é gravado.
