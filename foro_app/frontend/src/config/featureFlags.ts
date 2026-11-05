@@ -12,10 +12,10 @@
  * Lançar é só virar a flag pra `false` — nenhuma mudança de backend.
  */
 export const LOCKED_FEATURES = {
-  pesquisaCnpj: true,
-  pesquisaCpf: true,
+  pesquisaCnpj: false,
+  pesquisaCpf: false,
   pesquisaProcessual: false,
-  pesquisaInteligente: true,
+  pesquisaInteligente: false,
   // Trilha de educação — conteúdo ainda não publicado
   educacao: true,
   provasConceito: true,

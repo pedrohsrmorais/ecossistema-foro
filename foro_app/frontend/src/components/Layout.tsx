@@ -30,7 +30,7 @@ const NAV_TOP: NavItem[] = [
   { to: '/dashboard', label: 'Painel',  icon: LayoutDashboard, module: 'crm', crm: true },
   { to: '/crm-comercial', label: 'CRM Comercial', icon: Users, module: 'crm', access: 'leads', crm: true },
   { to: '/monitoramento-processual', label: 'Monitoramento Processual', icon: Briefcase, module: 'crm', access: 'cases', crm: true },
-  { to: '/pesquisa-inteligente', label: 'Pesquisa inteligente', icon: Sparkles, module: null, soon: LOCKED_FEATURES.pesquisaInteligente },
+  { to: '/pesquisa-inteligente', label: 'Pesquisa inteligente', icon: Sparkles, module: 'pesquisa_cpf_cnpj', soon: LOCKED_FEATURES.pesquisaInteligente },
   { to: '/documentos', label: 'Documentos', icon: FileText,   module: 'crm', access: 'documents', crm: true },
   { to: '/agenda',    label: 'Agenda',    icon: CalendarDays, module: 'crm', access: 'agenda', crm: true },
   { to: '/tasks',     label: 'Tarefas', icon: CheckSquare,     module: 'crm', access: 'agenda', crm: true },

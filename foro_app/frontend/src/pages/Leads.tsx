@@ -1,7 +1,7 @@
 import { useState, useMemo, useRef } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { Link } from 'react-router-dom'
-import { Plus, Search, ChevronDown, ChevronRight, ExternalLink, Trash2, LayoutList, Columns3, Sparkles, Settings2, Upload, Download } from 'lucide-react'
+import { Plus, Search, ChevronDown, ChevronRight, ExternalLink, Trash2, LayoutList, Columns3, Sparkles, Settings2, Upload, Download, ListPlus } from 'lucide-react'
 import clsx from 'clsx'
 import { leadsApi, leadImportApi, type Lead, type PaginatedResult } from '../api'
 import { saveFile } from '../lib/download'
@@ -12,6 +12,7 @@ import LeadStagesEditor from '../components/LeadStagesEditor'
 import { useAuth } from '../context/AuthContext'
 import { EditableCell, StagePill } from '../components/crm'
 import { useCan } from '../hooks/useCan'
+import { useModuleEnabled } from '../hooks/useModuleEnabled'
 
 const COLS = 'grid-cols-[28px_minmax(180px,2fr)_minmax(120px,1fr)_minmax(160px,1.4fr)_130px_minmax(100px,1fr)_100px_56px]'
 
@@ -64,6 +65,7 @@ export default function Leads() {
   const canCreate = useCan('create_leads')
   const canDelete = useCan('delete_leads')
   const canExport = useCan('export_leads')
+  const modOn = useModuleEnabled()
   const [importing, setImporting] = useState(false)
   const [exportMenu, setExportMenu] = useState(false)
   const [exportErr, setExportErr] = useState('')
@@ -128,6 +130,7 @@ export default function Leads() {
           </div>
           {me?.role === 'admin' && <button className="btn-secondary text-sm" onClick={() => setEditingStages(true)} data-testid="etapas-editar"><Settings2 className="w-4 h-4" /> Etapas</button>}
           {canCreate && <button className="btn-secondary text-sm" onClick={() => setImporting(true)} data-testid="leads-importar"><Upload className="w-4 h-4" /> Importar</button>}
+          {canCreate && modOn('pesquisa_cpf_cnpj') && <Link to="/pesquisa-inteligente?tipo=lista" className="btn-secondary text-sm" data-testid="leads-enriquecer"><ListPlus className="w-4 h-4" /> Enriquecer lista</Link>}
           {canExport && (
             <div className="relative">
               <button className="btn-secondary text-sm" onClick={() => setExportMenu(v => !v)} aria-haspopup="menu" aria-expanded={exportMenu} data-testid="leads-exportar"><Download className="w-4 h-4" /> Exportar</button>

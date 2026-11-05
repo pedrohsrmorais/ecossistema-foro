@@ -886,9 +886,9 @@ ON DUPLICATE KEY UPDATE name = VALUES(name);
 -- Ajuste price_cents livremente — é lido em tempo real por credits.service.js,
 -- sem precisar de deploy.
 INSERT INTO service_prices (service_key, name, price_cents, provider_cost_cents, provider, description) VALUES
-  ('cnpj_lookup',        'Consulta de CNPJ',               50,   0, 'CNPJ_PROVIDER configurável',  'Dados cadastrais de empresa via CNPJ'),
-  ('cpf_lookup',         'Consulta de CPF',                100,  24, 'CPF_PROVIDER configurável',  'Situação cadastral de pessoa física via CPF'),
-  ('process_lookup',     'Consulta processual',            100,  10, 'PROCESS_PROVIDER configurável', 'Busca de processos por CPF/CNPJ/OAB'),
+  ('cnpj_lookup',        'Consulta de CNPJ',               50,   16, 'Direct Data',  'Cadastro de empresa, sócios, telefones e e-mails via CNPJ'),
+  ('cpf_lookup',         'Consulta de CPF',                100,  16, 'Direct Data',  'Cadastro de pessoa física, telefones e e-mails via CPF'),
+  ('process_lookup',     'Processos por CPF/CNPJ',         300, 150, 'Direct Data',  'Processos judiciais em que o CPF/CNPJ é parte (todos os tribunais)'),
   ('process_summary_ai', 'Resumo de processo por IA',       150, NULL, 'Anthropic Claude', 'Resumo em linguagem simples das movimentações do processo')
 ON DUPLICATE KEY UPDATE
   name = VALUES(name), price_cents = VALUES(price_cents), provider_cost_cents = VALUES(provider_cost_cents),

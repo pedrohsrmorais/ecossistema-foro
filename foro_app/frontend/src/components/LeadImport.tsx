@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { X, Upload, FileSpreadsheet, Download, Undo2, AlertTriangle, CheckCircle2, Loader2, ArrowLeft } from 'lucide-react'
 import {
@@ -24,7 +24,7 @@ const STATUS_LABEL: Record<ImportRow['status'], { t: string; c: string }> = {
 const VIA_LABEL: Record<string, string> = { cabecalho: 'pelo título', conteudo: 'pelo conteúdo', manual: 'escolhido' }
 
 /** Assistente de importação de listas (CSV/Excel) do CRM Comercial: arquivo → colunas → prévia → resultado. */
-export default function LeadImport({ onClose }: { onClose: () => void }) {
+export default function LeadImport({ onClose, initialBatch }: { onClose: () => void; initialBatch?: ImportBatch }) {
   const qc = useQueryClient()
   const { stages } = useLeadStages()
   const fileRef = useRef<HTMLInputElement>(null)
@@ -59,6 +59,10 @@ export default function LeadImport({ onClose }: { onClose: () => void }) {
     setMapping(list.map(x => x.target)); setVias(list.map(x => x.via))
     if (b.options && !keepModel) setOpts(o => ({ ...o, ...b.options }))
   }
+
+  // Aberto a partir de um lote já criado (ex.: lista enriquecida): pula direto para a escolha de colunas.
+  useEffect(() => { if (initialBatch) { adopt(initialBatch); setStep('colunas') } }, []) // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { if (initialBatch && stages[0]) setOpts(o => (o.stage ? o : { ...o, stage: stages[0].stage_key })) }, [initialBatch, stages])
 
   const upload = useMutation({
     mutationFn: (f: File) => leadImportApi.upload(f),

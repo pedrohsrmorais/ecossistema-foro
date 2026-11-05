@@ -79,12 +79,13 @@ services:
       NFEIO_API_KEY: ${NFEIO_API_KEY:-}
       NFEIO_COMPANY_ID: ${NFEIO_COMPANY_ID:-}
       NFEIO_BASE_URL: ${NFEIO_BASE_URL:-https://api.nfe.io/v1}
-      CNPJ_PROVIDER_BASE_URL: ${CNPJ_PROVIDER_BASE_URL:-}
-      CNPJ_PROVIDER_API_KEY: ${CNPJ_PROVIDER_API_KEY:-}
-      CPF_PROVIDER_BASE_URL: ${CPF_PROVIDER_BASE_URL:-}
-      CPF_PROVIDER_API_KEY: ${CPF_PROVIDER_API_KEY:-}
-      PROCESS_PROVIDER_BASE_URL: ${PROCESS_PROVIDER_BASE_URL:-}
-      PROCESS_PROVIDER_API_KEY: ${PROCESS_PROVIDER_API_KEY:-}
+      # Consultas de CPF/CNPJ/processos (Direct Data) e enriquecimento de listas — ver documentation/consultas-direct-data.md
+      DIRECT_DATA_TOKEN: ${DIRECT_DATA_TOKEN:-}
+      DIRECT_DATA_BASE_URL: ${DIRECT_DATA_BASE_URL:-https://apiv3.directd.com.br}
+      DIRECT_DATA_TIMEOUT_MS: ${DIRECT_DATA_TIMEOUT_MS:-60000}
+      DIRECT_DATA_CHARGE_NOT_FOUND: ${DIRECT_DATA_CHARGE_NOT_FOUND:-false}
+      LOOKUP_CACHE_DAYS: ${LOOKUP_CACHE_DAYS:-30}
+      MAX_ENRICH_ROWS: ${MAX_ENRICH_ROWS:-2000}
       # Pesquisa de processos: "mock" devolve processos/PDF de teste. Armazenamento S3 (MinIO agora, AWS depois).
       PROCESS_SEARCH_PROVIDER: ${PROCESS_SEARCH_PROVIDER:-mock}   # cnj = DataJud + DJEN (ver documentation/consulta-processual.md)
       DATAJUD_API_KEY: ${DATAJUD_API_KEY:-}

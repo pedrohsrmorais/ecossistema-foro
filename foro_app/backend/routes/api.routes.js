@@ -349,6 +349,19 @@ router.delete('/saved-processes/:id',          requireModule('crm'), requireAcce
 // Cada chamada debita créditos automaticamente (ver external-lookup.service.js).
 // Erro de provedor -> reembolso automático + mensagem genérica "chame o suporte";
 // NÃO existe endpoint de reembolso solicitado pelo usuário (ver credits.service.js).
+const lookupsOn = [requireLookupsEnabled, requireModule('pesquisa_cpf_cnpj')];
+router.get   ('/lookup/status',            ...lookupsOn, lookupController.status);
+router.post  ('/lookup/:kind(cpf|cnpj)/create-lead', ...lookupsOn, requireModule('crm'), requirePermission('create_leads'), lookupController.createLead);
+// Enriquecimento de listas (planilha de CPF/CNPJ → telefones e e-mails). Rotas antes das genéricas.
+router.get   ('/lookup/enrich/template',   ...lookupsOn, lookupController.enrich.template);
+router.get   ('/lookup/enrich',            ...lookupsOn, requirePermission('create_leads'), lookupController.enrich.history);
+router.post  ('/lookup/enrich',            ...lookupsOn, requirePermission('create_leads'), importLimiter, lookupController.enrich.create);   // corpo = arquivo (binário)
+router.get   ('/lookup/enrich/:id',        ...lookupsOn, requirePermission('create_leads'), lookupController.enrich.get);
+router.post  ('/lookup/enrich/:id/analyze',...lookupsOn, requirePermission('create_leads'), lookupController.enrich.analyze);
+router.post  ('/lookup/enrich/:id/start',  ...lookupsOn, requirePermission('create_leads'), importLimiter, lookupController.enrich.start);
+router.get   ('/lookup/enrich/:id/download',...lookupsOn, requirePermission('create_leads'), lookupController.enrich.download);
+router.post  ('/lookup/enrich/:id/to-import',...lookupsOn, requireModule('crm'), requirePermission('create_leads'), importLimiter, lookupController.enrich.toImport);
+router.delete('/lookup/enrich/:id',        ...lookupsOn, requirePermission('create_leads'), lookupController.enrich.discard);
 router.post  ('/lookup/cnpj',              requireLookupsEnabled, requireModule('pesquisa_cpf_cnpj'),   lookupController.cnpj);
 router.post  ('/lookup/cpf',               requireLookupsEnabled, requireModule('pesquisa_cpf_cnpj'),   lookupController.cpf);
 router.post  ('/lookup/processo',          requireLookupsEnabled, requireModule('pesquisa_processual'), lookupController.processo);

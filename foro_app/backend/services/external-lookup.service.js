@@ -26,11 +26,22 @@ const { query } = require('../configs/db.config');
 const { AppError } = require('../middlewares/error.middleware');
 const creditsService = require('./credits.service');
 
-async function runPaidLookup({ accountId, userId, serviceKey, requestSummary, fn }) {
-  const { transactionId } = await creditsService.debit(accountId, serviceKey, {});
+/**
+ * @param {boolean} refundOnNotFound  true = "sem resultado na fonte" devolve o crédito (o provedor não cobra nesse caso)
+ * @param {boolean} detailed          true = devolve { data, status, cost_cents, balance_cents } em vez de só `data`
+ */
+async function runPaidLookup({ accountId, userId, serviceKey, requestSummary, fn, refundOnNotFound = false, detailed = false }) {
+  const debited = await creditsService.debit(accountId, serviceKey, {});
+  const { transactionId } = debited;
+  let cost = debited.cost_cents; let balance = debited.balance_cents;
 
   try {
     const result = await fn(); // { status: 'success' | 'not_found', data }
+
+    if (result.status === 'not_found' && refundOnNotFound) {
+      const back = await creditsService.refund(transactionId, 'Documento sem resultado na fonte');
+      if (back) { balance = back.balance_cents; cost = 0; }
+    }
 
     await _logUsage({
       accountId, userId, serviceKey,
@@ -39,7 +50,7 @@ async function runPaidLookup({ accountId, userId, serviceKey, requestSummary, fn
       requestSummary,
     });
 
-    return result.data;
+    return detailed ? { data: result.data, status: result.status, cost_cents: cost, balance_cents: balance } : result.data;
   } catch (err) {
     // Erro técnico de verdade (não "não encontrado") — devolve o crédito.
     await creditsService.refund(transactionId, `Erro técnico: ${err.message}`);

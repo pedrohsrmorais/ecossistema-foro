@@ -57,6 +57,7 @@ app.use(compression());
 app.put('/api/saved-processes/:id/file', express.raw({ type: 'application/pdf', limit: `${(Number(process.env.MAX_PDF_MB) || 25) + 1}mb` }));
 // Planilha de leads (.xlsx/.csv) para importar: corpo binário, limite = MAX_IMPORT_MB (padrão 5) + folga
 app.post('/api/leads/import', express.raw({ type: () => true, limit: `${(Number(process.env.MAX_IMPORT_MB) || 5) + 1}mb` }));
+app.post('/api/lookup/enrich', express.raw({ type: () => true, limit: `${(Number(process.env.MAX_IMPORT_MB) || 5) + 1}mb` }));
 app.use('/api/office-templates/extract', express.json({ limit: '5mb' })); // upload .docx em base64 (3 MB de arquivo)
 app.use(express.json({ limit: '1mb', verify: (req, res, buf) => { req.rawBody = buf; } }));
 app.use(express.urlencoded({ extended: true, limit: '1mb' }));
@@ -144,6 +145,7 @@ async function start() {
   });
   require('./jobs/deadline-digest').start();
   require('./jobs/google-sync').start();
+  require('./jobs/lookup-maintenance').start();
   const shutdown = () => { server.close(() => process.exit(0)); setTimeout(() => process.exit(0), 10000).unref(); };
   process.on('SIGTERM', shutdown);
   process.on('SIGINT', shutdown);

@@ -524,4 +524,9 @@ async function exportLeads(accountId, user, { stage, search, assigned, viewer, f
   return { buffer: await sheet.toXlsx(header, rows, { sheetName: 'Leads' }), filename: `leads-${stamp}.xlsx`, type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', count: rows.length };
 }
 
-module.exports = { modelsInfo, template, createBatch, get, reparse, preview, commit, undo, history, problemsCsv, exportLeads, FIXED_FIELDS };
+/** Garante (criando/reativando) campos personalizados do escritório; usado fora do importador (ex.: "Criar lead" a partir de uma consulta). */
+async function ensureCustomFields(accountId, fields) {
+  return transaction(async (conn) => (await _ensureFields(conn, accountId, fields)).created);
+}
+
+module.exports = { ensureCustomFields, modelsInfo, template, createBatch, get, reparse, preview, commit, undo, history, problemsCsv, exportLeads, FIXED_FIELDS };

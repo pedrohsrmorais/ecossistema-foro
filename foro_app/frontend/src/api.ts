@@ -262,32 +262,54 @@ export interface CreditTransaction {
   created_at: string
 }
 
-export interface CnpjResult {
-  cnpj: string
-  razao_social?: string
-  nome_fantasia?: string
-  situacao_cadastral?: string
-  data_abertura?: string
-  [key: string]: unknown
-}
-
+// ─── Consultas (Direct Data) — formatos já normalizados pelo backend ─────────
+export interface LookupPhone { numero: string; tipo: string | null; operadora: string | null; whatsapp: boolean; bloqueado_telemarketing: boolean }
+export interface LookupAddress { logradouro: string | null; numero: string | null; complemento: string | null; bairro: string | null; cidade: string | null; uf: string | null; cep: string | null }
 export interface CpfResult {
-  cpf: string
-  nome?: string
-  situacao?: string
-  [key: string]: unknown
+  cpf: string; nome: string | null; sexo: string | null; data_nascimento: string | null; idade: number | null
+  nome_mae: string | null; signo: string | null; renda_estimada: number | null; renda_faixa: string | null
+  telefones: LookupPhone[]; emails: string[]; enderecos: LookupAddress[]
 }
+export interface CnpjSocio { nome: string; documento: string | null; cargo: string | null; data_entrada: string | null }
+export interface CnpjResult {
+  cnpj: string; razao_social: string | null; nome_fantasia: string | null; data_fundacao: string | null
+  situacao_cadastral: string | null; porte: string | null; matriz: boolean | null; natureza_juridica: string | null
+  tipo_empresa: string | null; ramo: string | null; cnae: { codigo: string; descricao: string } | null
+  telefones: LookupPhone[]; emails: string[]; enderecos: LookupAddress[]; socios: CnpjSocio[]
+}
+export interface ProcessoItem {
+  numero_cnj: string; tribunal: string | null; grau: string | null; classe: string | null; assunto: string | null
+  segmento: string | null; status: string | null; valor_acao: number | null; data_ajuizamento: string | null
+  ultima_movimentacao: string | null; data_ultima_movimentacao: string | null
+  partes: Array<{ nome: string; polo: string | null; tipo: string | null }>
+}
+export interface ProcessoResult { documento: string; total: number; observacoes: string | null; processos: ProcessoItem[] }
+export interface LookupMeta {
+  cached: boolean; fetched_at: string | null; price_cents: number; charged_cents: number; balance_cents: number; consulta_uid?: string | null
+}
+export interface LookupResponse<T> { data: T; meta: LookupMeta }
+export interface LookupStatus { configured: boolean; balance_cents: number; prices: { cpf: number; cnpj: number; processos: number }; cache_days: number }
 
-export interface ProcessoResult {
-  documento: string
-  processos: Array<{
-    numero_cnj: string
-    tribunal: string
-    classe: string
-    ultima_movimentacao: string
-    data_ultima_movimentacao: string
-  }>
-  [key: string]: unknown
+export interface EnrichFill { phone: boolean; email: boolean; name: boolean; address: boolean }
+export interface EnrichStats {
+  total: number; invalidas: number; repetidas: number; completas: number; em_cache: number
+  consultar: number; consultar_cpf: number; consultar_cnpj: number
+}
+export interface EnrichQuote { price_cpf_cents: number; price_cnpj_cents: number; cost_cents: number; balance_cents: number; shortfall_cents: number }
+export interface EnrichProgress { done: number; total: number; ok: number; sem_resultado: number; erros: number; cobrado_cents: number; mensagem: string | null }
+export type EnrichStatus = 'analisada' | 'rodando' | 'concluida' | 'interrompida' | 'cancelada'
+export interface EnrichJob {
+  id: string; file_name: string; status: EnrichStatus
+  headers?: string[]; doc_col?: number; detected?: Record<string, string>; sample?: string[][]
+  options: { fill: EnrichFill } | null
+  stats?: EnrichStats; analysis?: EnrichStats; quote?: EnrichQuote
+  truncated?: boolean; max_rows?: number; configured?: boolean
+  progress?: EnrichProgress | null
+  created_at?: string; started_at?: string | null; finished_at?: string | null
+}
+export interface EnrichHistoryItem {
+  id: string; file_name: string; status: EnrichStatus; analysis: EnrichStats | null; progress: EnrichProgress | null
+  created_at: string; finished_at: string | null; user_name: string | null
 }
 
 // ─── AUTH ─────────────────────────────────────────────────────────────────────
@@ -857,21 +879,47 @@ export const creditsApi = {
 // ─── LOOKUP — consultas pagas (CPF/CNPJ/processual) e resumo por IA ──────────
 
 export const lookupApi = {
-  /** POST /lookup/cnpj */
-  cnpj: (cnpj: string) =>
-    http.post<{ data: CnpjResult }>('/lookup/cnpj', { cnpj }).then(r => r.data.data),
+  /** GET /lookup/status — token configurado, saldo e preços */
+  status: () => http.get<LookupStatus>('/lookup/status').then(r => r.data),
+
+  /** POST /lookup/cnpj — `refresh` força nova consulta (cobra de novo) */
+  cnpj: (cnpj: string, refresh = false) =>
+    http.post<LookupResponse<CnpjResult>>('/lookup/cnpj', { cnpj, refresh }).then(r => r.data),
 
   /** POST /lookup/cpf */
-  cpf: (cpf: string) =>
-    http.post<{ data: CpfResult }>('/lookup/cpf', { cpf }).then(r => r.data.data),
+  cpf: (cpf: string, refresh = false) =>
+    http.post<LookupResponse<CpfResult>>('/lookup/cpf', { cpf, refresh }).then(r => r.data),
 
-  /** POST /lookup/processo */
-  processo: (documento: string) =>
-    http.post<{ data: ProcessoResult }>('/lookup/processo', { documento }).then(r => r.data.data),
+  /** POST /lookup/processo — por CPF ou CNPJ */
+  processo: (documento: string, refresh = false) =>
+    http.post<LookupResponse<ProcessoResult>>('/lookup/processo', { documento, refresh }).then(r => r.data),
 
   /** POST /lookup/processo/summary */
   processoSummary: (processo: ProcessoResult) =>
     http.post<{ data: { summary: string } }>('/lookup/processo/summary', { processo }).then(r => r.data.data),
+
+  /** POST /lookup/:kind/create-lead — usa a consulta já feita (não consulta nem cobra de novo) */
+  createLead: (kind: 'cpf' | 'cnpj', document: string, stage?: string) =>
+    http.post<{ data: Lead }>(`/lookup/${kind}/create-lead`, { document, stage }).then(r => r.data.data),
+}
+
+/** Enriquecimento de listas (planilha com CPF/CNPJ → acha telefones e e-mails) */
+export const lookupEnrichApi = {
+  template: (format: 'xlsx' | 'csv') =>
+    http.get<Blob>('/lookup/enrich/template', { params: { format }, ...BIN }).then(r => fileOf(r, `modelo-enriquecimento.${format}`)),
+  history: () => http.get<{ data: EnrichHistoryItem[] }>('/lookup/enrich').then(r => r.data.data),
+  /** POST /lookup/enrich — corpo = bytes da planilha */
+  upload: (file: File) =>
+    http.post<EnrichJob>('/lookup/enrich', file, { params: { name: file.name }, headers: { 'Content-Type': 'application/octet-stream' }, transformRequest: [(d: unknown) => d] }).then(r => r.data),
+  get: (id: string) => http.get<EnrichJob>(`/lookup/enrich/${id}`).then(r => r.data),
+  analyze: (id: string, data: { doc_col?: number; options?: { fill: Partial<EnrichFill> } }) =>
+    http.post<EnrichJob>(`/lookup/enrich/${id}/analyze`, data).then(r => r.data),
+  start: (id: string, confirm_queries: number) =>
+    http.post<{ id: string; status: EnrichStatus; total: number }>(`/lookup/enrich/${id}/start`, { confirm_queries }).then(r => r.data),
+  download: (id: string, format: 'xlsx' | 'csv') =>
+    http.get<Blob>(`/lookup/enrich/${id}/download`, { params: { format }, ...BIN }).then(r => fileOf(r, `lista-enriquecida.${format}`)),
+  toImport: (id: string) => http.post<ImportBatch>(`/lookup/enrich/${id}/to-import`).then(r => r.data),
+  discard: (id: string) => http.delete(`/lookup/enrich/${id}`).then(r => r.data),
 }
 
 // ─── PESQUISA DE PROCESSOS + PROCESSOS SALVOS (S3/MinIO + MySQL) ─────────────

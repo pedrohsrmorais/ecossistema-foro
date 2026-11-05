@@ -44,10 +44,11 @@ function errorMiddleware(err, req, res, next) { // eslint-disable-line no-unused
  * Erro com status HTTP controlado.
  */
 class AppError extends Error {
-  constructor(message, statusCode = 400, code) {
+  constructor(message, statusCode = 400, code, extra) {
     super(message);
     this.statusCode = statusCode;
     if (code) this.code = code;
+    if (extra) this.extra = extra;
   }
 }
 

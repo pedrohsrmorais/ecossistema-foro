@@ -134,6 +134,7 @@ foro_app/
 │   ├── banco-de-dados.md       # Schema completo, tabelas e relacionamentos
 │   ├── pagamentos.md           # Stripe + NFS-e
 │   ├── importacao-crm.md       # Importação/exportação de listas CSV/Excel no CRM (modelos, regex, duplicados, desfazer)
+│   ├── consultas-direct-data.md # Consultas CPF/CNPJ/processos (Direct Data), criar lead, enriquecimento de listas, cobrança e cache
 │   ├── consulta-processual.md  # Pesquisa de processos: DataJud + DJEN, retrato salvo, PDF opcional
 │   ├── armazenamento-s3.md     # MinIO/S3 + processos salvos (migração para AWS)
 │   ├── mercado-requisitos.md   # pesquisa de mercado jurídico e Must-Have
@@ -199,17 +200,21 @@ O `Dockerfile` (na raiz de `foro_app/`) compila o frontend e embute o resultado 
 | `NFEIO_API_KEY`    | Chave do NFE.io (notas fiscais)                  |
 | `NFEIO_COMPANY_ID` | ID da empresa no NFE.io                          |
 
-### Variáveis opcionais — consultas pagas (créditos)
+### Variáveis — consultas pagas (Direct Data)
 
-Sem provedor configurado, cada serviço roda em **modo mock** (sem custo, sem chamar nada externo) — permite testar todo o fluxo de créditos antes de contratar qualquer API. Ver [plataforma-e-precificacao.md](./plataforma-e-precificacao.md#4-apis-externas--avaliadas-e-recomendadas) para comparação de provedores.
+Detalhes em [consultas-direct-data.md](./consultas-direct-data.md).
 
 | Variável                     | Descrição                              |
 |-------------------------------|-------------------------------------------|
-| `CNPJ_PROVIDER_BASE_URL/API_KEY`    | Provedor de consulta de CNPJ        |
-| `CPF_PROVIDER_BASE_URL/API_KEY`     | Provedor de consulta de CPF         |
-| `PROCESS_PROVIDER_BASE_URL/API_KEY` | Provedor de consulta processual     |
+| `FEATURE_LOOKUPS_ENABLED`     | `true` libera as consultas (`/lookup/*`) |
+| `DIRECT_DATA_TOKEN`           | Token da Direct Data (painel → Configurações → Integrações). Sem ele: `503` antes de cobrar |
+| `DIRECT_DATA_BASE_URL`        | Padrão `https://apiv3.directd.com.br`   |
+| `DIRECT_DATA_TIMEOUT_MS`      | Padrão `60000` (consulta de CNPJ pode levar ~25 s) |
+| `DIRECT_DATA_CHARGE_NOT_FOUND`| `true` cobra do escritório quando o documento não é encontrado (padrão `false`: devolve) |
+| `LOOKUP_CACHE_DAYS`           | Validade do cache por conta (padrão `30`) |
+| `MAX_ENRICH_ROWS`             | Máximo de linhas por lista a enriquecer (padrão `2000`) |
 
-Estas chaves pertencem à **conta da intellsn** (plataforma), nunca ao tenant — o modelo de negócio centraliza a compra das APIs externas numa única conta paga pelo dono da plataforma (ver [plataforma-e-precificacao.md](./plataforma-e-precificacao.md#52-créditos-pré-pagos-consultas-de-terceiros)).
+O token pertence à **conta da intellsn** (plataforma), nunca ao tenant — o escritório só paga em créditos (ver [plataforma-e-precificacao.md](./plataforma-e-precificacao.md#52-créditos-pré-pagos-consultas-de-terceiros)).
 
 ---
 

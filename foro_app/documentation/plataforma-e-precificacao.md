@@ -72,7 +72,7 @@ Visão cross-tenant exclusiva da equipe intellsn: listar/detalhar contas, altera
 
 ## 4. APIs externas — avaliadas e recomendadas
 
-Pesquisa feita para decidir quais provedores usar nos serviços de CPF/CNPJ/consulta processual. Nenhum destes está contratado por padrão — o sistema roda em **modo mock** (dado de exemplo, sem custo) até as variáveis de ambiente do provedor escolhido serem preenchidas (`CNPJ_PROVIDER_*`, `CPF_PROVIDER_*`, `PROCESS_PROVIDER_*`).
+Pesquisa feita para decidir quais provedores usar nos serviços de CPF/CNPJ/consulta processual. **Decisão (05/11/2026): CPF, CNPJ e processos por CPF/CNPJ usam a Direct Data** (R$ 0,16 / R$ 0,16 / R$ 1,50 por consulta) — ver [consultas-direct-data.md](./consultas-direct-data.md). Basta preencher `DIRECT_DATA_TOKEN`; sem ele as consultas respondem `503` (não há mais modo mock). Os demais provedores abaixo ficam como referência da pesquisa.
 
 ### 4.1 Consulta de CNPJ
 

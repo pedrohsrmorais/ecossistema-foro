@@ -439,6 +439,12 @@ O `init.sql` só roda na primeira subida do MySQL (volume vazio). Toda mudança 
 - Perfil do escritório: `legal_name`, `website`, `office_email`, `zip_code`, `address_number`, `address_complement`, `district`, `oab_society`, `founded_on`, `practice_areas` (JSON), `headcount_total`, `headcount_lawyers`, `notes`; governança em `member_defaults` (JSON).
 - Idempotente (testada duas vezes sobre um banco legado).
 
+## Migração 018 — Consultas Direct Data e enriquecimento de listas
+
+- `lookup_cache` (`account_id`, `kind` cpf|cnpj|processos, `document`, `payload` LONGTEXT, `consulta_uid`, `fetched_at`): cache por conta, único `(account_id, kind, document)`; validade `LOOKUP_CACHE_DAYS`.
+- `enrichment_jobs`: lote de enriquecimento (`status` analisada|rodando|concluida|interrompida|cancelada, `rows`/`results` LONGTEXT, `options`/`analysis`/`progress` JSON); apagado após 7 dias.
+- `service_prices`: provedor "Direct Data" e custos de referência 16 / 16 / 150 centavos; `process_lookup` passa a R$ 3,00 se ainda estava em R$ 1,00.
+
 ## Migração 017 — Importação/exportação de listas
 
 - `leads.document` (CPF/CNPJ, só dígitos) com índice `(account_id, document)`; `leads.import_id` (de qual importação veio) com índice.

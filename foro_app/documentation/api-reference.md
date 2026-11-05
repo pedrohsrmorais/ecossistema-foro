@@ -746,47 +746,43 @@ DELETE /saved-processes/:id       (delete_records; exclusão lógica, mas apaga 
 
 Erros: `422` termo inválido/CPF/CNPJ · `502 SOURCES_UNAVAILABLE` nenhuma fonte respondeu · `404 NO_DATA` nenhuma fonte tem o processo · `422 NOT_PDF` arquivo não é PDF · `413 FILE_TOO_LARGE` PDF acima do limite.
 
-## Consultas pagas (CPF, CNPJ, processual) e resumo por IA
+## Consultas pagas (CPF, CNPJ, processos) e resumo por IA
 
-Cada chamada debita créditos automaticamente antes de consultar o provedor externo (`external-lookup.service.js`). Se o provedor falhar por erro técnico, o crédito é devolvido automaticamente e a resposta é sempre a mensagem genérica abaixo — nunca o erro técnico real.
+Dados da **Direct Data** — detalhes de cobrança, cache, enriquecimento de listas e erros em [consultas-direct-data.md](./consultas-direct-data.md). Todas exigem o módulo `pesquisa_cpf_cnpj` e `FEATURE_LOOKUPS_ENABLED=true`. O crédito é debitado antes da consulta e devolvido se der erro técnico (resposta genérica) ou se o documento não for encontrado.
 
-| Status | Quando acontece                                                        |
-|--------|-------------------------------------------------------------------------|
-| `402`  | Créditos insuficientes — `{ error: "Créditos insuficientes. Adicione créditos para continuar." }` |
-| `502`  | Falha técnica no provedor (crédito já foi devolvido) — `{ error: "Erro na requisição. Tente novamente em alguns minutos ou contate o suporte." }` |
+| Status | Quando acontece |
+|--------|-----------------|
+| `400`  | `INVALID_DOCUMENT` — dígito verificador inválido (nunca cobra) |
+| `402`  | Créditos insuficientes |
+| `404`  | `LOOKUP_NOT_FOUND` (sem resultado, crédito devolvido) / `LOOKUP_NOT_CACHED` (criar lead sem consulta prévia) |
+| `409`  | `LEAD_EXISTS` (com `lead_id`) · `QUOTE_CHANGED` (enriquecimento) |
+| `502`  | Falha técnica na fonte (crédito devolvido) |
+| `503`  | `DIRECT_DATA_NOT_CONFIGURED` — falta `DIRECT_DATA_TOKEN` |
 
-### Consultar CNPJ
-```
-POST /lookup/cnpj
-Body: { cnpj }
-Response 200: { data: { cnpj, razao_social, nome_fantasia, situacao_cadastral, ... } }
-```
-Dígito verificador validado localmente **antes** de debitar — CNPJ malformado nunca gasta crédito.
+Resposta das consultas: `{ data, meta: { cached, fetched_at, price_cents, charged_cents, balance_cents, consulta_uid } }`. Consulta repetida em até `LOOKUP_CACHE_DAYS` dias vem do cache sem custo; `refresh: true` força nova consulta.
 
-### Consultar CPF
 ```
-POST /lookup/cpf
-Body: { cpf }
-Response 200: { data: { cpf, nome, situacao, ... } }
-```
-Mesmo tratamento de validação local do CPF. O CPF é mascarado nos logs internos (LGPD).
-
-### Buscar processos por CPF/CNPJ
-```
-POST /lookup/processo
-Body: { documento }
-Response 200: { data: { documento, processos: [{ numero_cnj, tribunal, classe, ultima_movimentacao, data_ultima_movimentacao }] } }
+GET  /lookup/status                       → { configured, balance_cents, prices:{cpf,cnpj,processos}, cache_days }
+POST /lookup/cpf       { cpf, refresh? }  → data: { cpf, nome, sexo, data_nascimento, idade, nome_mae, renda_estimada, telefones[], emails[], enderecos[] }
+POST /lookup/cnpj      { cnpj, refresh? } → data: { cnpj, razao_social, nome_fantasia, situacao_cadastral, cnae, telefones[], emails[], enderecos[], socios[] }
+POST /lookup/processo  { documento, refresh? }   // CPF ou CNPJ → data: { documento, total, processos[] }
+POST /lookup/processo/summary { processo }       → { data: { summary } }   // IA, preço fixo
+POST /lookup/:kind/create-lead { document, stage? }   // kind = cpf|cnpj; usa a consulta já salva; 201 { data: lead }
 ```
 
-### Resumir processo por IA
-```
-POST /lookup/processo/summary
-Body: { processo }   // o objeto retornado por POST /lookup/processo
-Response 200: { data: { summary: "..." } }
-```
-Usa o mesmo modelo Anthropic do chat interno, mas como chamada avulsa (sem tools/histórico) — cobrada por preço fixo em créditos, não por token.
+### Enriquecimento de listas
 
-Sem nenhum provedor configurado (`CNPJ_PROVIDER_BASE_URL`, `CPF_PROVIDER_BASE_URL`, `PROCESS_PROVIDER_BASE_URL` vazios no `.env`), os três primeiros endpoints retornam dado **MOCK** — permite testar todo o fluxo de créditos sem ter contratado nenhuma API externa ainda.
+```
+GET    /lookup/enrich/template?format=xlsx|csv
+GET    /lookup/enrich                         histórico (7 dias)
+POST   /lookup/enrich?name=arq.xlsx           corpo = bytes; analisa e devolve { id, stats, quote, headers, doc_col, options }
+GET    /lookup/enrich/:id                     estado / progresso
+POST   /lookup/enrich/:id/analyze  { doc_col?, options?:{ fill:{phone,email,name,address} } }
+POST   /lookup/enrich/:id/start    { confirm_queries }   202 — roda em segundo plano
+GET    /lookup/enrich/:id/download?format=xlsx|csv
+POST   /lookup/enrich/:id/to-import           cria lote do importador do CRM (201, igual a POST /leads/import)
+DELETE /lookup/enrich/:id
+```
 
 ---
 
