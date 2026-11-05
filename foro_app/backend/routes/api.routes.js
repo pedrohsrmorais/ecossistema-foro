@@ -18,6 +18,7 @@ const router = require('express').Router();
 const authController        = require('../controllers/auth.controller');
 const usersController       = require('../controllers/users.controller');
 const leadsController       = require('../controllers/leads.controller');
+const leadImport            = require('../controllers/lead-import.controller');
 const fieldsController      = require('../controllers/fields.controller');
 const casesController       = require('../controllers/cases.controller');
 const documentsController   = require('../controllers/documents.controller');
@@ -46,7 +47,7 @@ const alertsController      = require('../controllers/alerts.controller');
 const supportController     = require('../controllers/support.controller');
 
 const { authenticate, requireAdmin, requireVerifiedEmail } = require('../middlewares/auth.middleware');
-const { loginLimiter, registerLimiter, emailFlowLimiter, verifyLimiter, aiLimiter, supportLimiter } = require('../middlewares/rateLimits');
+const { loginLimiter, registerLimiter, emailFlowLimiter, verifyLimiter, aiLimiter, supportLimiter, importLimiter } = require('../middlewares/rateLimits');
 const { loadClientContext }   = require('../middlewares/client.middleware');
 const { authenticatePlatform } = require('../middlewares/platform.middleware');
 const { requireModule }       = require('../middlewares/modules.middleware');
@@ -174,6 +175,19 @@ router.put   ('/lead-stages/reorder',  requireModule('crm'), requireAdmin, leads
 router.post  ('/lead-stages/reset',    requireModule('crm'), requireAdmin, leadsController.stagesReset);
 router.put   ('/lead-stages/:id',      requireModule('crm'), requireAdmin, leadsController.stagesUpdate);
 router.delete('/lead-stages/:id',      requireModule('crm'), requireAdmin, leadsController.stagesRemove);
+// Importar/exportar listas (planilhas). Estas rotas vêm ANTES de /leads/:id, senão "import"/"export" viram um :id.
+const crmLeads = [requireModule('crm'), requireAccess('leads')];
+router.get   ('/leads/import/models',            ...crmLeads, requirePermission('create_leads'), leadImport.models);
+router.get   ('/leads/import/models/:key/template', ...crmLeads, requirePermission('create_leads'), leadImport.template);
+router.get   ('/leads/import',                   ...crmLeads, requirePermission('create_leads'), leadImport.history);
+router.post  ('/leads/import',                   ...crmLeads, requirePermission('create_leads'), importLimiter, leadImport.create);   // corpo = arquivo (binário)
+router.get   ('/leads/import/:id',               ...crmLeads, requirePermission('create_leads'), leadImport.get);
+router.post  ('/leads/import/:id/reparse',       ...crmLeads, requirePermission('create_leads'), leadImport.reparse);
+router.post  ('/leads/import/:id/preview',       ...crmLeads, requirePermission('create_leads'), leadImport.preview);
+router.post  ('/leads/import/:id/commit',        ...crmLeads, requirePermission('create_leads'), importLimiter, leadImport.commit);
+router.get   ('/leads/import/:id/problems',      ...crmLeads, requirePermission('create_leads'), leadImport.problems);
+router.delete('/leads/import/:id',               ...crmLeads, requirePermission('create_leads'), leadImport.undo);
+router.get   ('/leads/export',                   ...crmLeads, requirePermission('export_leads'), scoped('leads'), importLimiter, leadImport.export);
 router.get   ('/leads',                requireModule('crm'), requireAccess('leads'), scoped('leads'), leadsController.list);
 router.post  ('/leads',                requireModule('crm'), requireAccess('leads'), requirePermission('create_leads'), validate(leadValidations.create), leadsController.create);
 router.get   ('/leads/funnel',         requireModule('crm'), requireAccess('leads'), scoped('leads'), leadsController.getFunnelSummary);

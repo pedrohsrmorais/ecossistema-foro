@@ -77,6 +77,8 @@ export interface Lead {
   source: string | null
   assigned_user_id: string | null
   assigned_name: string | null
+  /** CPF/CNPJ (só dígitos) */
+  document?: string | null
   last_contact_at: string | null
   created_at: string
   cases_count?: number
@@ -234,7 +236,7 @@ export interface User {
 }
 export type Permissions = {
   templates_manage: boolean; ai_drafts: boolean; delete_records: boolean
-  create_leads: boolean; delete_leads: boolean; create_cases: boolean; create_events: boolean; ai_write: boolean
+  create_leads: boolean; delete_leads: boolean; export_leads: boolean; create_cases: boolean; create_events: boolean; ai_write: boolean
   access_leads: boolean; access_cases: boolean; access_documents: boolean; access_agenda: boolean; access_ai: boolean
   access_boards: boolean; boards_edit: boolean; boards_manage: boolean
   view_scope: 'all' | 'own'
@@ -385,6 +387,71 @@ export const fieldsApi = {
 }
 
 // ─── LEADS ────────────────────────────────────────────────────────────────────
+
+// ─── IMPORTAR / EXPORTAR LEADS (planilhas) ───────────────────────────────────
+
+export interface ImportTarget { key: string; label: string; multi: boolean }
+export interface ImportModelInfo { key: string; label: string; description: string; headers: string[] }
+export interface ImportModels { models: ImportModelInfo[]; targets: ImportTarget[]; limits: { max_mb: number; max_rows: number } }
+export interface ImportMappingItem { target: string; via: 'cabecalho' | 'conteudo' | 'manual' | null }
+export interface ImportOptions {
+  stage?: string; assigned_user_id?: string; source?: string
+  on_duplicate?: 'skip' | 'merge' | 'create'; proper_names?: boolean; default_ddd?: string | null
+}
+export interface ImportBatch {
+  id: string; file_name: string; status: 'analisada'
+  sheets: string[]; sheet: number; header_row: number
+  header_candidates: { index: number; line: number; preview: string }[]
+  headers: string[]; sample: string[][]; total_rows: number; truncated: boolean; max_rows: number
+  detected: string; model: string
+  suggestions: Record<string, ImportMappingItem[]>; mapping: ImportMappingItem[]
+  options: ImportOptions | null
+}
+export interface ImportStats {
+  total: number; vazias: number; exemplo: number; novos: number; atualizar: number
+  duplicadas_crm: number; duplicadas_arquivo: number; erros: number; com_aviso: number
+}
+export interface ImportRow {
+  line: number; status: 'novo' | 'atualizar' | 'duplicada' | 'erro'; motivo: string | null; issues: string[]
+  name: string | null; document: string | null; phone: string | null; email: string | null; city: string | null; stage: string | null
+}
+export interface ImportPreview {
+  id: string; stats: ImportStats; truncated: boolean; fields_to_create: string[]
+  limit: { max: number | null; plan: string | null; current: number; creating: number; exceeded: boolean; remaining: number | null }
+  rows: ImportRow[]; problems: ImportRow[]
+}
+export interface ImportResult extends ImportStats {
+  id: string; status: 'concluida'; criados: number; atualizados: number; campos_criados: string[]; campos_reativados: string[]; problemas: number
+}
+export interface ImportHistoryItem {
+  id: string; file_name: string; status: 'concluida' | 'desfeita'; model_key: string | null
+  stats: Partial<ImportResult> & { desfeita?: { removidos: number; mantidos: number } }
+  created_at: string; finished_at: string | null; undone_at: string | null; user_name: string | null; leads_ativos: number
+}
+export interface FileDownload { blob: Blob; filename: string }
+const fileOf = (r: { data: Blob; headers: Record<string, unknown> }, fallback: string): FileDownload => ({
+  blob: r.data,
+  filename: /filename="?([^";]+)"?/.exec(String(r.headers['content-disposition'] || ''))?.[1] || fallback,
+})
+const BIN = { responseType: 'blob' as const }
+
+export const leadImportApi = {
+  models: () => http.get<ImportModels>('/leads/import/models').then(r => r.data),
+  template: (key: string, format: 'xlsx' | 'csv') =>
+    http.get<Blob>(`/leads/import/models/${key}/template`, { params: { format }, ...BIN }).then(r => fileOf(r, `modelo.${format}`)),
+  history: () => http.get<{ data: ImportHistoryItem[] }>('/leads/import').then(r => r.data.data),
+  /** POST /leads/import — corpo = bytes da planilha (.xlsx/.csv) */
+  upload: (file: File) =>
+    http.post<ImportBatch>('/leads/import', file, { params: { name: file.name }, headers: { 'Content-Type': 'application/octet-stream' }, transformRequest: [(d: unknown) => d] }).then(r => r.data),
+  reparse: (id: string, data: { sheet?: number; header_row?: number }) => http.post<ImportBatch>(`/leads/import/${id}/reparse`, data).then(r => r.data),
+  preview: (id: string, data: { model: string; mapping: string[]; options: ImportOptions }) => http.post<ImportPreview>(`/leads/import/${id}/preview`, data).then(r => r.data),
+  commit: (id: string, data: { model: string; mapping: string[]; options: ImportOptions }) => http.post<ImportResult>(`/leads/import/${id}/commit`, data).then(r => r.data),
+  /** DELETE — desfaz uma importação concluída ou descarta um rascunho */
+  undo: (id: string) => http.delete<{ id: string; status: string; removidos: number; mantidos: number }>(`/leads/import/${id}`).then(r => r.data),
+  problems: (id: string) => http.get<Blob>(`/leads/import/${id}/problems`, BIN).then(r => fileOf(r, 'linhas-com-problema.csv')),
+  export: (format: 'xlsx' | 'csv', params?: { stage?: string; search?: string }) =>
+    http.get<Blob>('/leads/export', { params: { format, ...params }, ...BIN }).then(r => fileOf(r, `leads.${format}`)),
+}
 
 export const leadsApi = {
   /** GET /leads */

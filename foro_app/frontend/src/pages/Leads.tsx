@@ -1,9 +1,11 @@
 import { useState, useMemo, useRef } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { Link } from 'react-router-dom'
-import { Plus, Search, ChevronDown, ChevronRight, ExternalLink, Trash2, LayoutList, Columns3, Sparkles, Settings2 } from 'lucide-react'
+import { Plus, Search, ChevronDown, ChevronRight, ExternalLink, Trash2, LayoutList, Columns3, Sparkles, Settings2, Upload, Download } from 'lucide-react'
 import clsx from 'clsx'
-import { leadsApi, type Lead, type PaginatedResult } from '../api'
+import { leadsApi, leadImportApi, type Lead, type PaginatedResult } from '../api'
+import { saveFile } from '../lib/download'
+import LeadImport from '../components/LeadImport'
 import { useChat } from '../context/ChatContext'
 import { useLeadStages } from '../lib/stages'
 import LeadStagesEditor from '../components/LeadStagesEditor'
@@ -61,6 +63,10 @@ function AddRow({ stage, onCreate }: { stage: string; onCreate: (name: string) =
 export default function Leads() {
   const canCreate = useCan('create_leads')
   const canDelete = useCan('delete_leads')
+  const canExport = useCan('export_leads')
+  const [importing, setImporting] = useState(false)
+  const [exportMenu, setExportMenu] = useState(false)
+  const [exportErr, setExportErr] = useState('')
   const [search, setSearch] = useState('')
   const [view, setView] = useState<'board' | 'kanban'>(() => (localStorage.getItem('foro_leads_view') as any) || 'board')
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({})
@@ -73,11 +79,32 @@ export default function Leads() {
 
   const { data, isLoading } = useQuery({ queryKey: ['leads', 'board'], queryFn: () => leadsApi.list({ limit: 500 }), staleTime: 15_000 })
 
+  // O quadro carrega os 500 mais recentes; com mais leads que isso, a busca consulta o servidor.
+  const truncated = !!data && data.total > data.data.length
+  const term = search.trim()
+  const { data: found } = useQuery({
+    queryKey: ['leads', 'search', term], queryFn: () => leadsApi.list({ search: term, limit: 200 }),
+    enabled: truncated && term.length >= 2, staleTime: 15_000,
+  })
   const filtered = useMemo(() => {
-    const q = search.trim().toLowerCase()
+    const q = term.toLowerCase()
     const all = data?.data ?? []
-    return q ? all.filter(l => [l.name, l.phone, l.email].some(v => v?.toLowerCase().includes(q))) : all
-  }, [data, search])
+    if (!q) return all
+    const local = all.filter(l => [l.name, l.phone, l.email, l.document].some(v => v?.toLowerCase().includes(q)))
+    if (!truncated) return local
+    const seen = new Set(local.map(l => l.id))
+    return [...local, ...(found?.data ?? []).filter(l => !seen.has(l.id))]
+  }, [data, term, truncated, found])
+
+  async function doExport(format: 'xlsx' | 'csv') {
+    setExportMenu(false); setExportErr('')
+    try { const f = await leadImportApi.export(format); saveFile(f.blob, f.filename) }
+    catch (e: any) {
+      let m = 'Não foi possível exportar.'
+      try { const d = e?.response?.data; m = (d instanceof Blob ? JSON.parse(await d.text()) : d)?.error || m } catch { /* mantém */ }
+      setExportErr(m)
+    }
+  }
 
   function setViewMode(v: 'board' | 'kanban') { setView(v); try { localStorage.setItem('foro_leads_view', v) } catch {} }
   const addLead = (stage: string) => (name: string) => create.mutate({ name, stage })
@@ -100,14 +127,32 @@ export default function Leads() {
             ))}
           </div>
           {me?.role === 'admin' && <button className="btn-secondary text-sm" onClick={() => setEditingStages(true)} data-testid="etapas-editar"><Settings2 className="w-4 h-4" /> Etapas</button>}
+          {canCreate && <button className="btn-secondary text-sm" onClick={() => setImporting(true)} data-testid="leads-importar"><Upload className="w-4 h-4" /> Importar</button>}
+          {canExport && (
+            <div className="relative">
+              <button className="btn-secondary text-sm" onClick={() => setExportMenu(v => !v)} aria-haspopup="menu" aria-expanded={exportMenu} data-testid="leads-exportar"><Download className="w-4 h-4" /> Exportar</button>
+              {exportMenu && (
+                <div role="menu" className="absolute right-0 mt-1 w-44 rounded-lg border bg-white shadow-lg z-20 py-1 text-sm">
+                  <button role="menuitem" className="w-full text-left px-3 py-1.5 hover:bg-slate-50" onClick={() => doExport('xlsx')}>Excel (.xlsx)</button>
+                  <button role="menuitem" className="w-full text-left px-3 py-1.5 hover:bg-slate-50" onClick={() => doExport('csv')}>CSV (Excel BR)</button>
+                </div>
+              )}
+            </div>
+          )}
           <button className="btn-secondary text-sm" onClick={() => setOpen(true)}><Sparkles className="w-4 h-4 text-accent-500" /> Pedir à IA</button>
           {canCreate && <button className="btn-primary text-sm" onClick={() => create.mutate({ name: 'Novo lead', stage: firstKey })}><Plus className="w-4 h-4" /> Novo lead</button>}
         </div>
       </div>
 
+      {exportErr && <div role="alert" className="mb-3 rounded-lg bg-red-50 border border-red-200 text-red-700 text-sm px-3 py-2">{exportErr}</div>}
+      {truncated && (
+        <div className="mb-3 rounded-lg bg-amber-50 border border-amber-200 text-amber-800 text-sm px-3 py-2" data-testid="leads-truncado">
+          Mostrando os {data!.data.length} leads mais recentes de {data!.total.toLocaleString('pt-BR')}. A busca abaixo procura em todos; para ter a lista completa, use Exportar.
+        </div>
+      )}
       <div className="relative max-w-sm mb-4">
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-        <input className="input pl-9" placeholder="Buscar por nome, telefone ou e-mail…" value={search} onChange={e => setSearch(e.target.value)} />
+        <input className="input pl-9" placeholder="Buscar por nome, telefone, e-mail ou CPF/CNPJ…" value={search} onChange={e => setSearch(e.target.value)} />
       </div>
 
       {isLoading ? (
@@ -183,6 +228,7 @@ export default function Leads() {
         </div>
       )}
       {editingStages && <LeadStagesEditor onClose={() => setEditingStages(false)} />}
+      {importing && <LeadImport onClose={() => setImporting(false)} />}
     </div>
   )
 }

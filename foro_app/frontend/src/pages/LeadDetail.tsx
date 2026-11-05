@@ -19,6 +19,13 @@ function Row({ label, children }: { label: string; children: React.ReactNode }) 
   )
 }
 
+const fmtDoc = (d?: string | null) => {
+  const n = (d || '').replace(/\D/g, '')
+  if (n.length === 11) return n.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, '$1.$2.$3-$4')
+  if (n.length === 14) return n.replace(/(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})/, '$1.$2.$3/$4-$5')
+  return d || ''
+}
+
 export default function LeadDetail() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
@@ -104,7 +111,8 @@ export default function LeadDetail() {
           <dl>
             <Row label="Telefone"><EditableCell value={lead.phone} placeholder="Adicionar" onSave={v => update.mutate({ phone: v })} /></Row>
             <Row label="E-mail"><EditableCell value={lead.email} placeholder="Adicionar" onSave={v => update.mutate({ email: v })} /></Row>
-            <Row label="Origem"><span className="px-1.5 text-sm text-slate-700">{({ ai_chat: 'Assistente IA', ui: 'Cadastro manual' } as Record<string, string>)[lead.source || ''] || lead.source || '—'}</span></Row>
+            <Row label="CPF/CNPJ"><EditableCell value={fmtDoc(lead.document)} placeholder="Adicionar" onSave={v => update.mutate({ document: v })} /></Row>
+            <Row label="Origem"><span className="px-1.5 text-sm text-slate-700">{({ ai_chat: 'Assistente IA', ui: 'Cadastro manual', import: 'Importação' } as Record<string, string>)[lead.source || ''] || lead.source || '—'}</span></Row>
             {custom.map(([key, f]) => (
               <Row key={key} label={f.label}>
                 <EditableCell value={f.value} placeholder="Adicionar"

@@ -40,4 +40,11 @@ const supportLimiter = rateLimit({
   message: json('Você já enviou vários chamados em pouco tempo. Aguarde um pouco ou escreva para o e-mail de suporte.'),
 });
 
-module.exports = { supportLimiter, loginLimiter, registerLimiter, emailFlowLimiter, verifyLimiter, aiLimiter };
+// Importar/exportar listas do CRM: operações pesadas, 40 por hora por usuário.
+const importLimiter = rateLimit({
+  ...base, windowMs: 60 * 60 * 1000, max: 40,
+  keyGenerator: (req) => req.user?.id || req.ip,
+  message: json('Muitas importações/exportações em pouco tempo. Tente de novo mais tarde.'),
+});
+
+module.exports = { importLimiter, supportLimiter, loginLimiter, registerLimiter, emailFlowLimiter, verifyLimiter, aiLimiter };

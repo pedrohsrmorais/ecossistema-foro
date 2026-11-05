@@ -439,6 +439,11 @@ O `init.sql` só roda na primeira subida do MySQL (volume vazio). Toda mudança 
 - Perfil do escritório: `legal_name`, `website`, `office_email`, `zip_code`, `address_number`, `address_complement`, `district`, `oab_society`, `founded_on`, `practice_areas` (JSON), `headcount_total`, `headcount_lawyers`, `notes`; governança em `member_defaults` (JSON).
 - Idempotente (testada duas vezes sobre um banco legado).
 
+## Migração 017 — Importação/exportação de listas
+
+- `leads.document` (CPF/CNPJ, só dígitos) com índice `(account_id, document)`; `leads.import_id` (de qual importação veio) com índice.
+- `lead_imports`: uma linha por importação — `status` `analisada` (rascunho: guarda `file_data` e `rows`, apagado em 24 h ou ao concluir) → `concluida` → `desfeita`; `model_key`, `mapping`, `options`, `stats` (JSON), `problems` (linhas recusadas/com aviso para download). FK para `accounts` com `ON DELETE CASCADE`.
+
 ## Migração 016 — Retrato do processo (DataJud/DJEN) e PDF opcional
 
 - `saved_processes`: `s3_bucket`, `s3_key`, `file_name`, `sha256` agora **nulos** (processo salvo sem PDF); novas colunas `snapshot` (JSON: capa, partes, movimentos, comunicacoes, fontes, consultado_em), `snapshot_at`, `movements_count`, `communications_count`, `file_attached_at`.

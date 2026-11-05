@@ -409,6 +409,26 @@ Todas as rotas exigem autenticação e o módulo `crm`.
 
 Campos extras: `sync_google` (boolean, padrão `true`) no POST envia o compromisso também ao Google Agenda se o usuário estiver conectado. Eventos importados do Google têm `source: "google"` e `google_event_id`; são **privados do dono** (`user_id`), somente leitura (PUT/DELETE → 400) e não entram em alertas/resumo.
 
+### Importar / exportar leads (`/leads/import`, `/leads/export`)
+
+Detalhes e regras em [importacao-crm.md](importacao-crm.md). Importar exige `create_leads`; exportar, `export_leads`. Rotas declaradas **antes** de `/leads/:id`.
+
+| Método | Rota | Descrição |
+|--------|------|-----------|
+| GET | `/leads/import/models` | Modelos (`key`, `label`, `description`, `headers`), destinos possíveis de coluna (`targets`) e `limits` |
+| GET | `/leads/import/models/:key/template?format=xlsx\|csv` | Planilha modelo com exemplos |
+| GET | `/leads/import` | Histórico (30 últimas; membro "só os meus" vê as próprias) |
+| POST | `/leads/import?name=arquivo.xlsx` | **Corpo binário** (`application/octet-stream`, até `MAX_IMPORT_MB`). Cria o rascunho e devolve o lote: `id`, `sheets`, `header_row`, `header_candidates`, `headers`, `sample`, `total_rows`, `detected`, `model`, `suggestions` (por modelo) e `mapping` |
+| GET | `/leads/import/:id` | Lote (rascunho) ou resumo (concluída/desfeita) |
+| POST | `/leads/import/:id/reparse` | `{ sheet?, header_row? }` — troca a aba/linha de títulos |
+| POST | `/leads/import/:id/preview` | `{ model, mapping: [destino por coluna], options }` — não grava; devolve `stats`, `limit`, `fields_to_create`, `rows` (100) e `problems` (300) |
+| POST | `/leads/import/:id/commit` | Mesmo corpo; grava numa transação. Repetir → 409 `ALREADY_DONE`; plano cheio → 403 `PLAN_LIMIT_LEADS` |
+| GET | `/leads/import/:id/problems` | CSV com as linhas recusadas/com aviso |
+| DELETE | `/leads/import/:id` | Desfaz a importação concluída (`removidos`/`mantidos`) ou descarta o rascunho |
+| GET | `/leads/export?format=xlsx\|csv&stage=&search=&assigned=` | Planilha no Modelo Foro (até 20.000 leads) |
+
+`options`: `stage`, `assigned_user_id` (só admin), `source`, `on_duplicate` (`skip`\|`merge`\|`create`), `proper_names`, `default_ddd`. Os leads passam a ter `document` (CPF/CNPJ, só dígitos, validado em `POST/PUT /leads` → 400 se inválido) e `import_id`; `GET /leads?search=` também procura pelo CPF/CNPJ (≥ 3 dígitos).
+
 ### Etapas do funil do CRM (`/lead-stages`)
 
 Cada escritório tem as próprias etapas (padrão: Novo, Em contato, Proposta, Convertido, Encerrado). `leads.stage` guarda a **chave** (`stage_key`), que não muda ao renomear. Qualquer membro do CRM lê; **só administrador** altera.
@@ -517,7 +537,7 @@ Além das 10 originais de leads/notas/tarefas, o chat opera: `create_case`, `sea
 
 **Workspaces.** Cada pessoa tem um *espaço pessoal* (conta `kind='personal'`, só dela) e quantos escritórios entrar/criar. Cada workspace é uma linha em `users` (mesmo `person_id`) com papel, permissões e plano próprios; trocar de workspace só emite outro token — por isso dados, regras, IA, créditos e plano seguem sempre o workspace ativo, e um escritório nunca enxerga o outro. `POST /auth/register` cai no espaço pessoal (o campo legado `accountName` cria já um escritório). Convidar por e-mail (`POST /users/invite`) alguém que já tem conta confirmada adiciona a pessoa direto (`added_existing: true`); o espaço pessoal não convida (`403 PERSONAL_SPACE`). Senha e e-mail confirmado valem para a pessoa toda.
 
-**Governança.** Precedência das permissões de um membro: ajuste individual (`users.permissions`) > padrão do escritório (`accounts.member_defaults`) > padrão da plataforma. Novas ações: `create_leads`, `delete_leads`, `create_cases`, `create_events`, `ai_write` (desmarcado: a IA só consulta). As rotas devolvem `403 PERMISSION_DENIED` e a IA recusa a ação com a mesma regra da pessoa.
+**Governança.** Precedência das permissões de um membro: ajuste individual (`users.permissions`) > padrão do escritório (`accounts.member_defaults`) > padrão da plataforma. Novas ações: `create_leads`, `delete_leads`, `export_leads`, `create_cases`, `create_events`, `ai_write` (desmarcado: a IA só consulta). As rotas devolvem `403 PERMISSION_DENIED` e a IA recusa a ação com a mesma regra da pessoa.
 
 | GET | `/office-templates` · `/office-templates/:id` | Modelos do escritório (qualquer usuário da conta) |
 | POST | `/office-templates` | **Permissão `templates_manage`.** `{ title, area_key, description?, body, legal_basis? }` (sem `legal_basis`, usa os dispositivos citados no texto). Nasce não revisado |

@@ -14,6 +14,7 @@ const DEFS = [
   { key: 'access_ai', group: 'module', label: 'Usar o Assistente de IA (gasta créditos)', default: true },
   { key: 'create_leads', group: 'action', label: 'Cadastrar leads', default: true },
   { key: 'delete_leads', group: 'action', label: 'Excluir leads', default: true },
+  { key: 'export_leads', group: 'action', label: 'Exportar a lista de leads (planilha)', default: true },
   { key: 'create_cases', group: 'action', label: 'Cadastrar processos', default: true },
   { key: 'create_events', group: 'action', label: 'Criar compromissos, prazos e tarefas na agenda', default: true },
   { key: 'ai_write', group: 'action', label: 'A IA pode criar, alterar e excluir dados em nome da pessoa (desmarcado: só consulta)', default: true },

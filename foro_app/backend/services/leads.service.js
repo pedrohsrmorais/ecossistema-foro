@@ -2,6 +2,16 @@ const { query, transaction } = require('../configs/db.config');
 const { v4: uuidv4 } = require('uuid');
 const { AppError } = require('../middlewares/error.middleware');
 const leadStages = require('./lead-stages.service');
+const N = require('../utils/lead-normalize');
+
+/** CPF/CNPJ informado à mão: só dígitos, com dígito verificador válido. Vazio apaga. */
+function _document(input) {
+  if (input === undefined) return undefined;
+  if (input === null || String(input).trim() === '') return null;
+  const d = N.normDocument(input);
+  if (!d || !d.valid) throw new AppError('CPF/CNPJ inválido. Confira os números.', 400);
+  return d.digits;
+}
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -67,16 +77,18 @@ async function list(accountId, { stage, search, assigned, page = 1, limit = 50, 
   if (stage)    { const st = await leadStages.resolve(accountId, stage); conditions.push('l.stage = ?'); params.push(st ? st.stage_key : stage); }
   if (assigned) { conditions.push('l.assigned_user_id = ?');   params.push(assigned); }
   if (search)   {
-    conditions.push('(l.name LIKE ? OR l.phone LIKE ? OR l.email LIKE ?)');
+    const dig = String(search).replace(/\D/g, '');
+    conditions.push(dig.length >= 3 ? '(l.name LIKE ? OR l.phone LIKE ? OR l.email LIKE ? OR l.document LIKE ?)' : '(l.name LIKE ? OR l.phone LIKE ? OR l.email LIKE ?)');
     const s = `%${search}%`;
     params.push(s, s, s);
+    if (dig.length >= 3) params.push(`%${dig}%`);
   }
 
   const offset = (page - 1) * limit;
   const where = conditions.join(' AND ');
 
   const [rows] = await query(
-    `SELECT l.id, l.name, l.phone, l.email, l.stage, l.source, l.assigned_user_id,
+    `SELECT l.id, l.name, l.phone, l.email, l.document, l.stage, l.source, l.assigned_user_id,
             l.last_contact_at, l.created_at, u.name AS assigned_name,
             (SELECT COUNT(*) FROM cases c WHERE c.lead_id = l.id AND c.deleted_at IS NULL) AS cases_count
      FROM leads l
@@ -109,6 +121,7 @@ async function _assertLeadLimit(accountId) {
 
 async function create(accountId, userId, data, channel = 'ui') {
   const { name, phone, email, source, assigned_user_id, custom_fields } = data;
+  const document = _document(data.document);
   await _assertLeadLimit(accountId);
   // etapa do escritório (aceita chave ou nome); sem etapa informada, entra na primeira do funil
   const stage = data.stage ? (await leadStages.mustResolve(accountId, data.stage)).stage_key : await leadStages.firstKey(accountId);
@@ -116,9 +129,9 @@ async function create(accountId, userId, data, channel = 'ui') {
 
   return transaction(async (conn) => {
     await conn.execute(
-      `INSERT INTO leads (id, account_id, name, phone, email, stage, source, assigned_user_id)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-      [leadId, accountId, name || null, phone || null, email || null, stage, source || channel, assigned_user_id || userId]
+      `INSERT INTO leads (id, account_id, name, phone, email, document, stage, source, assigned_user_id)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [leadId, accountId, name || null, phone || null, email || null, document || null, stage, source || channel, assigned_user_id || userId]
     );
     await _setFieldValues(conn, leadId, accountId, custom_fields);
     await _auditLog(conn, { accountId, userId, entityType: 'lead', entityId: leadId, action: 'created', channel, newValues: data });
@@ -142,6 +155,7 @@ async function getById(leadId, accountId) {
 async function update(leadId, accountId, userId, data, channel = 'ui') {
   const lead = await getById(leadId, accountId);
   const { name, phone, email, assigned_user_id, custom_fields } = data;
+  const document = _document(data.document);
 
   await transaction(async (conn) => {
     const fields = [];
@@ -149,6 +163,7 @@ async function update(leadId, accountId, userId, data, channel = 'ui') {
     if (name             !== undefined) { fields.push('name = ?');             values.push(name); }
     if (phone            !== undefined) { fields.push('phone = ?');            values.push(phone); }
     if (email            !== undefined) { fields.push('email = ?');            values.push(email); }
+    if (document         !== undefined) { fields.push('document = ?');         values.push(document); }
     if (assigned_user_id !== undefined) { fields.push('assigned_user_id = ?'); values.push(assigned_user_id); }
 
     if (fields.length) {

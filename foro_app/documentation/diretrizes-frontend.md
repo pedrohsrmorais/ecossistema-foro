@@ -101,6 +101,7 @@ Essas regras vieram de decisão explícita do dono da plataforma. Não são suge
 - Criar/editar lead, incluindo os **campos customizáveis** da conta (`GET /fields` define quais existem e o tipo de cada um — a tela de lead precisa renderizar esses campos dinamicamente, não só os campos fixos).
 - Mover estágio (ex: drag-and-drop tipo kanban, ou um seletor — a API já suporta `PATCH /leads/:id/stage`).
 - Arquivar / excluir (soft delete).
+- **Importar / Exportar** (✅ `components/LeadImport.tsx`, botões em `pages/Leads.tsx`): assistente em 4 passos (arquivo → colunas → prévia → resultado) com modelos, histórico e desfazer; exportação em .xlsx/.csv. Banner quando há mais de 500 leads (busca passa a consultar o servidor). Ver [importacao-crm.md](importacao-crm.md).
 - Detalhe do lead: notas (texto + canal) e tarefas vinculadas.
 
 ### 4.4 Chat com IA (obrigatório — é a interface principal do produto)

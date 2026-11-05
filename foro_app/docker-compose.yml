@@ -93,6 +93,8 @@ services:
       DATAJUD_TIMEOUT_MS: ${DATAJUD_TIMEOUT_MS:-30000}
       DJEN_TIMEOUT_MS: ${DJEN_TIMEOUT_MS:-20000}
       MAX_PDF_MB: ${MAX_PDF_MB:-25}
+      MAX_IMPORT_MB: ${MAX_IMPORT_MB:-5}
+      MAX_IMPORT_ROWS: ${MAX_IMPORT_ROWS:-5000}
       S3_ENDPOINT: ${S3_ENDPOINT-http://minio:9000}   # vazio (S3_ENDPOINT=) = AWS S3 de verdade
       S3_REGION: ${S3_REGION:-us-east-1}
       S3_BUCKET: ${S3_BUCKET:-foro-arquivos}
