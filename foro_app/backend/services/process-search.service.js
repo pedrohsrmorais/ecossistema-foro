@@ -78,7 +78,7 @@ const MockProvider = {
 const CnjProvider = {
   name: 'cnj',
   hasDocument: false,
-  search: (term) => cnjSources.search(term),
+  search: (term, opts) => cnjSources.search(term, opts),
 };
 const PROVIDERS = { mock: MockProvider, cnj: CnjProvider };
 function provider() {
@@ -98,15 +98,15 @@ function _open(ref, accountId, userId) {
   return p.meta;
 }
 
-async function search(accountId, userId, q) {
+async function search(accountId, userId, q, { de, ate } = {}) {
   const term = String(q || '').trim();
   if (term.length < 3) throw new AppError('Digite pelo menos 3 caracteres (número do processo, nome ou CPF/CNPJ).', 422);
   if (term.length > 120) throw new AppError('Termo muito longo.', 422);
   const p = provider();
   if (p.name === 'cnj') {
-    const r = await p.search(term);
+    const r = await p.search(term, { de, ate });
     return {
-      provider: p.name, query: term, capabilities: { documento: false }, kind: r.kind, aviso: r.aviso || null, fontes: r.fontes || null,
+      provider: p.name, query: term, capabilities: { documento: false }, kind: r.kind, aviso: r.aviso || null, fontes: r.fontes || null, periodo: r.periodo || null,
       // o ref leva só o essencial (o histórico completo não cabe num token): o detalhe e o "salvar" consultam as fontes de novo
       results: r.results.map(x => ({ ...x, ref: _sign({ numero_cnj: x.numero_cnj, tribunal: x.tribunal, query: term }, accountId, userId) })),
     };
@@ -119,10 +119,10 @@ async function search(accountId, userId, q) {
 }
 
 /** Retrato completo (capa, partes, movimentações, publicações) para ver ANTES de salvar. Não grava nada. */
-async function detail(accountId, userId, ref) {
+async function detail(accountId, userId, ref, { de, ate } = {}) {
   const meta = _open(ref, accountId, userId);
   if (provider().name !== 'cnj') throw new AppError('O detalhe de andamentos só existe com a consulta ao DataJud/DJEN.', 404);
-  return cnjSources.snapshot(meta.numero_cnj);
+  return cnjSources.snapshot(meta.numero_cnj, { de, ate });
 }
 
 /** PDF para pré-visualização (sem salvar nada). */
@@ -268,7 +268,8 @@ async function saveSnapshot(accountId, userId, meta) {
   const [dup] = await query('SELECT id FROM saved_processes WHERE account_id = ? AND numero_digits = ? AND deleted_at IS NULL LIMIT 1', [accountId, digits]);
   if (dup.length) {
     await _writeSnapshot(accountId, dup[0].id, snap, sum, partesTxt);
-    return { ...(await get(accountId, dup[0].id, undefined, { withSnapshot: true })), already_saved: true, refreshed: true };
+    const link = await _linkCase(accountId, userId, dup[0].id, snap, sum, meta.case_id);
+    return { ...(await get(accountId, dup[0].id, undefined, { withSnapshot: true })), already_saved: true, refreshed: true, case_created: link.created };
   }
   const id = uuidv4();
   await query(
@@ -278,7 +279,69 @@ async function saveSnapshot(accountId, userId, meta) {
     [id, accountId, userId, meta.query || null, snap.capa.numero_cnj, sum.tribunal, sum.classe, sum.assunto, JSON.stringify(snap.partes || []),
       sum.data_distribuicao, sum.ultima_movimentacao, sum.data_ultima_movimentacao, digits, partesTxt, capSnapshot(snap),
       snap.movimentos_total, snap.comunicacoes_total]);
-  return { ...(await get(accountId, id, undefined, { withSnapshot: true })), already_saved: false, refreshed: false };
+  const link = await _linkCase(accountId, userId, id, snap, sum, meta.case_id);
+  return { ...(await get(accountId, id, undefined, { withSnapshot: true })), already_saved: false, refreshed: false, case_created: link.created };
+}
+
+/**
+ * Vincula o retrato salvo a um processo de "Meus processos" (tabela cases): usa o informado, o já vinculado,
+ * o que tem o mesmo número ou cria um novo (título = classe — primeira parte; vara = órgão).
+ */
+async function _linkCase(accountId, userId, savedId, snap, sum, caseId) {
+  const casesService = require('./cases.service');
+  const alive = async (id) => { if (!id) return null; const [r] = await query('SELECT id FROM cases WHERE id = ? AND account_id = ? AND deleted_at IS NULL', [id, accountId]); return r[0]?.id || null; };
+  let target = await alive(caseId);
+  if (!target) { const [r] = await query('SELECT case_id FROM saved_processes WHERE id = ?', [savedId]); target = await alive(r[0]?.case_id); }
+  if (!target) {
+    const [r] = await query('SELECT id FROM cases WHERE account_id = ? AND case_number = ? AND deleted_at IS NULL LIMIT 1', [accountId, snap.capa.numero_cnj]);
+    target = r[0]?.id || null;
+  }
+  let created = false;
+  if (!target) {
+    const first = (sum.partes || [])[0]?.nome;
+    const classe = sum.classe && sum.classe !== '—' ? sum.classe : null;
+    const fmtClasse = classe ? classe.toLowerCase().replace(/(^|\s)\S/g, (c) => c.toUpperCase()).replace(/\s(De|Da|Do|Das|Dos|E)\s/g, (m) => m.toLowerCase()) : null;
+    const c = await casesService.create(accountId, userId, {
+      case_number: snap.capa.numero_cnj,
+      title: [fmtClasse, first].filter(Boolean).join(' — ').slice(0, 250) || null,
+      vara: sum.orgao || null,
+    });
+    target = c.id; created = true;
+  }
+  await query('UPDATE saved_processes SET case_id = ? WHERE id = ? AND account_id = ?', [target, savedId, accountId]);
+  return { case_id: target, created };
+}
+
+// ─── Acompanhamento a partir de "Meus processos" ─────────────────────────────
+async function _savedForCase(accountId, c) {
+  const [r] = await query('SELECT id FROM saved_processes WHERE account_id = ? AND case_id = ? AND deleted_at IS NULL ORDER BY snapshot_at DESC LIMIT 1', [accountId, c.id]);
+  if (r.length) return r[0].id;
+  const digits = c.case_number ? digitsOf(c.case_number) : null;
+  if (!digits) return null;
+  const [d] = await query("SELECT id FROM saved_processes WHERE account_id = ? AND numero_digits = ? AND source = 'cnj' AND deleted_at IS NULL LIMIT 1", [accountId, digits]);
+  if (!d.length) return null;
+  await query('UPDATE saved_processes SET case_id = ? WHERE id = ?', [c.id, d[0].id]);
+  return d[0].id;
+}
+
+/** Retrato salvo (publicações DJEN + andamentos DataJud) do processo do CRM, ou null se ainda não acompanha. */
+async function caseTracking(accountId, caseId) {
+  const casesService = require('./cases.service');
+  const c = await casesService.getById(caseId, accountId);
+  const sid = await _savedForCase(accountId, c);
+  return { process: sid ? await get(accountId, sid, undefined, { withSnapshot: true }) : null };
+}
+
+/** Começa a acompanhar (primeira consulta) ou atualiza; devolve o que há de novo. */
+async function trackCase(accountId, userId, caseId) {
+  if (provider().name !== 'cnj') throw new AppError('O acompanhamento usa as fontes públicas (DataJud/DJEN), que não estão ligadas neste servidor.', 409, 'NOT_REFRESHABLE');
+  const casesService = require('./cases.service');
+  const c = await casesService.getById(caseId, accountId);
+  if (!c.case_number || !cnj.isValid(c.case_number)) throw new AppError('Cadastre um número CNJ válido neste processo para acompanhar as publicações.', 422, 'NO_CASE_NUMBER');
+  const sid = await _savedForCase(accountId, c);
+  if (sid) return { ...(await refresh(accountId, sid)), first: false };
+  const saved = await saveSnapshot(accountId, userId, { numero_cnj: c.case_number, case_id: c.id });
+  return { process: saved, novos_movimentos: saved.movements_count || 0, novas_comunicacoes: saved.communications_count || 0, first: true };
 }
 
 async function _writeSnapshot(accountId, id, snap, sum, partesTxt) {
@@ -353,4 +416,4 @@ async function removeFile(accountId, id, viewerId) {
 }
 
 module.exports = {
-  summary, search, detail, preview, save, get, list, file, remove, refresh, attachFile, removeFile };
+  summary, search, detail, preview, save, get, list, file, remove, refresh, attachFile, removeFile, caseTracking, trackCase };

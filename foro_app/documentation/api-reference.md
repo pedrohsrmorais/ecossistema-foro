@@ -726,14 +726,16 @@ Response 200: { transactions: [{ id, type, amount_cents, balance_after_cents, se
 
 
 ### Pesquisa de processos e processos salvos (DataJud + DJEN + S3 + MySQL)
-Fluxo e configuração em `consulta-processual.md`; PDF/S3 em `armazenamento-s3.md`. **Hoje o front só usa `POST /process-search` e `GET /process-search/detail`**; `save`, `refresh` e `/saved-processes/*` seguem disponíveis, mas sem tela.
+Fluxo e configuração em `consulta-processual.md`; PDF/S3 em `armazenamento-s3.md`. O front usa `POST /process-search`, `GET /process-search/detail`, `POST /process-search/save` e o acompanhamento em `/cases/:id/tracking`; `/saved-processes/*` segue disponível sem tela.
 
 ```
-POST   /process-search            Body: { q }  (número CNJ, OAB ou nome; CPF/CNPJ → 422)
-                                  → { provider, query, capabilities:{documento}, kind: cnj|oab|nome, aviso, fontes, results[{ref, numero_cnj, tribunal, tribunal_nome, classe, assunto, orgao, partes, data_distribuicao, ultima_movimentacao, data_ultima_movimentacao, movimentos_total, comunicacoes_total, fontes}] }
-GET    /process-search/detail?ref=    → retrato completo { capa, partes, movimentos[], comunicacoes[], fontes, consultado_em } (não grava; só provedor cnj)
+POST   /process-search            Body: { q, de?, ate? }  (número CNJ, OAB ou nome; CPF/CNPJ → 422; datas AAAA-MM-DD, padrão 1990-01-01 → hoje)
+                                  → { provider, query, capabilities:{documento}, kind: cnj|oab|nome, aviso, fontes, periodo:{de,ate,filtrado}, results[{ref, numero_cnj, tribunal, tribunal_nome, classe, assunto, orgao, partes, data_distribuicao, ultima_movimentacao, data_ultima_movimentacao, movimentos_total, comunicacoes_total, fontes}] }
+GET    /process-search/detail?ref=&de=&ate=    → retrato completo { capa, partes, movimentos[], comunicacoes[], fontes, periodo, consultado_em } (não grava; só provedor cnj)
 GET    /process-search/preview?ref=   → application/pdf (só provedor mock; no cnj → 404 NO_DOCUMENT)
-POST   /process-search/save       Body: { ref } (create_cases) → 201 | 200 { already_saved:true, refreshed:true } (cnj: atualiza o retrato se já salvo)
+POST   /process-search/save       Body: { ref } (create_cases) → 201 | 200 { already_saved:true, refreshed:true, case_id, case_created } (cnj: histórico completo; cria/vincula o processo em Meus processos)
+GET    /cases/:id/tracking        → { process | null }  retrato salvo do processo do CRM
+POST   /cases/:id/tracking        (create_cases, módulo pesquisa_processual) → { first, process, novos_movimentos, novas_comunicacoes, novos }  (422 NO_CASE_NUMBER)
 GET    /saved-processes?q=&tribunal=&from=&to=&sort=&page=&limit=
 GET    /saved-processes/summary   → { total, bytes, pages, last_saved, bucket, tribunais[] }
 GET    /saved-processes/:id       → metadados + snapshot, has_file, snapshot_at, movements_count, communications_count

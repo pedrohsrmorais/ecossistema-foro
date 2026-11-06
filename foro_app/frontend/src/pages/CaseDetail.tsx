@@ -7,6 +7,7 @@ import { casesApi, leadsApi, tasksApi, type Task } from '../api'
 import { EditableCell } from '../components/crm'
 import EventForm from '../components/EventForm'
 import CaseCore from '../components/CaseCore'
+import CaseTracking from '../components/CaseTracking'
 import { useChat } from '../context/ChatContext'
 import { CASE_STATUSES, caseStatus, EVENT_TYPES, fmtDate, fmtTime } from '../lib/cases'
 
@@ -173,6 +174,8 @@ export default function CaseDetail() {
         </div>
       </div>
 
+      <CaseTracking caseId={c.id} caseNumber={c.case_number} numberValid={c.number_valid ?? null} />
+
       <CaseCore c={c} onChange={refresh} />
 
       <div className="card p-5 mt-5">
@@ -182,7 +185,7 @@ export default function CaseDetail() {
           <input className="input flex-1" placeholder="Registrar andamento (ex: Juntada de contestação)" value={updText} onChange={e => setUpdText(e.target.value)} />
           <button className="btn-primary" disabled={!updText.trim() || addUpd.isPending}><Plus className="w-4 h-4" /> Registrar</button>
         </form>
-        {c.updates.length === 0 ? <p className="text-sm text-slate-400">Nenhum andamento registrado ainda. Em breve o sistema poderá trazê-los do tribunal automaticamente.</p> : (
+        {c.updates.length === 0 ? <p className="text-sm text-slate-400">Nenhum andamento registrado ainda. As publicações oficiais do tribunal aparecem no quadro acima.</p> : (
           <ol className="border-l-2 border-accent-300 ml-1.5 space-y-3">
             {c.updates.map(u => (
               <li key={u.id} className="group pl-4 relative">

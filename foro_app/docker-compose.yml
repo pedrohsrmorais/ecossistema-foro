@@ -88,12 +88,13 @@ services:
       LOOKUP_CACHE_DAYS: ${LOOKUP_CACHE_DAYS:-30}
       MAX_ENRICH_ROWS: ${MAX_ENRICH_ROWS:-2000}
       # Pesquisa de processos: "mock" devolve processos/PDF de teste. Armazenamento S3 (MinIO agora, AWS depois).
-      PROCESS_SEARCH_PROVIDER: ${PROCESS_SEARCH_PROVIDER:-mock}   # cnj = DataJud + DJEN (ver documentation/consulta-processual.md)
+      PROCESS_SEARCH_PROVIDER: ${PROCESS_SEARCH_PROVIDER:-cnj}   # cnj = DataJud + DJEN (ver documentation/consulta-processual.md)
       DATAJUD_API_KEY: ${DATAJUD_API_KEY:-}
       DATAJUD_BASE_URL: ${DATAJUD_BASE_URL:-https://api-publica.datajud.cnj.jus.br}
       DJEN_BASE_URL: ${DJEN_BASE_URL:-https://comunicaapi.pje.jus.br}
       DATAJUD_TIMEOUT_MS: ${DATAJUD_TIMEOUT_MS:-30000}
       DJEN_TIMEOUT_MS: ${DJEN_TIMEOUT_MS:-20000}
+      DJEN_DATA_INICIO: ${DJEN_DATA_INICIO:-1990-01-01}   # início padrão do período (busca pega tudo desde então)
       MAX_PDF_MB: ${MAX_PDF_MB:-25}
       MAX_IMPORT_MB: ${MAX_IMPORT_MB:-5}
       MAX_IMPORT_ROWS: ${MAX_IMPORT_ROWS:-5000}

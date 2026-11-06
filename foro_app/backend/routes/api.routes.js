@@ -343,6 +343,8 @@ router.get   ('/saved-processes/:id/file',     requireModule('crm'), requireAcce
 router.put   ('/saved-processes/:id/file',     requireModule('crm'), requireAccess('cases'), requirePermission('create_cases'), processSearch.attachFile);
 router.delete('/saved-processes/:id/file',     requireModule('crm'), requireAccess('cases'), requirePermission('delete_records'), processSearch.removeFile);
 router.post  ('/saved-processes/:id/refresh',  requireModule('crm'), requireModule('pesquisa_processual'), requireAccess('cases'), requirePermission('create_cases'), aiLimiter, processSearch.refresh);
+router.get   ('/cases/:id/tracking',      requireModule('crm'), requireAccess('cases'), scoped('cases'), processSearch.caseTracking);
+router.post  ('/cases/:id/tracking',      requireModule('crm'), requireModule('pesquisa_processual'), requireAccess('cases'), scoped('cases'), requirePermission('create_cases'), aiLimiter, processSearch.trackCase);
 router.delete('/saved-processes/:id',          requireModule('crm'), requireAccess('cases'), requirePermission('delete_records'), processSearch.remove);
 
 // ─── Consultas pagas (CPF/CNPJ/processual) e resumo por IA ────────────────────

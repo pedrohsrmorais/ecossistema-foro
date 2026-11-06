@@ -954,8 +954,12 @@ export interface ProcessSearchResponse {
   kind?: 'cnj' | 'oab' | 'nome'
   aviso?: string | null
   fontes?: SourcesInfo | null
+  /** período usado na busca (padrão 1990-01-01 → hoje) */
+  periodo?: ProcessPeriod | null
   results: ProcessSearchResult[]
 }
+export interface ProcessPeriod { de: string; ate: string; filtrado: boolean }
+export interface ProcessDateFilter { de?: string; ate?: string }
 
 export interface SnapshotMovimento {
   data: string | null; codigo: number | string | null; nome: string; complementos: string[]; grau: string | null
@@ -979,6 +983,7 @@ export interface ProcessSnapshot {
   comunicacoes: SnapshotComunicacao[]
   comunicacoes_total: number
   fontes: SourcesInfo
+  periodo?: ProcessPeriod
   consultado_em: string
 }
 
@@ -1010,6 +1015,8 @@ export interface SavedProcess {
   saved_by_name?: string | null
   already_saved?: boolean
   refreshed?: boolean
+  case_id?: string | null
+  case_created?: boolean
 }
 
 export interface RefreshResult {
@@ -1026,16 +1033,23 @@ export interface SavedProcessesSummary {
 
 export const processSearchApi = {
   /** POST /process-search */
-  search: (q: string) =>
-    http.post<ProcessSearchResponse>('/process-search', { q }).then(r => r.data),
+  search: (q: string, f: ProcessDateFilter = {}) =>
+    http.post<ProcessSearchResponse>('/process-search', { q, de: f.de || undefined, ate: f.ate || undefined }).then(r => r.data),
   /** GET /process-search/detail?ref= → retrato completo (DataJud + DJEN), sem salvar */
-  detail: (ref: string) =>
-    http.get<ProcessSnapshot>('/process-search/detail', { params: { ref } }).then(r => r.data),
+  detail: (ref: string, f: ProcessDateFilter = {}) =>
+    http.get<ProcessSnapshot>('/process-search/detail', { params: { ref, de: f.de || undefined, ate: f.ate || undefined } }).then(r => r.data),
   /** GET /process-search/preview?ref= → PDF (blob). Só existe no provedor de teste (mock). */
   preview: (ref: string) =>
     http.get<Blob>('/process-search/preview', { params: { ref }, responseType: 'blob' }).then(r => r.data),
   /** POST /process-search/save — grava o estado atual (e, no mock, o PDF) */
   save: (ref: string) => http.post<SavedProcess>('/process-search/save', { ref }).then(r => r.data),
+}
+
+/** Acompanhamento (publicações DJEN + andamentos DataJud) de um processo de "Meus processos". */
+export const caseTrackingApi = {
+  get: (caseId: string) => http.get<{ process: SavedProcess | null }>(`/cases/${caseId}/tracking`).then(r => r.data),
+  /** Primeira consulta (first: true) ou atualização — devolve o que há de novo. */
+  track: (caseId: string) => http.post<RefreshResult & { first: boolean }>(`/cases/${caseId}/tracking`).then(r => r.data),
 }
 
 export const savedProcessesApi = {

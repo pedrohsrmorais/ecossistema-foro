@@ -5,6 +5,8 @@
  *       POST {DATAJUD_BASE_URL}/api_publica_<tribunal>/_search   Authorization: APIKey <DATAJUD_API_KEY>
  *   • DJEN (Comunica PJe)    → publicações/intimações (texto), partes (destinatários) e advogados. Só aceita IPs do Brasil.
  *       GET  {DJEN_BASE_URL}/api/v1/comunicacao?numeroProcesso=… | numeroOab=…&ufOab=… | nomeParte=…
+ *            &dataDisponibilizacaoInicio=AAAA-MM-DD&dataDisponibilizacaoFim=AAAA-MM-DD  (sem token)
+ *       Período padrão: DJEN_DATA_INICIO (1990-01-01) até hoje — pega todas as publicações; o usuário pode filtrar.
  *
  * As duas fontes são consultadas EM PARALELO e o resultado é mesclado; se uma falhar, a outra continua valendo
  * (cada fonte devolve seu próprio status). Nada aqui grava no banco — quem salva é process-search.service.js.
@@ -24,6 +26,22 @@ const cfg = () => ({
 });
 
 const LIMITS = { movimentos: 2000, comunicacoes: 300, textoComunicacao: 20000, processosPorBusca: 20, paginasDjen: 5, itensPorPagina: 100 };
+
+// ─── período (filtro de datas) ───────────────────────────────────────────────
+const ISO_DAY = /^\d{4}-\d{2}-\d{2}$/;
+const defaultFrom = () => (ISO_DAY.test(process.env.DJEN_DATA_INICIO || '') ? process.env.DJEN_DATA_INICIO : '1990-01-01');
+const todayBR = () => new Date(Date.now() - 3 * 3600 * 1000).toISOString().slice(0, 10);
+/** { de, ate } do usuário (AAAA-MM-DD, opcionais) → período validado; sem nada = 1990 até hoje. */
+function period({ de, ate } = {}) {
+  const ok = (v) => ISO_DAY.test(v) && !isNaN(Date.parse(v));
+  if (de && !ok(String(de))) throw new AppError('Data inicial inválida.', 422);
+  if (ate && !ok(String(ate))) throw new AppError('Data final inválida.', 422);
+  const from = de ? String(de) : defaultFrom();
+  const to = ate ? String(ate) : todayBR();
+  if (from > to) throw new AppError('A data inicial é depois da data final.', 422);
+  return { de: from, ate: to, filtrado: Boolean(de || ate) };
+}
+const inPeriod = (iso, per) => { const d = (iso || '').slice(0, 10); return !d || (d >= per.de && d <= per.ate); };
 
 // ─── utilidades ──────────────────────────────────────────────────────────────
 const sleep = (ms) => new Promise(r => setTimeout(r, ms));
@@ -176,24 +194,28 @@ function normComunicacao(i) {
   };
 }
 
-async function djenFetch(params) {
+async function djenFetch(params, per = period()) {
   const c = cfg();
-  const items = []; let total = null;
+  const items = []; let total = null; let size = LIMITS.itensPorPagina;
   for (let page = 1; page <= LIMITS.paginasDjen; page++) {
-    const qs = new URLSearchParams({ ...params, pagina: String(page), itensPorPagina: String(LIMITS.itensPorPagina) });
+    const qs = new URLSearchParams({
+      ...params, dataDisponibilizacaoInicio: per.de, dataDisponibilizacaoFim: per.ate, pagina: String(page), itensPorPagina: String(size),
+    });
     let res;
     try { res = await http(`${c.djenBase}/api/v1/comunicacao?${qs}`, { timeoutMs: c.djenTimeoutMs }); }
     catch (e) { return { erro: e.timeout ? 'O DJEN demorou demais para responder.' : 'Não foi possível falar com o DJEN.' }; }
     if (res.status === 403) return { erro: 'O DJEN bloqueou o acesso (ele só aceita servidores no Brasil).' };
     if (res.status === 429) return { erro: 'O DJEN limitou as consultas agora (muitas requisições). Tente em instantes.' };
     if (res.status === 404 || res.status === 204) break;
+    // alguns ambientes do DJEN limitam itens por página: tenta de novo com 50
+    if ((res.status === 400 || res.status === 422) && page === 1 && size > 50) { size = 50; page--; continue; }
     if (!res.ok) return { erro: `O DJEN respondeu com erro (${res.status}).` };
     let json;
     try { json = await res.json(); } catch { return { erro: 'Resposta inválida do DJEN.' }; }
     const batch = Array.isArray(json) ? json : (json.items || json.content || json.data || []);
     if (json && json.count != null) total = Number(json.count);
     items.push(...batch);
-    if (!batch.length || batch.length < LIMITS.itensPorPagina || (total != null && items.length >= total)) break;
+    if (!batch.length || batch.length < size || (total != null && items.length >= total)) break;
   }
   return { items: items.map(normComunicacao), total: total ?? items.length };
 }
@@ -209,11 +231,11 @@ function partesFrom(comunicacoes) {
   return [...seen.values()].slice(0, 30);
 }
 
-async function queryDjenByNumber(digits) {
-  const r = await djenFetch({ numeroProcesso: digits });
+async function queryDjenByNumber(digits, per) {
+  const r = await djenFetch({ numeroProcesso: digits }, per);
   if (r.erro) return { status: 'erro', mensagem: r.erro };
   const own = r.items.filter(i => !i.numero_digits || i.numero_digits === digits);
-  if (!own.length) return { status: 'vazio', mensagem: 'Nenhuma publicação deste processo no DJEN.' };
+  if (!own.length) return { status: 'vazio', mensagem: per.filtrado ? 'Nenhuma publicação deste processo no DJEN no período escolhido.' : 'Nenhuma publicação deste processo no DJEN.' };
   own.sort((a, b) => (b.data || '').localeCompare(a.data || ''));
   return { status: 'ok', comunicacoes: own.slice(0, LIMITS.comunicacoes), comunicacoes_total: own.length, partes: partesFrom(own) };
 }
@@ -257,14 +279,22 @@ const srcInfo = (r) => ({ status: r.status, mensagem: r.mensagem || null, atuali
  * { numero_cnj, tribunal, capa, partes, movimentos[], comunicacoes[], fontes, consultado_em }.
  * Lança 502 só se NENHUMA fonte respondeu (as duas deram erro); "vazio" não é erro.
  */
-async function snapshot(numero, { fresh = false } = {}) {
+async function snapshot(numero, { fresh = false, de, ate } = {}) {
   const digits = cnj.digits(numero);
   if (!digits || !cnj.isValid(digits)) throw new AppError('Número de processo inválido.', 422);
-  if (!fresh) { const hit = cacheGet(digits); if (hit) return hit; }
-  const [dj, dn] = await Promise.all([
+  const per = period({ de, ate });
+  const ck = `${digits}|${per.de}|${per.ate}`;
+  if (!fresh) { const hit = cacheGet(ck); if (hit) return hit; }
+  const [dj0, dn] = await Promise.all([
     queryDatajud(digits).catch(e => ({ status: 'erro', mensagem: `Falha inesperada no DataJud (${e.message}).` })),
-    queryDjenByNumber(digits).catch(e => ({ status: 'erro', mensagem: `Falha inesperada no DJEN (${e.message}).` })),
+    queryDjenByNumber(digits, per).catch(e => ({ status: 'erro', mensagem: `Falha inesperada no DJEN (${e.message}).` })),
   ]);
+  // o DataJud não filtra por data: aplica o mesmo período às movimentações
+  let dj = dj0;
+  if (per.filtrado && dj0.status === 'ok') {
+    const movs = (dj0.movimentos || []).filter(m => inPeriod(m.data, per));
+    dj = { ...dj0, movimentos: movs, movimentos_total: movs.length };
+  }
   const usable = (r) => r.status === 'ok';
   // nenhuma fonte trouxe dados E pelo menos uma FALHOU: não dá para afirmar que "não existe" — avisa da falha
   if (!usable(dj) && !usable(dn) && (dj.status === 'erro' || dn.status === 'erro')) {
@@ -295,10 +325,18 @@ async function snapshot(numero, { fresh = false } = {}) {
     comunicacoes: dn.comunicacoes || [],
     comunicacoes_total: dn.comunicacoes_total || 0,
     fontes: { datajud: srcInfo(dj), djen: srcInfo(dn) },
+    periodo: per,
     consultado_em: new Date().toISOString(),
   };
-  cacheSet(digits, snap);
+  cacheSet(ck, snap);
   return snap;
+}
+
+/** "Intimação — Despacho" (sem repetir quando tipo e documento são iguais) + começo do texto. */
+function comTitle(c) {
+  const t = `${c.tipo || 'Publicação'}${c.tipo_documento && c.tipo_documento !== c.tipo ? ` — ${c.tipo_documento}` : ''}`;
+  const txt = (c.texto || '').replace(/\s+/g, ' ').trim();
+  return txt ? `${t}: ${txt.length > 140 ? txt.slice(0, 140) + '…' : txt}` : t;
 }
 
 /** Resumo de um retrato no formato dos resultados de pesquisa. */
@@ -314,7 +352,7 @@ function summarize(snap) {
     orgao: snap.capa.orgao_julgador,
     partes: snap.partes.slice(0, 6),
     data_distribuicao: snap.capa.data_ajuizamento ? snap.capa.data_ajuizamento.slice(0, 10) : null,
-    ultima_movimentacao: useMov ? m.nome : (c ? `${c.tipo || 'Publicação'}${c.tipo_documento ? ` — ${c.tipo_documento}` : ''}` : '—'),
+    ultima_movimentacao: useMov ? m.nome : (c ? comTitle(c) : '—'),
     data_ultima_movimentacao: (useMov ? m.data : c?.data || null)?.slice(0, 10) || null,
     movimentos_total: snap.movimentos_total,
     comunicacoes_total: snap.comunicacoes_total,
@@ -339,7 +377,7 @@ function groupFromDjen(items) {
       classe: last.classe || '—', assunto: '—', orgao: last.orgao || null,
       partes: partesFrom(g.itens).slice(0, 6),
       data_distribuicao: null,
-      ultima_movimentacao: `${last.tipo || 'Publicação'}${last.tipo_documento ? ` — ${last.tipo_documento}` : ''}`,
+      ultima_movimentacao: comTitle(last),
       data_ultima_movimentacao: last.data ? last.data.slice(0, 10) : null,
       movimentos_total: null, comunicacoes_total: g.itens.length,
       fontes: { datajud: { status: 'nao_consultado', mensagem: null }, djen: { status: 'ok', mensagem: null } },
@@ -348,20 +386,21 @@ function groupFromDjen(items) {
 }
 
 /** Devolve { kind, results[], aviso } — results no formato de process-search. */
-async function search(term) {
+async function search(term, { de, ate } = {}) {
   const k = classify(term);
+  const per = period({ de, ate });
   if (k.kind === 'cnj') {
-    const snap = await snapshot(k.digits, { fresh: true });
+    const snap = await snapshot(k.digits, { fresh: true, de, ate });
     const noData = snap.fontes.datajud.status !== 'ok' && snap.fontes.djen.status !== 'ok';
-    return { kind: 'cnj', results: noData ? [] : [summarize(snap)], fontes: snap.fontes };
+    return { kind: 'cnj', results: noData ? [] : [summarize(snap)], fontes: snap.fontes, periodo: per };
   }
   const params = k.kind === 'oab' ? { numeroOab: k.numero, ufOab: k.uf } : { nomeParte: k.name };
-  const r = await djenFetch(params);
+  const r = await djenFetch(params, per);
   if (r.erro) throw new AppError(r.erro, 502, 'SOURCES_UNAVAILABLE');
   return {
-    kind: k.kind, results: groupFromDjen(r.items),
+    kind: k.kind, results: groupFromDjen(r.items), periodo: per,
     aviso: 'Busca por ' + (k.kind === 'oab' ? 'OAB' : 'nome') + ' usa as publicações do DJEN (intimações): processos sem publicação recente podem não aparecer. Para o histórico completo, pesquise pelo número do processo.',
   };
 }
 
-module.exports = { search, snapshot, summarize, classify, parseOab, datajudAlias, parseDate, toPlainText, LIMITS, cfg };
+module.exports = { search, snapshot, summarize, period, classify, parseOab, datajudAlias, parseDate, toPlainText, LIMITS, cfg };

@@ -1,6 +1,6 @@
 # Consulta processual (DataJud + DJEN)
 
-> **Estado atual (05/11/2026):** a interface **não oferece mais salvar processo nem anexar PDF** — a aba *Salvos* foi removida (`/monitoramento-processual/salvos` e `/processos-salvos` redirecionam para *Meus processos*) e *Pesquisar* é só consulta (resultados + *Ver andamentos*, nada é gravado). O backend (`/process-search/save`, `/saved-processes/*`, PDF no S3), a tabela `saved_processes` e o MinIO continuam no ar e testados, prontos para reativar; só falta o front. O foco passa a ser o **monitoramento** dos processos.
+> **Estado atual (06/11/2026):** *Pesquisar* aceita **período de datas** (padrão: 01/01/1990 até hoje = todo o histórico) e tem **Salvar em Meus processos**: cria (ou vincula, se já existe com o mesmo número) o processo em *Meus processos* e guarda as publicações do DJEN e os andamentos do DataJud. Na ficha do processo, o quadro **Publicações e andamentos do tribunal** mostra o retrato salvo e tem **Acompanhar este processo** (para processos cadastrados à mão) / **Atualizar** (consulta de novo e avisa quantas publicações/movimentações são novas). A antiga aba *Salvos* segue fora; anexar PDF segue só no backend.
 
 Tela **Monitoramento Processual → Pesquisar** (`/monitoramento-processual/pesquisar`) e **Salvos** (`/monitoramento-processual/salvos`).
 Consulta gratuita às duas bases públicas do Poder Judiciário, junta o resultado, guarda o **estado atual** do processo e permite **anexar o PDF** manualmente.
@@ -28,6 +28,18 @@ O campo aceita:
 
 Se uma fonte cair, a outra continua valendo (fallback), e a tela mostra o status de cada uma (`ok`, `sem registros`, `indisponível` + motivo, `não configurado`). Só devolve erro 502 se **nenhuma** fonte responder e ao menos uma tiver falhado.
 
+## Período (filtro de datas)
+
+O DJEN recebe `dataDisponibilizacaoInicio`/`dataDisponibilizacaoFim`. Sem datas, a busca usa `DJEN_DATA_INICIO` (padrão `1990-01-01`) até hoje, o que traz todas as publicações. O usuário pode informar **De / Até** na pesquisa: vale para o DJEN e também filtra as movimentações do DataJud (que não aceita filtro por data). Datas inválidas ou início depois do fim → `422`. **Salvar e Atualizar sempre gravam o histórico completo**, independentemente do filtro usado na busca.
+
+Só com o **número do processo** já dá para consultar (sem token). O DJEN traz **publicações/intimações** (cada uma cita o movimento, ex. "seq. 77 JUNTADA DE CERTIDÃO"), não a lista completa de andamentos, que vem do DataJud (`DATAJUD_API_KEY`).
+
+## Acompanhamento em Meus processos
+
+- `POST /process-search/save { ref }` → grava o retrato (`saved_processes`) e vincula a um processo de `cases`: o já vinculado, o que tem o mesmo número ou um novo (título "Classe — primeira parte", vara = órgão). Responde `case_id` e `case_created`.
+- `GET /cases/:id/tracking` → `{ process }` com o retrato salvo (ou `null`).
+- `POST /cases/:id/tracking` → primeira consulta (`first: true`) ou atualização: `{ process, novos_movimentos, novas_comunicacoes, novos }`. Exige número CNJ válido (`422 NO_CASE_NUMBER`), `create_cases` e o módulo `pesquisa_processual`.
+
 ## Fluxo na tela
 
 > Os itens 3 a 5 abaixo descrevem a funcionalidade que está **desligada no front** (ver aviso no topo).
@@ -50,10 +62,11 @@ JSON em `saved_processes.snapshot`: `capa`, `partes`, `movimentos` (mais recente
 
 | Variável | Para quê |
 |---|---|
-| `PROCESS_SEARCH_PROVIDER` | `cnj` = consulta real · `mock` = dados fictícios + PDF de teste (padrão do compose) |
+| `PROCESS_SEARCH_PROVIDER` | `cnj` = consulta real (padrão do compose) · `mock` = dados fictícios + PDF de teste |
 | `DATAJUD_API_KEY` | chave **pública** do DataJud (a mesma para todos; o CNJ publica na wiki do DataJud e pode trocar). Não vai no código |
 | `DATAJUD_BASE_URL` / `DJEN_BASE_URL` | padrões `https://api-publica.datajud.cnj.jus.br` e `https://comunicaapi.pje.jus.br` |
 | `DATAJUD_TIMEOUT_MS` / `DJEN_TIMEOUT_MS` | 30000 / 20000 (1 nova tentativa em erro de rede, 429 e 5xx) |
+| `DJEN_DATA_INICIO` | início padrão do período (padrão `1990-01-01`) |
 | `MAX_PDF_MB` | tamanho máximo do PDF anexado |
 
 **Importante:** o DJEN **bloqueia IPs fora do Brasil** (403). O servidor precisa estar no Brasil; senão a tela mostra "o DJEN bloqueou o acesso" e usa só o DataJud.

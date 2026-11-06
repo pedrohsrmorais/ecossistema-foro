@@ -14,8 +14,8 @@ function sendPdf(res, { buffer, stream, contentType, fileName, size, download })
 }
 
 module.exports = {
-  search: async (req, res) => res.json(await svc.search(req.account.id, req.user.id, req.body?.q)),
-  detail: async (req, res) => res.json(await svc.detail(req.account.id, req.user.id, req.query.ref)),
+  search: async (req, res) => res.json(await svc.search(req.account.id, req.user.id, req.body?.q, { de: req.body?.de || undefined, ate: req.body?.ate || undefined })),
+  detail: async (req, res) => res.json(await svc.detail(req.account.id, req.user.id, req.query.ref, { de: req.query.de || undefined, ate: req.query.ate || undefined })),
   preview: async (req, res) => {
     const d = await svc.preview(req.account.id, req.user.id, req.query.ref);
     sendPdf(res, { buffer: d.buffer, contentType: d.contentType, fileName: d.fileName, size: d.buffer.length });
@@ -34,5 +34,7 @@ module.exports = {
     const f = await svc.file(req.account.id, req.params.id, viewer(req));
     sendPdf(res, { stream: f.stream, contentType: f.meta.content_type, fileName: f.meta.file_name, size: f.contentLength, download: req.query.download === '1' });
   },
+  caseTracking: async (req, res) => res.json(await svc.caseTracking(req.account.id, req.params.id)),
+  trackCase: async (req, res) => res.json(await svc.trackCase(req.account.id, req.user.id, req.params.id)),
   remove: async (req, res) => { await svc.remove(req.account.id, req.params.id, viewer(req)); res.json({ message: 'Processo removido da lista.' }); },
 };

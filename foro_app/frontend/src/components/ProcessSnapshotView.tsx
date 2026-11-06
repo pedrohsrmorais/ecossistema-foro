@@ -4,7 +4,9 @@ import type { ProcessSnapshot, SourcesInfo, SourceInfo } from '../api'
 
 export function fmtDate(d?: string | null) {
   if (!d) return '—'
-  const dt = new Date(d.length <= 10 ? d + 'T12:00:00' : d)
+  // datas "só dia" chegam como meia-noite UTC (ex.: publicações do DJEN): não deixar o fuso voltar um dia
+  const dayOnly = d.length <= 10 || /T00:00:00(\.000)?Z$/.test(d)
+  const dt = new Date(dayOnly ? d.slice(0, 10) + 'T12:00:00' : d)
   return isNaN(dt.getTime()) ? d : dt.toLocaleDateString('pt-BR')
 }
 export function fmtDateTime(d?: string | null) {
@@ -64,7 +66,12 @@ export default function ProcessSnapshotView({ snap }: { snap: ProcessSnapshot })
   return (
     <div className="space-y-4" data-testid="snapshot">
       <SourceChips fontes={snap.fontes} />
-      <p className="text-xs text-slate-400">Consultado em {fmtDateTime(snap.consultado_em)}</p>
+      <p className="text-xs text-slate-400" data-testid="periodo">
+        Consultado em {fmtDateTime(snap.consultado_em)}
+        {snap.periodo && (snap.periodo.filtrado
+          ? ` · período de ${fmtDate(snap.periodo.de)} a ${fmtDate(snap.periodo.ate)}`
+          : ` · todo o histórico disponível`)}
+      </p>
 
       <div className="grid grid-cols-2 gap-x-4 gap-y-3" data-testid="capa">
         <Field label="Número" value={c.numero_cnj} />
@@ -128,8 +135,9 @@ export default function ProcessSnapshotView({ snap }: { snap: ProcessSnapshot })
                         {isOpen ? <ChevronDown className="w-4 h-4 mt-0.5 shrink-0 text-slate-400" /> : <ChevronRight className="w-4 h-4 mt-0.5 shrink-0 text-slate-400" />}
                         <span className="text-xs text-slate-500 w-20 shrink-0 pt-0.5">{fmtDate(p.data)}</span>
                         <span className="text-sm text-slate-800 min-w-0">
-                          {p.tipo || 'Publicação'}{p.tipo_documento ? ` — ${p.tipo_documento}` : ''}
+                          {p.tipo || 'Publicação'}{p.tipo_documento && p.tipo_documento !== p.tipo ? ` — ${p.tipo_documento}` : ''}
                           {p.orgao && <span className="block text-xs text-slate-500">{p.orgao}</span>}
+                          {!isOpen && p.texto && <span className="block text-xs text-slate-500 mt-0.5 line-clamp-2">{p.texto.slice(0, 220)}</span>}
                         </span>
                       </button>
                       {isOpen && (
