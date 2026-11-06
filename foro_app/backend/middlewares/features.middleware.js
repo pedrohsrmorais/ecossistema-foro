@@ -13,4 +13,17 @@ function requireLookupsEnabled(req, res, next) {
   });
 }
 
-module.exports = { requireLookupsEnabled };
+/**
+ * Busca de processos por CPF/CNPJ (Direct Data, R$ 1,50 por consulta): desligada por
+ * padrão — será reimplementada de outra forma. Liga com FEATURE_PROCESS_LOOKUP_ENABLED=true
+ * (e `consultaProcessos: false` em src/config/featureFlags.ts).
+ */
+function requireProcessLookupEnabled(req, res, next) {
+  if (process.env.FEATURE_PROCESS_LOOKUP_ENABLED === 'true') return next();
+  return res.status(403).json({
+    error: 'A busca de processos por CPF/CNPJ estará disponível em breve.',
+    code: 'FEATURE_LOCKED',
+  });
+}
+
+module.exports = { requireLookupsEnabled, requireProcessLookupEnabled };

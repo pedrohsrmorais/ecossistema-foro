@@ -51,7 +51,7 @@ const { loginLimiter, registerLimiter, emailFlowLimiter, verifyLimiter, aiLimite
 const { loadClientContext }   = require('../middlewares/client.middleware');
 const { authenticatePlatform } = require('../middlewares/platform.middleware');
 const { requireModule }       = require('../middlewares/modules.middleware');
-const { requireLookupsEnabled } = require('../middlewares/features.middleware');
+const { requireLookupsEnabled, requireProcessLookupEnabled } = require('../middlewares/features.middleware');
 const { validate }            = require('../middlewares/validation.middleware');
 const { authValidations, leadValidations, fieldValidations, userValidations } = require('../middlewares/validators');
 
@@ -364,8 +364,8 @@ router.post  ('/lookup/enrich/:id/to-import',...lookupsOn, requireModule('crm'),
 router.delete('/lookup/enrich/:id',        ...lookupsOn, requirePermission('create_leads'), lookupController.enrich.discard);
 router.post  ('/lookup/cnpj',              requireLookupsEnabled, requireModule('pesquisa_cpf_cnpj'),   lookupController.cnpj);
 router.post  ('/lookup/cpf',               requireLookupsEnabled, requireModule('pesquisa_cpf_cnpj'),   lookupController.cpf);
-router.post  ('/lookup/processo',          requireLookupsEnabled, requireModule('pesquisa_processual'), lookupController.processo);
-router.post  ('/lookup/processo/summary',  requireLookupsEnabled, requireModule('pesquisa_processual'), lookupController.processoSummary);
+router.post  ('/lookup/processo',          requireLookupsEnabled, requireProcessLookupEnabled, requireModule('pesquisa_processual'), lookupController.processo);
+router.post  ('/lookup/processo/summary',  requireLookupsEnabled, requireProcessLookupEnabled, requireModule('pesquisa_processual'), lookupController.processoSummary);
 
 // ─── Educação (módulo "educacao") — trilhas e aulas em vídeo ──────────────────
 // Conteúdo é da plataforma (não por conta) — ver education.service.js.

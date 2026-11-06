@@ -13,6 +13,8 @@ DIRECT_DATA_TOKEN=<token do painel Direct Data → Configurações → Integraç
 
 Depois: `cd ~/ecossistema-foro && git pull && cd foro_app && docker compose up -d --build` (a migração 018 roda sozinha).
 
+**Busca de processos por CPF/CNPJ está desligada ("em breve")**: `FEATURE_PROCESS_LOOKUP_ENABLED=false` (padrão) faz `/lookup/processo` e `/lookup/processo/summary` responderem `403 FEATURE_LOCKED` sem cobrar nem chamar a Direct Data, e a tela mostra "Em breve" no lugar do botão (`LOCKED_FEATURES.consultaProcessos` no front). O código segue pronto; para religar basta `FEATURE_PROCESS_LOOKUP_ENABLED=true` e `consultaProcessos: false`. A precificação considera só CPF e CNPJ.
+
 Opcionais: `DIRECT_DATA_BASE_URL`, `DIRECT_DATA_TIMEOUT_MS` (60000), `DIRECT_DATA_CHARGE_NOT_FOUND` (`false`), `LOOKUP_CACHE_DAYS` (30), `MAX_ENRICH_ROWS` (2000).
 
 Sem `DIRECT_DATA_TOKEN` as rotas respondem `503 DIRECT_DATA_NOT_CONFIGURED` **antes** de debitar nada (não existe mais dado "mock").
@@ -46,8 +48,8 @@ Autenticação `Authorization: Bearer <token>`. Resposta `{ metaDados, retorno }
 | `GET /lookup/status` | `{ configured, balance_cents, prices:{cpf,cnpj,processos}, cache_days }` |
 | `POST /lookup/cpf` `{ cpf, refresh? }` | `{ data, meta:{ cached, fetched_at, price_cents, charged_cents, balance_cents, consulta_uid } }` |
 | `POST /lookup/cnpj` `{ cnpj, refresh? }` | idem |
-| `POST /lookup/processo` `{ documento, refresh? }` | processos por CPF ou CNPJ |
-| `POST /lookup/processo/summary` `{ processo }` | resumo por IA (cobrança própria) |
+| `POST /lookup/processo` `{ documento, refresh? }` | processos por CPF ou CNPJ — **desligado** (403 `FEATURE_LOCKED`) |
+| `POST /lookup/processo/summary` `{ processo }` | resumo por IA (cobrança própria) — **desligado** |
 | `POST /lookup/:kind(cpf\|cnpj)/create-lead` `{ document, stage? }` | cria lead a partir da consulta **já salva no servidor** (não consulta nem cobra) — exige `create_leads` e módulo CRM |
 
 Erros: `400 INVALID_DOCUMENT` · `402` créditos insuficientes · `404 LOOKUP_NOT_FOUND` · `404 LOOKUP_NOT_CACHED` (criar lead sem consultar antes) · `409 LEAD_EXISTS` (`lead_id`) · `422 LOOKUP_EMPTY` · `502` falha técnica (estornado) · `503 DIRECT_DATA_NOT_CONFIGURED`.

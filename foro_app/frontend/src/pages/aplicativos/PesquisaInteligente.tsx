@@ -38,7 +38,7 @@ export default function PesquisaInteligente() {
         <p className="p-6 text-sm text-slate-500">As consultas não estão liberadas para a sua conta.</p>
       ) : modo === 'cnpj' ? <ConsultaCnpj /> : modo === 'cpf' ? <ConsultaCpf /> : modo === 'lista' ? <EnriquecerLista /> : (
         <ConsultaDocumento icon={Sparkles} title="Pesquisa inteligente"
-          subtitle="Cole um CPF ou CNPJ — a gente identifica o tipo e traz os contatos. Daí é só criar o lead no CRM ou buscar os processos." />
+          subtitle="Cole um CPF ou CNPJ — a gente identifica o tipo e traz os contatos. Daí é só criar o lead no CRM." />
       )}
     </div>
   )

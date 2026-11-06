@@ -5,6 +5,7 @@ import { Search, UserPlus, Gavel, Sparkles, RefreshCw, Phone, Mail, MapPin, Mess
 import {
   lookupApi, type CpfResult, type CnpjResult, type LookupMeta, type LookupPhone, type LookupAddress, type ProcessoResult,
 } from '../../api'
+import { LOCKED_FEATURES } from '../../config/featureFlags'
 import { useCan } from '../../hooks/useCan'
 import { useModuleEnabled } from '../../hooks/useModuleEnabled'
 
@@ -259,7 +260,12 @@ export default function ConsultaDocumento({ kind, title, icon: Icon, subtitle }:
             {shown.kind === 'cpf' ? <CpfCard d={shown.data as CpfResult} /> : <CnpjCard d={shown.data as CnpjResult} />}
           </div>
 
-          {!processos && (
+          {LOCKED_FEATURES.consultaProcessos ? (
+            <div className="mt-4 inline-flex items-center gap-2 text-sm text-slate-400" data-testid="processos-em-breve">
+              <Gavel className="w-4 h-4" /> Busca de processos por {shown.kind === 'cpf' ? 'CPF' : 'CNPJ'}
+              <span className="text-[11px] px-1.5 py-0.5 rounded bg-accent-100 text-accent-700 font-medium">Em breve</span>
+            </div>
+          ) : !processos && (
             <button className="btn-secondary mt-4" onClick={() => buscarProcessos.mutate()} disabled={buscarProcessos.isPending} data-testid="buscar-processos">
               <Gavel className="w-4 h-4" /> {buscarProcessos.isPending ? 'Buscando processos...' : `Buscar processos (${brl(price('processos'))})`}
             </button>

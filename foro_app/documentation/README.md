@@ -206,7 +206,8 @@ Detalhes em [consultas-direct-data.md](./consultas-direct-data.md).
 
 | Variável                     | Descrição                              |
 |-------------------------------|-------------------------------------------|
-| `FEATURE_LOOKUPS_ENABLED`     | `true` libera as consultas (`/lookup/*`) |
+| `FEATURE_LOOKUPS_ENABLED`     | `true` libera as consultas de CPF/CNPJ e o enriquecimento (`/lookup/*`) |
+| `FEATURE_PROCESS_LOOKUP_ENABLED` | `true` liga a busca de processos por CPF/CNPJ (padrão `false` — em breve) |
 | `DIRECT_DATA_TOKEN`           | Token da Direct Data (painel → Configurações → Integrações). Sem ele: `503` antes de cobrar |
 | `DIRECT_DATA_BASE_URL`        | Padrão `https://apiv3.directd.com.br`   |
 | `DIRECT_DATA_TIMEOUT_MS`      | Padrão `60000` (consulta de CNPJ pode levar ~25 s) |

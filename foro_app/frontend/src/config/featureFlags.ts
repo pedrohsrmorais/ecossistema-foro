@@ -16,6 +16,8 @@ export const LOCKED_FEATURES = {
   pesquisaCpf: false,
   pesquisaProcessual: false,
   pesquisaInteligente: false,
+  // Busca de processos por CPF/CNPJ (Direct Data) — será reimplementada; backend: FEATURE_PROCESS_LOOKUP_ENABLED
+  consultaProcessos: true,
   // Trilha de educação — conteúdo ainda não publicado
   educacao: true,
   provasConceito: true,

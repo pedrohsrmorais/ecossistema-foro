@@ -765,7 +765,7 @@ Resposta das consultas: `{ data, meta: { cached, fetched_at, price_cents, charge
 GET  /lookup/status                       → { configured, balance_cents, prices:{cpf,cnpj,processos}, cache_days }
 POST /lookup/cpf       { cpf, refresh? }  → data: { cpf, nome, sexo, data_nascimento, idade, nome_mae, renda_estimada, telefones[], emails[], enderecos[] }
 POST /lookup/cnpj      { cnpj, refresh? } → data: { cnpj, razao_social, nome_fantasia, situacao_cadastral, cnae, telefones[], emails[], enderecos[], socios[] }
-POST /lookup/processo  { documento, refresh? }   // CPF ou CNPJ → data: { documento, total, processos[] }
+POST /lookup/processo  { documento, refresh? }   // CPF ou CNPJ — DESLIGADO por ora (403 FEATURE_LOCKED; FEATURE_PROCESS_LOOKUP_ENABLED)
 POST /lookup/processo/summary { processo }       → { data: { summary } }   // IA, preço fixo
 POST /lookup/:kind/create-lead { document, stage? }   // kind = cpf|cnpj; usa a consulta já salva; 201 { data: lead }
 ```
