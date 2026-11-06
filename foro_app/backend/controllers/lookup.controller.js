@@ -1,10 +1,9 @@
 /**
  * lookup.controller.js
  *
- * Endpoints dos serviços pagos de consulta (CPF, CNPJ, processual) e resumo
- * por IA. Todos debitam créditos automaticamente (ver external-lookup.service.js)
- * — o controller só repassa o resultado ou deixa o erro genérico subir, que
- * já vem formatado como "contate o suporte" pelo service.
+ * Endpoints de consulta (CPF, CNPJ — cota semanal por usuário; processos e resumo por IA — carteira,
+ * desligados por ora) e enriquecimento de listas. A regra fica nos services (lookup.service.js,
+ * lookup-quota.service.js); o controller só repassa o resultado.
  */
 const cnpjService = require('../services/cnpj.service');
 const cpfService = require('../services/cpf.service');
@@ -14,7 +13,7 @@ const enrichService = require('../services/lookup-enrich.service');
 const { AppError } = require('../middlewares/error.middleware');
 
 const refresh = (req) => req.body?.refresh === true;
-const withMeta = (r) => ({ data: r.data, meta: { cached: r.cached, fetched_at: r.fetched_at, price_cents: r.price_cents, charged_cents: r.charged_cents, balance_cents: r.balance_cents, consulta_uid: r.consulta_uid } });
+const withMeta = (r) => ({ data: r.data, meta: { cached: r.cached, counted: r.counted, fetched_at: r.fetched_at, quota: r.quota, consulta_uid: r.consulta_uid, price_cents: r.price_cents, charged_cents: r.charged_cents, balance_cents: r.balance_cents } });
 
 async function cnpj(req, res) {
   res.json(withMeta(await cnpjService.lookupCnpj(req.account.id, req.user.id, req.body?.cnpj, { refresh: refresh(req) })));
@@ -29,7 +28,7 @@ async function processo(req, res) {
 }
 
 async function status(req, res) {
-  res.json(await lookupService.status(req.account.id));
+  res.json(await lookupService.status(req.account.id, req.user.id));
 }
 
 /** Cria um lead com os dados da consulta (que fica em cache); o corpo só diz qual documento e a etapa. */

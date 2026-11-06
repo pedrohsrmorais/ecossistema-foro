@@ -3,9 +3,10 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { Link } from 'react-router-dom'
 import { Search, UserPlus, Gavel, Sparkles, RefreshCw, Phone, Mail, MapPin, MessageCircle, CheckCircle2, AlertTriangle, Users, ExternalLink } from 'lucide-react'
 import {
-  lookupApi, type CpfResult, type CnpjResult, type LookupMeta, type LookupPhone, type LookupAddress, type ProcessoResult,
+  lookupApi, type CpfResult, type CnpjResult, type LookupMeta, type LookupQuota, type LookupStatus, type LookupPhone, type LookupAddress, type ProcessoResult,
 } from '../../api'
 import { LOCKED_FEATURES } from '../../config/featureFlags'
+import { CONSULTING_MORE_LOOKUPS } from '../../config/consulting'
 import { useCan } from '../../hooks/useCan'
 import { useModuleEnabled } from '../../hooks/useModuleEnabled'
 
@@ -129,14 +130,31 @@ function Processos({ r, onSummary, summary, summarizing }: { r: ProcessoResult; 
   )
 }
 
-function MetaLine({ meta, onRefresh, refreshing, refreshPrice }: { meta: LookupMeta; onRefresh: () => void; refreshing: boolean; refreshPrice: number }) {
+export const ddmm = (iso?: string | null) => (iso ? new Date(iso).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }) : '—')
+
+/** "Você tem X de N consultas nesta semana (renovam em dd/mm)". */
+export function QuotaText({ q }: { q: LookupQuota }) {
+  if (!q.has_plan) return <>Você ainda não tem um plano — peça ao administrador do escritório.</>
+  return <>Você tem <b data-testid="quota-restante">{q.remaining}</b> de {q.limit} consultas nesta semana (renovam em {ddmm(q.renews_at)}).</>
+}
+
+/** Aviso de cota esgotada com o caminho para o plano Consulting. */
+export function ConsultingCta() {
+  return (
+    <a href={CONSULTING_MORE_LOOKUPS} target="_blank" rel="noopener noreferrer" className="underline font-medium" data-testid="consulting-link">
+      Falar com a gente sobre o plano Consulting
+    </a>
+  )
+}
+
+function MetaLine({ meta, onRefresh, refreshing }: { meta: LookupMeta; onRefresh: () => void; refreshing: boolean }) {
   return (
     <p className="text-xs text-slate-500 flex items-center gap-2 flex-wrap" data-testid="lookup-meta">
       {meta.cached
-        ? <>Consulta de {fmtDate(meta.fetched_at)} — sem custo (já estava salva).</>
-        : <>Consultado agora · cobrado {brl(meta.charged_cents)} · saldo {brl(meta.balance_cents)}.</>}
+        ? <>Consulta de {fmtDate(meta.fetched_at)} — não contou na sua cota (já estava salva).</>
+        : <>Consultado agora{meta.quota ? ` · restam ${meta.quota.remaining} de ${meta.quota.limit} consultas nesta semana` : ''}.</>}
       <button type="button" onClick={onRefresh} disabled={refreshing} className="inline-flex items-center gap-1 text-accent-600 hover:underline">
-        <RefreshCw className="w-3 h-3" /> Atualizar ({brl(refreshPrice)})
+        <RefreshCw className="w-3 h-3" /> Atualizar (usa 1 consulta)
       </button>
     </p>
   )
@@ -159,24 +177,28 @@ export default function ConsultaDocumento({ kind, title, icon: Icon, subtitle }:
   const [shown, setShown] = useState<{ kind: Kind; doc: string; data: CpfResult | CnpjResult; meta: LookupMeta } | null>(null)
   const [processos, setProcessos] = useState<{ r: ProcessoResult; meta: LookupMeta } | null>(null)
   const [summary, setSummary] = useState<string | null>(null)
-  const [error, setError] = useState<{ msg: string; credits?: boolean } | null>(null)
+  const [error, setError] = useState<{ msg: string; credits?: boolean; quota?: boolean } | null>(null)
   const [leadMsg, setLeadMsg] = useState<{ ok: boolean; text: string; id?: string } | null>(null)
 
   const { data: st } = useQuery({ queryKey: ['lookup-status'], queryFn: lookupApi.status, staleTime: 15_000 })
   const digits = valor.replace(/\D/g, '')
   const detected: Kind | null = kind ?? (digits.length === 11 ? 'cpf' : digits.length === 14 ? 'cnpj' : null)
   const okLen = detected === 'cpf' ? digits.length === 11 : detected === 'cnpj' ? digits.length === 14 : false
-  const price = (k: Kind | 'processos') => (st ? st.prices[k] : 0)
 
-  const fail = (e: any, fb: string) => setError({ msg: errMsg(e, fb), credits: e?.response?.status === 402 })
-  const afterCharge = () => { qc.invalidateQueries({ queryKey: ['lookup-status'] }); qc.invalidateQueries({ queryKey: ['credits-balance'] }) }
+  const fail = (e: any, fb: string) => {
+    const d = e?.response?.data
+    if (d?.quota) setQuota(d.quota)
+    setError({ msg: errMsg(e, fb), credits: e?.response?.status === 402, quota: d?.code === 'LOOKUP_QUOTA_EXHAUSTED' })
+  }
+  const setQuota = (q?: LookupQuota) => { if (q) qc.setQueryData<LookupStatus>(['lookup-status'], old => (old ? { ...old, quota: q } : old)) }
+  const afterCharge = () => { qc.invalidateQueries({ queryKey: ['lookup-status'] }) }
 
   const consultar = useMutation({
     mutationFn: ({ refresh }: { refresh: boolean }): Promise<{ data: CpfResult | CnpjResult; meta: LookupMeta }> =>
       detected === 'cpf' ? lookupApi.cpf(digits, refresh) : lookupApi.cnpj(digits, refresh),
     onSuccess: (r) => {
       setShown({ kind: detected!, doc: digits, data: r.data, meta: r.meta })
-      setProcessos(null); setSummary(null); setError(null); setLeadMsg(null); afterCharge()
+      setProcessos(null); setSummary(null); setError(null); setLeadMsg(null); setQuota(r.meta.quota)
     },
     onError: e => { setShown(null); fail(e, 'Não foi possível consultar.') },
   })
@@ -211,7 +233,7 @@ export default function ConsultaDocumento({ kind, title, icon: Icon, subtitle }:
         <h1 className="text-xl font-semibold text-slate-900 flex items-center gap-2"><Icon className="w-5 h-5 text-accent-500" /> {title}</h1>
         <p className="text-sm text-slate-500 mt-1">
           {subtitle}
-          {st && <> {kind ? `Cada consulta custa ${brl(price(kind))}` : `CPF ${brl(price('cpf'))} · CNPJ ${brl(price('cnpj'))}`}, debitado da carteira de créditos (saldo {brl(st.balance_cents)}). Consultas repetidas em até {st.cache_days} dias não são cobradas de novo.</>}
+          {st && <> <QuotaText q={st.quota} /> Consultas repetidas em até {st.cache_days} dias não contam de novo.</>}
         </p>
       </div>
 
@@ -233,7 +255,7 @@ export default function ConsultaDocumento({ kind, title, icon: Icon, subtitle }:
 
       {error && (
         <p className="text-sm text-red-600 mb-4" role="alert" data-testid="consulta-erro">
-          {error.msg}{error.credits && <> <Link to="/planos" className="underline">Ver créditos</Link></>}
+          {error.msg}{error.quota && <> <ConsultingCta /></>}{error.credits && <> <Link to="/planos" className="underline">Ver créditos</Link></>}
         </p>
       )}
 
@@ -249,7 +271,7 @@ export default function ConsultaDocumento({ kind, title, icon: Icon, subtitle }:
               )}
             </div>
             <div className="mb-4">
-              <MetaLine meta={shown.meta} refreshing={consultar.isPending} refreshPrice={price(shown.kind)} onRefresh={() => consultar.mutate({ refresh: true })} />
+              <MetaLine meta={shown.meta} refreshing={consultar.isPending} onRefresh={() => consultar.mutate({ refresh: true })} />
             </div>
             {leadMsg && (
               <p className={`text-sm mb-4 rounded-lg p-2.5 flex items-center gap-2 flex-wrap ${leadMsg.ok ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-800'}`} data-testid="lead-msg">
@@ -267,7 +289,7 @@ export default function ConsultaDocumento({ kind, title, icon: Icon, subtitle }:
             </div>
           ) : !processos && (
             <button className="btn-secondary mt-4" onClick={() => buscarProcessos.mutate()} disabled={buscarProcessos.isPending} data-testid="buscar-processos">
-              <Gavel className="w-4 h-4" /> {buscarProcessos.isPending ? 'Buscando processos...' : `Buscar processos (${brl(price('processos'))})`}
+              <Gavel className="w-4 h-4" /> {buscarProcessos.isPending ? 'Buscando processos...' : 'Buscar processos'}
             </button>
           )}
           {processos && <Processos r={processos.r} summary={summary} summarizing={resumir.isPending} onSummary={() => resumir.mutate()} />}

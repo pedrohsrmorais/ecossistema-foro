@@ -50,7 +50,7 @@ CREATE TABLE IF NOT EXISTS plans (
   max_users     INT           NULL COMMENT 'NULL = ilimitado',
   max_leads     INT           NULL COMMENT 'NULL = ilimitado',
   ai_credits_week INT         NOT NULL DEFAULT 0 COMMENT 'créditos de IA que renovam toda semana (janela de 7 dias ancorada em accounts.plan_started_at)',
-  lookups_week    INT         NOT NULL DEFAULT 0 COMMENT 'consultas pagas (CPF/CNPJ/processual) por semana — recurso bloqueado nesta fase (FEATURE_LOOKUPS_ENABLED)',
+  lookups_week    INT         NOT NULL DEFAULT 0 COMMENT 'consultas de CPF/CNPJ por semana, por usuário (cota; passou → bloqueia até renovar)',
   purchasable   TINYINT(1)    NOT NULL DEFAULT 1 COMMENT '0 = plano interno (ex: trial), não aparece para compra',
   stripe_price_id   VARCHAR(64)  NULL COMMENT 'price_... (opcional; sobrepõe o lookup_key)',
   stripe_lookup_key VARCHAR(100) NULL COMMENT 'lookup_key do preço no Stripe, ex: foro_pro_monthly_brl_v1',
@@ -862,10 +862,10 @@ CREATE TABLE IF NOT EXISTS community_posts (
 
 -- ─── Planos disponíveis (fonte única de verdade para preço/recursos) ─────────
 INSERT INTO plans (id, name, price, max_users, max_leads, ai_credits_week, lookups_week, purchasable, features, display_order) VALUES
-  ('trial',    'Teste grátis', 0.00,   1,  100,  50,   5,  0, JSON_ARRAY('14 dias grátis', '50 créditos de IA por semana', 'Até 100 leads'), 0),
-  ('starter',  'Starter',      129.90, 1,  500,  150,  10, 1, JSON_ARRAY('CRM com IA', '150 créditos de IA por semana', 'Até 500 leads', '1 usuário'), 1),
-  ('pro',      'Pro',          199.90, 5,  NULL, 300,  15, 1, JSON_ARRAY('CRM com IA', '300 créditos de IA por semana', 'Leads ilimitados', '5 usuários'), 2),
-  ('business', 'Business',     399.90, 15, NULL, 700,  20, 1, JSON_ARRAY('CRM com IA', '700 créditos de IA por semana', 'Leads ilimitados', '15 usuários'), 3)
+  ('trial',    'Teste grátis', 0.00,   1,  100,  50,   10, 0, JSON_ARRAY('14 dias grátis', '50 créditos de IA por semana', 'Até 100 leads'), 0),
+  ('starter',  'Starter',      129.90, 1,  500,  150,  20, 1, JSON_ARRAY('CRM com IA', '150 créditos de IA por semana', 'Até 500 leads', '1 usuário'), 1),
+  ('pro',      'Pro',          199.90, 5,  NULL, 300,  40, 1, JSON_ARRAY('CRM com IA', '300 créditos de IA por semana', 'Leads ilimitados', '5 usuários'), 2),
+  ('business', 'Business',     399.90, 15, NULL, 700,  60, 1, JSON_ARRAY('CRM com IA', '700 créditos de IA por semana', 'Leads ilimitados', '15 usuários'), 3)
 ON DUPLICATE KEY UPDATE
   name = VALUES(name), price = VALUES(price), max_users = VALUES(max_users),
   max_leads = VALUES(max_leads), ai_credits_week = VALUES(ai_credits_week),

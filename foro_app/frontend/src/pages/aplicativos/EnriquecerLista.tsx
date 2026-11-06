@@ -1,12 +1,11 @@
 import { useEffect, useRef, useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { Link } from 'react-router-dom'
 import { Upload, FileSpreadsheet, Download, Loader2, CheckCircle2, AlertTriangle, Sparkles, Trash2, Users, ArrowRight } from 'lucide-react'
 import { lookupEnrichApi, lookupApi, type EnrichJob, type EnrichFill, type EnrichStats, type ImportBatch, type FileDownload } from '../../api'
 import { saveFile } from '../../lib/download'
 import { useCan } from '../../hooks/useCan'
 import LeadImport from '../../components/LeadImport'
-import { brl } from './ConsultaDocumento'
+import { QuotaText, ConsultingCta, ddmm } from './ConsultaDocumento'
 
 const errMsg = (e: any, fb: string) => e?.response?.data?.error || fb
 async function blobErr(e: any): Promise<string> {
@@ -98,11 +97,11 @@ export default function EnriquecerLista() {
       <div className="mb-6">
         <h1 className="text-xl font-semibold text-slate-900 flex items-center gap-2"><Sparkles className="w-5 h-5 text-accent-500" /> Enriquecer lista</h1>
         <p className="text-sm text-slate-500 mt-1">
-          Suba uma planilha com CPFs (ou CNPJs) e a gente acha telefones e e-mails. Antes de gastar qualquer crédito você vê quantas consultas serão feitas e quanto custa.
+          Suba uma planilha com CPFs (ou CNPJs) e a gente acha telefones e e-mails. Antes de começar você vê quantas consultas a lista vai usar da sua cota semanal.
         </p>
       </div>
 
-      {err && <p className="text-sm text-red-600 mb-4" role="alert" data-testid="enrich-erro">{err} {/crédito/i.test(err) && <Link to="/planos" className="underline">Ver créditos</Link>}</p>}
+      {err && <p className="text-sm text-red-600 mb-4" role="alert" data-testid="enrich-erro">{err} {/Consulting/.test(err) && <ConsultingCta />}</p>}
 
       {!job && (
         <>
@@ -137,7 +136,7 @@ export default function EnriquecerLista() {
                   <div key={h.id} className="p-3 flex items-center gap-3 flex-wrap text-sm" data-testid="enrich-hist">
                     <div className="flex-1 min-w-[180px]">
                       <p className="font-medium text-slate-900 truncate">{h.file_name}</p>
-                      <p className="text-xs text-slate-500">{STATUS_LABEL[h.status] || h.status} · {new Date(h.created_at).toLocaleDateString('pt-BR')}{h.user_name ? ` · ${h.user_name}` : ''}{h.progress ? ` · ${h.progress.ok} preenchidas · ${brl(h.progress.cobrado_cents)}` : ''}</p>
+                      <p className="text-xs text-slate-500">{STATUS_LABEL[h.status] || h.status} · {new Date(h.created_at).toLocaleDateString('pt-BR')}{h.user_name ? ` · ${h.user_name}` : ''}{h.progress ? ` · ${h.progress.ok} preenchidas · ${h.progress.consultas ?? 0} consultas usadas` : ''}</p>
                     </div>
                     <button className="btn-secondary text-sm" onClick={() => setJobId(h.id)}>Abrir</button>
                     <button className="btn-ghost text-sm text-red-600" aria-label="Descartar" onClick={() => discard.mutate(h.id)}><Trash2 className="w-4 h-4" /></button>
@@ -193,28 +192,31 @@ export default function EnriquecerLista() {
                 <Stat label="Repetidos" value={stats.repetidas} />
               </div>
               <div className="rounded-lg bg-slate-50 p-3 text-sm space-y-1">
-                {stats.consultar_cpf > 0 && <p className="flex justify-between"><span>{stats.consultar_cpf} × CPF ({brl(job.quote.price_cpf_cents)})</span><span>{brl(stats.consultar_cpf * job.quote.price_cpf_cents)}</span></p>}
-                {stats.consultar_cnpj > 0 && <p className="flex justify-between"><span>{stats.consultar_cnpj} × CNPJ ({brl(job.quote.price_cnpj_cents)})</span><span>{brl(stats.consultar_cnpj * job.quote.price_cnpj_cents)}</span></p>}
-                <p className="flex justify-between font-semibold text-slate-900 border-t pt-1" data-testid="enrich-total"><span>Total</span><span>{brl(job.quote.cost_cents)}</span></p>
-                <p className="flex justify-between text-slate-500"><span>Seu saldo</span><span>{brl(job.quote.balance_cents)}</span></p>
+                <p className="flex justify-between font-semibold text-slate-900" data-testid="enrich-total"><span>Consultas desta lista</span><span>{job.quote.needed}</span></p>
+                <p className="flex justify-between text-slate-500"><span>Disponíveis na sua cota esta semana</span><span data-testid="enrich-disponivel">{job.quote.remaining} de {job.quote.limit}</span></p>
+                <p className="flex justify-between text-slate-500"><span>A cota renova em</span><span>{ddmm(job.quote.renews_at)}</span></p>
               </div>
-              <p className="text-[11px] text-slate-400 mt-2">Documentos sem resultado na base são devolvidos automaticamente — você só paga o que for encontrado.</p>
+              <p className="text-[11px] text-slate-400 mt-2">Documentos sem resultado na base e os que já foram consultados antes não contam na cota.</p>
 
-              {job.quote.shortfall_cents > 0 && (
-                <p className="text-sm text-red-600 mt-3">Faltam {brl(job.quote.shortfall_cents)} de crédito para este lote. <Link to="/planos" className="underline">Ver créditos</Link></p>
+              {job.quote.shortfall > 0 && (
+                <p className="text-sm text-red-600 mt-3" data-testid="enrich-falta">
+                  {job.quote.has_plan
+                    ? <>Esta lista precisa de {job.quote.needed} consultas e você tem {job.quote.remaining} nesta semana. Reduza a lista ou, se a sua demanda é maior, <ConsultingCta />.</>
+                    : <>Você ainda não tem um plano — peça ao administrador do escritório.</>}
+                </p>
               )}
               {job.configured === false && <p className="text-sm text-amber-700 mt-3">As consultas ainda não foram configuradas na plataforma. Fale com o suporte.</p>}
 
               <div className="mt-4 flex items-center gap-3 flex-wrap">
                 {!confirming ? (
                   <button className="btn-primary" data-testid="enrich-preencher"
-                    disabled={stats.consultar + stats.em_cache === 0 || job.quote.shortfall_cents > 0 || job.configured === false || analyze.isPending}
+                    disabled={stats.consultar + stats.em_cache === 0 || job.quote.shortfall > 0 || job.configured === false || analyze.isPending}
                     onClick={() => (stats.consultar === 0 ? start.mutate(0) : setConfirming(true))}>
                     <Sparkles className="w-4 h-4" /> {job.status === 'interrompida' ? 'Retomar preenchimento' : 'Preencher infos'}
                   </button>
                 ) : (
                   <>
-                    <p className="text-sm text-slate-700">Confirmar <b>{stats.consultar}</b> consultas por <b>{brl(job.quote.cost_cents)}</b>?</p>
+                    <p className="text-sm text-slate-700">Usar <b>{stats.consultar}</b> das suas {job.quote.remaining} consultas desta semana?</p>
                     <button className="btn-primary" data-testid="enrich-confirmar" disabled={start.isPending} onClick={() => start.mutate(stats.consultar)}>{start.isPending ? 'Iniciando...' : 'Confirmar e consultar'}</button>
                     <button className="btn-ghost" onClick={() => setConfirming(false)}>Cancelar</button>
                   </>
@@ -228,7 +230,7 @@ export default function EnriquecerLista() {
             <div className="card p-5" data-testid="enrich-andamento">
               <p className="text-sm font-medium text-slate-900 flex items-center gap-2"><Loader2 className="w-4 h-4 animate-spin" /> Consultando... {job.progress.done} de {job.progress.total}</p>
               <div className="h-2 bg-slate-100 rounded-full mt-3 overflow-hidden"><div className="h-full bg-accent-500 transition-all" style={{ width: `${job.progress.total ? Math.round((job.progress.done / job.progress.total) * 100) : 0}%` }} /></div>
-              <p className="text-xs text-slate-500 mt-2">{job.progress.ok} preenchidas · {job.progress.sem_resultado} sem resultado · cobrado até agora {brl(job.progress.cobrado_cents)}. Pode sair desta tela — o lote continua rodando.</p>
+              <p className="text-xs text-slate-500 mt-2">{job.progress.ok} preenchidas · {job.progress.sem_resultado} sem resultado · {job.progress.consultas ?? 0} consultas usadas. Pode sair desta tela — o lote continua rodando.</p>
             </div>
           )}
 
@@ -242,7 +244,7 @@ export default function EnriquecerLista() {
                 <Stat label="Preenchidas" value={job.progress.ok} tone="bg-emerald-50" />
                 <Stat label="Sem resultado" value={job.progress.sem_resultado} />
                 <Stat label="Com erro" value={job.progress.erros} />
-                <div className="rounded-lg border p-3"><p className="text-xl font-semibold text-slate-900">{brl(job.progress.cobrado_cents)}</p><p className="text-xs text-slate-600">Cobrado</p></div>
+                <Stat label="Consultas usadas" value={job.progress.consultas ?? 0} />
               </div>
               {job.progress.mensagem && <p className="text-sm text-amber-700 mt-3">{job.progress.mensagem}</p>}
               <div className="mt-4 flex gap-2 flex-wrap">
@@ -257,7 +259,7 @@ export default function EnriquecerLista() {
       )}
 
       {batch && <LeadImport initialBatch={batch} onClose={() => setBatch(null)} />}
-      {st && !job && <p className="text-[11px] text-slate-400 mt-6">Saldo atual: {brl(st.balance_cents)}. Use estes dados apenas para finalidade legítima, conforme a LGPD.</p>}
+      {st && !job && <p className="text-[11px] text-slate-400 mt-6"><QuotaText q={st.quota} /> Use estes dados apenas para finalidade legítima, conforme a LGPD.</p>}
     </div>
   )
 }

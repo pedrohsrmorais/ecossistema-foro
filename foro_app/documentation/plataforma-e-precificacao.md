@@ -115,20 +115,22 @@ A Foro combina **dois modelos** de cobrança, que não se misturam:
 
 ### 5.1 Assinatura mensal + recursos que renovam por SEMANA
 
-O preço é mensal, mas os recursos de uso (créditos de IA e consultas) **renovam toda semana**, em janelas de 7 dias ancoradas no início do trial/assinatura (`accounts.plan_started_at`). O que sobra **não acumula**. Quantidades definidas na tabela `plans` (editáveis sem deploy):
+O preço é mensal e **por usuário, dentro do escritório onde o plano foi comprado**; os recursos de uso (créditos de IA e consultas) são de cada usuário e **renovam toda semana**, em janelas de 7 dias ancoradas no início do trial/assinatura do usuário (`users.plan_started_at`, ou `accounts.plan_started_at` no teste grátis). O que sobra **não acumula**. Quantidades definidas na tabela `plans` (editáveis sem deploy):
 
 | Plano | Mensal | Créditos IA / semana | Consultas / semana | Usuários | Leads | Margem a 100% de uso | Margem a 50% de uso |
 |-------|--------|----------------------|--------------------|----------|-------|----------------------|---------------------|
-| Teste grátis (14 dias) | R$ 0 | 50 | 5 | 1 | 100 | custo ≈ R$ 9,06 por trial | – |
-| Starter  | R$ 129,90 | 150 | 10 | 1  | 500      | 52,3% | 69,5% |
-| Pro      | R$ 199,90 | 300 | 15 | 5  | ilimitado | 50,4% (no limite do piso) | 69,3% |
-| Business | R$ 399,90 | 700 | 20 | 15 | ilimitado | 56,0% | 72,8% |
+| Teste grátis (14 dias) | R$ 0 | 50 | 10 | 1 | 100 | consultas ≈ R$ 3,20 por trial + IA | – |
+| Starter  | R$ 129,90 | 150 | 20 | 1  | 500      | 63,2% | 75,0% |
+| Pro      | R$ 199,90 | 300 | 40 | 5  | ilimitado | 57,6% | 72,9% |
+| Business | R$ 399,90 | 700 | 60 | 15 | ilimitado | 59,6% | 74,6% |
 
-Premissas da margem: 52/12 semanas por mês; custo por crédito R$ 0,02586 (Sonnet 4.6 com prompt caching, câmbio 5,34); consulta média R$ 0,647 (mix CNPJ/CPF/processual, Direct Data); imposto 6% (estimativa), cartão Asaas 2,99% + R$ 0,49 (estimativa), R$ 5/conta/mês de outros custos. **Regra de projeto: margem a 100% de uso nunca abaixo de 50%.** Planilha: `precificacao_foro_semanal.xlsx`.
+Premissas da margem (por usuário/assento): 52/12 semanas por mês; custo por crédito R$ 0,02586 (Sonnet 4.6 com prompt caching, câmbio 5,34); consulta R$ 0,16 (Direct Data, CPF ou CNPJ básico — processos estão fora da cota e desligados); imposto 6% (estimativa), cartão Asaas 2,99% + R$ 0,49 (estimativa), R$ 5/conta/mês de outros custos. **Regra de projeto: margem a 100% de uso nunca abaixo de 50%.** Planilha: `precificacao_foro_semanal.xlsx`.
 
 **Free trial:** 14 dias com o plano `trial` (o menor de todos). Depois, a conta fica bloqueada (`403 TRIAL_EXPIRED`) e só consegue ver planos, assinar e sair — assinar é obrigatório para continuar.
 
-**Consultas (CPF/CNPJ/processual):** a cota semanal já existe no catálogo, mas as consultas ficam **indisponíveis nesta fase** (backend: `FEATURE_LOOKUPS_ENABLED=false` → `403 FEATURE_LOCKED`; frontend: `LOCKED_FEATURES`). Provedor previsto: Direct Data.
+**Consultas de CPF/CNPJ — cota semanal (06/11/2026, fase de testes):** teste grátis 10, Starter 20, Pro 40, Business 60 por usuário por semana (`plans.lookups_week`; uso em `lookup_usage`; `lookup-quota.service.js`). Consulta em cache, sem resultado ou com erro não conta. **Passou da cota → bloqueia até renovar (`429 LOOKUP_QUOTA_EXHAUSTED`)**, de propósito: quem precisa de mais tem demanda interna e é levado ao plano **Consulting** (WhatsApp comercial), onde a intellsn vende consultoria e desenvolvimento. A carteira de créditos **não** é usada para CPF/CNPJ. Busca de processos por CPF/CNPJ: desligada (em breve). Ver [consultas-direct-data.md](./consultas-direct-data.md).
+
+**Pendência (decisão do dono do produto):** deixar o escritório comprar créditos e usar a carteira para consultas extras/produtos avulsos — adiado por enquanto para evitar pedidos de reembolso.
 
 #### Regra entre tokens de IA e créditos de IA
 

@@ -6,9 +6,8 @@ import clsx from 'clsx'
 import { plansApi, settingsApi, paymentsApi, billingApi } from '../api'
 import CreditMeter from '../components/CreditMeter'
 import { useAuth } from '../context/AuthContext'
+import { CONSULTING_WHATSAPP } from '../config/consulting'
 
-// Plano Consulting: sem checkout, atendimento comercial pelo WhatsApp.
-const CONSULTING_WHATSAPP = 'https://wa.me/5551983212540?text=' + encodeURIComponent('Olá! Tenho interesse no plano Consulting do Foro.')
 
 const brl = (n: number) => n.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', minimumFractionDigits: 2 })
 const day = (iso?: string | null) => (iso ? new Date(iso).toLocaleDateString('pt-BR') : '')
@@ -148,7 +147,7 @@ export default function Plans() {
               <ul className="mt-4 space-y-2 text-sm text-slate-600 flex-1">
                 <li className="flex gap-2"><Zap className="w-4 h-4 text-accent-500 shrink-0 mt-0.5" /> {p.ai_credits_week} créditos de IA por semana (por usuário)</li>
                 <li className="flex gap-2"><FileText className="w-4 h-4 text-slate-400 shrink-0 mt-0.5" /> {p.max_leads ? `Até ${p.max_leads} leads no escritório` : 'Leads ilimitados'}</li>
-                <li className="flex gap-2 text-slate-400"><Search className="w-4 h-4 shrink-0 mt-0.5" /> {p.lookups_week} consultas/semana <span className="badge bg-accent-100 text-accent-700 !py-0 whitespace-nowrap self-start">em breve</span></li>
+                <li className="flex gap-2"><Search className="w-4 h-4 shrink-0 mt-0.5 text-accent-500" /> {p.lookups_week} consultas de CPF/CNPJ por semana (por usuário)</li>
               </ul>
               {isCurrent ? (
                 <button className="mt-5 btn-secondary justify-center" disabled><Check className="w-4 h-4" /> {isAdmin ? 'Plano atual desta pessoa' : 'Seu plano atual'}</button>

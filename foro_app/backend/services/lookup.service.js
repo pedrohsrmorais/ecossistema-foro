@@ -1,13 +1,13 @@
 /**
- * lookup.service.js — consultas de CPF, CNPJ e processos por documento (Direct Data) com cache por conta,
- * débito na carteira de créditos e "Criar lead" a partir do resultado.
+ * lookup.service.js — consultas de CPF, CNPJ e processos por documento (Direct Data) com cache por conta
+ * e "Criar lead" a partir do resultado.
  *
  * Regras:
- *  - Validar o dígito verificador é grátis e acontece ANTES de qualquer débito.
- *  - Resposta em cache (LOOKUP_CACHE_DAYS, padrão 30) não cobra de novo; `refresh: true` força nova consulta.
- *  - CPF/CNPJ sem resultado na fonte (404) devolvem o crédito (DIRECT_DATA_CHARGE_NOT_FOUND=true desliga o estorno).
- *    Processos com 0 resultado contam como consulta feita (a Direct Data cobra).
- *  - Erro técnico estorna o crédito (ver external-lookup.service.js).
+ *  - CPF/CNPJ consomem a COTA SEMANAL do usuário (lookup-quota.service.js); passou da cota → 429.
+ *    Processos (desligado por ora) seguem na carteira de créditos (external-lookup.service.js).
+ *  - Validar o dígito verificador acontece ANTES de consumir qualquer coisa.
+ *  - Resposta em cache (LOOKUP_CACHE_DAYS, padrão 30) não conta de novo; `refresh: true` força nova consulta.
+ *  - CPF/CNPJ sem resultado na fonte (404) e erro técnico não contam (DIRECT_DATA_CHARGE_NOT_FOUND=true faz o 404 contar).
  *  - LGPD: dados de pessoas físicas só devem ser consultados com finalidade legítima; cada consulta fica em
  *    service_usage_log (documento mascarado) e o cache expira sozinho.
  */
@@ -17,6 +17,8 @@ const { isValidCpf, isValidCnpj } = require('../utils/documentValidator');
 const N = require('../utils/lead-normalize');
 const externalLookup = require('./external-lookup.service');
 const credits = require('./credits.service');
+const quota = require('./lookup-quota.service');
+const { v4: uuidv4 } = require('uuid');
 const client = require('./direct-data.client');
 const norm = require('./direct-data.normalize');
 const leadsService = require('./leads.service');
@@ -67,20 +69,65 @@ async function purgeExpired() {
 // ─── Consulta ────────────────────────────────────────────────────────────────
 async function priceOf(kind) { return (await credits.getServicePrice(KINDS[kind].service)).price_cents; }
 
+async function logUsage(accountId, userId, kind, status, doc, errorMessage) {
+  try {
+    await query(
+      `INSERT INTO service_usage_log (id, account_id, user_id, service_key, status, credit_transaction_id, request_summary, error_message)
+       VALUES (?, ?, ?, ?, ?, NULL, ?, ?)`,
+      [uuidv4(), accountId, userId || null, KINDS[kind].service, status, JSON.stringify({ kind, documento: mask(doc), cota: true }), errorMessage || null]);
+  } catch (e) { console.error('[lookup] falha ao registrar uso:', e.message); }
+}
+
+/** CPF/CNPJ: consome 1 da cota semanal do usuário. */
+async function quotaLookup(accountId, userId, kind, doc, source) {
+  const k = KINDS[kind];
+  const usageId = await quota.reserve(accountId, userId, kind, source);
+  let r;
+  try {
+    r = await client.call(k.endpoint(doc), doc);
+  } catch (err) {
+    await quota.release(usageId);
+    await logUsage(accountId, userId, kind, 'failed', doc, err.message);
+    console.error(`[lookup] falha em ${kind} (conta ${accountId}):`, err.message);
+    throw new AppError('Erro na requisição. Tente novamente em alguns minutos ou contate o suporte.', 502);
+  }
+  if (r.status === 'not_found') {
+    if (!chargeNotFound()) await quota.release(usageId);
+    await logUsage(accountId, userId, kind, 'not_found', doc);
+    return { status: 'not_found', counted: chargeNotFound() };
+  }
+  const data = k.normalize(r.retorno);
+  await cachePut(accountId, kind, doc, data, r.uid);
+  await logUsage(accountId, userId, kind, 'success', doc);
+  return { status: 'success', data, uid: r.uid, counted: true };
+}
+
 /**
- * @returns {{ data, cached, fetched_at, price_cents, charged_cents, balance_cents, consulta_uid }}
+ * @param {'consulta'|'lista'} source  de onde veio (tela de consulta ou enriquecimento de lista)
+ * @returns {{ data, cached, fetched_at, counted, consulta_uid, quota? , price_cents?, charged_cents?, balance_cents? }}
  */
-async function lookup(accountId, userId, kind, input, { refresh = false } = {}) {
+async function lookup(accountId, userId, kind, input, { refresh = false, source = 'consulta', withQuota = true } = {}) {
   const doc = parseDocument(kind, input);
   const k = KINDS[kind];
-  const price = await priceOf(kind);
+  const usesQuota = kind === 'cpf' || kind === 'cnpj';
+  const q = async () => (usesQuota && withQuota ? { quota: await quota.status(accountId, userId) } : {});
 
   if (!refresh) {
     const hit = await cacheGet(accountId, kind, doc);
-    if (hit) return { data: hit.data, cached: true, fetched_at: hit.fetched_at, price_cents: price, charged_cents: 0, balance_cents: await credits.getBalance(accountId), consulta_uid: hit.uid };
+    if (hit) return { data: hit.data, cached: true, counted: false, fetched_at: hit.fetched_at, consulta_uid: hit.uid, ...(await q()) };
   }
   if (!client.configured()) throw new AppError('As consultas ainda não foram configuradas na plataforma. Fale com o suporte.', 503, 'DIRECT_DATA_NOT_CONFIGURED');
 
+  if (usesQuota) {
+    const out = await quotaLookup(accountId, userId, kind, doc, source);
+    if (out.status === 'not_found') {
+      throw new AppError(`Nenhum dado encontrado para este ${k.label}.${out.counted ? '' : ' Esta consulta não contou na sua cota.'}`, 404, 'LOOKUP_NOT_FOUND', withQuota ? await q() : undefined);
+    }
+    return { data: out.data, cached: false, counted: true, fetched_at: new Date().toISOString(), consulta_uid: out.uid || null, ...(await q()) };
+  }
+
+  // Processos (desligado nas rotas por enquanto): carteira de créditos.
+  const price = await priceOf(kind);
   const out = await externalLookup.runPaidLookup({
     accountId, userId, serviceKey: k.service, detailed: true, refundOnNotFound: !chargeNotFound(),
     requestSummary: { kind, documento: mask(doc) },
@@ -94,14 +141,12 @@ async function lookup(accountId, userId, kind, input, { refresh = false } = {}) 
   });
   if (out.status === 'not_found') throw new AppError(`Nenhum dado encontrado para este ${k.label}. Nenhum valor foi cobrado.`, 404, 'LOOKUP_NOT_FOUND', { balance_cents: out.balance_cents });
   const { _uid, ...data } = out.data;
-  return { data, cached: false, fetched_at: new Date().toISOString(), price_cents: price, charged_cents: out.cost_cents, balance_cents: out.balance_cents, consulta_uid: _uid || null };
+  return { data, cached: false, counted: true, fetched_at: new Date().toISOString(), price_cents: price, charged_cents: out.cost_cents, balance_cents: out.balance_cents, consulta_uid: _uid || null };
 }
 
-/** Estado das consultas para a tela: saldo, preços e se o provedor está configurado. */
-async function status(accountId) {
-  const prices = {};
-  for (const kind of Object.keys(KINDS)) prices[kind] = await priceOf(kind);
-  return { configured: client.configured(), balance_cents: await credits.getBalance(accountId), prices, cache_days: cacheDays() };
+/** Estado das consultas para a tela: cota semanal do usuário e se o provedor está configurado. */
+async function status(accountId, userId) {
+  return { configured: client.configured(), quota: await quota.status(accountId, userId), cache_days: cacheDays() };
 }
 
 // ─── Criar lead a partir de uma consulta ─────────────────────────────────────

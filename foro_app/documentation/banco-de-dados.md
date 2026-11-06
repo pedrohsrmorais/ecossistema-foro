@@ -70,7 +70,7 @@ Catálogo de planos — fonte única de verdade para preço e recursos (antes es
 | `max_users`     | INT NULL      | `NULL` = ilimitado                      |
 | `max_leads`     | INT NULL      | `NULL` = ilimitado                      |
 | `ai_credits_week` | INT         | Créditos de IA que renovam por semana   |
-| `lookups_week`  | INT           | Consultas pagas por semana (bloqueadas nesta fase) |
+| `lookups_week`  | INT           | Consultas de CPF/CNPJ por semana, por usuário (cota; 10/20/40/60) |
 | `purchasable`   | TINYINT(1)    | `0` = plano interno (`trial`), não aparece para compra |
 | `features`      | JSON          | Array de strings (bullets exibidos)     |
 | `active`        | TINYINT(1)    | Planos desativados saem do catálogo público |
@@ -438,6 +438,11 @@ O `init.sql` só roda na primeira subida do MySQL (volume vazio). Toda mudança 
 - `accounts.kind` (`personal`|`office`); contas rascunho antigas (`office_configured = 0`) viram espaços pessoais utilizáveis.
 - Perfil do escritório: `legal_name`, `website`, `office_email`, `zip_code`, `address_number`, `address_complement`, `district`, `oab_society`, `founded_on`, `practice_areas` (JSON), `headcount_total`, `headcount_lawyers`, `notes`; governança em `member_defaults` (JSON).
 - Idempotente (testada duas vezes sobre um banco legado).
+
+## Migração 019 — Cota semanal de consultas
+
+- `lookup_usage` (`account_id`, `user_id`, `kind` cpf|cnpj, `source` consulta|lista, `created_at`): uma linha por consulta que conta na cota; índice `(account_id, user_id, created_at)`.
+- `plans.lookups_week`: teste grátis 10, Starter 20, Pro 40, Business 60.
 
 ## Migração 018 — Consultas Direct Data e enriquecimento de listas
 

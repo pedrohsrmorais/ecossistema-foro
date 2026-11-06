@@ -1,6 +1,6 @@
 # Consultas CPF / CNPJ / Processos (Direct Data) e enriquecimento de listas
 
-Fonte de dados: **Direct Data** (`https://apiv3.directd.com.br`). A conta (e o token) é da plataforma, nunca do escritório; o escritório paga em **créditos** da carteira (ver `plataforma-e-precificacao.md`).
+Fonte de dados: **Direct Data** (`https://apiv3.directd.com.br`). A conta (e o token) é da plataforma, nunca do escritório. CPF e CNPJ usam a **cota semanal de cada usuário** (ver abaixo); a carteira de créditos não é usada para eles.
 
 ## Configuração
 
@@ -29,30 +29,27 @@ Sem `DIRECT_DATA_TOKEN` as rotas respondem `503 DIRECT_DATA_NOT_CONFIGURED` **an
 
 Autenticação `Authorization: Bearer <token>`. Resposta `{ metaDados, retorno }`; o backend normaliza para snake_case (`services/direct-data.normalize.js`).
 
-## Preços (editáveis em `service_prices`)
+## Cota semanal (CPF + CNPJ)
 
-`cpf_lookup` R$ 1,00 · `cnpj_lookup` R$ 0,50 · `process_lookup` R$ 3,00 (custo de referência 0,16 / 0,16 / 1,50). A migração 018 só ajusta `process_lookup` se ainda estiver no valor antigo (R$ 1,00).
-
-## Regras de cobrança
-
-- **Débito antes da chamada**, estorno automático em erro técnico (resposta genérica `502`).
-- **CPF/CNPJ sem resultado (404)** → crédito devolvido ao escritório (`DIRECT_DATA_CHARGE_NOT_FOUND=true` muda isso).
-- **Processos com 0 resultado** contam como consulta feita (cobra).
-- **Cache por conta** em `lookup_cache` (30 dias): repetir a mesma consulta é grátis; `refresh: true` força nova consulta (cobra).
-- Documento é validado (dígitos verificadores) antes de debitar. Log de uso guarda só o documento mascarado.
+- Por **usuário e escritório**, conforme o plano do usuário (`plans.lookups_week`): teste grátis 10, Starter 20, Pro 40, Business 60. Janela de 7 dias igual à dos créditos de IA (`ai-credits.service.getStatus`); não acumula.
+- Uma linha em `lookup_usage` por consulta que **conta**: foi à Direct Data e trouxe resultado. **Não contam**: cache (30 dias, por conta), documento sem resultado (`DIRECT_DATA_CHARGE_NOT_FOUND=true` passa a contar), erro técnico, documento inválido. "Atualizar" (`refresh: true`) conta.
+- Esgotou → `429 LOOKUP_QUOTA_EXHAUSTED` (mensagem com a data de renovação e o plano Consulting; `quota` no corpo). Usuário sem assento numa conta paga → `429 LOOKUP_NO_PLAN`. Consultas em cache e "Criar lead" continuam funcionando.
+- `lookup-quota.service.js`: `reserve()` grava antes de chamar a fonte e confere o total (seguro contra abas/cliques simultâneos); `release()` desfaz quando a consulta não conta.
+- Enriquecer lista: o orçamento mostra consultas necessárias × disponíveis; acima do disponível o lote não inicia (`429`). Se a cota acabar no meio (outra aba), o lote para como `interrompida` e pode ser retomado quando renovar.
+- Processos (desligado) seguiria na carteira (`service_prices.process_lookup`).
 
 ## Rotas (`/api/lookup/*`; exigem módulo `pesquisa_cpf_cnpj` e `FEATURE_LOOKUPS_ENABLED`)
 
 | Rota | Descrição |
 |---|---|
-| `GET /lookup/status` | `{ configured, balance_cents, prices:{cpf,cnpj,processos}, cache_days }` |
-| `POST /lookup/cpf` `{ cpf, refresh? }` | `{ data, meta:{ cached, fetched_at, price_cents, charged_cents, balance_cents, consulta_uid } }` |
+| `GET /lookup/status` | `{ configured, quota:{ limit, used, remaining, renews_at, has_plan }, cache_days }` |
+| `POST /lookup/cpf` `{ cpf, refresh? }` | `{ data, meta:{ cached, counted, fetched_at, quota, consulta_uid } }` |
 | `POST /lookup/cnpj` `{ cnpj, refresh? }` | idem |
 | `POST /lookup/processo` `{ documento, refresh? }` | processos por CPF ou CNPJ — **desligado** (403 `FEATURE_LOCKED`) |
 | `POST /lookup/processo/summary` `{ processo }` | resumo por IA (cobrança própria) — **desligado** |
 | `POST /lookup/:kind(cpf\|cnpj)/create-lead` `{ document, stage? }` | cria lead a partir da consulta **já salva no servidor** (não consulta nem cobra) — exige `create_leads` e módulo CRM |
 
-Erros: `400 INVALID_DOCUMENT` · `402` créditos insuficientes · `404 LOOKUP_NOT_FOUND` · `404 LOOKUP_NOT_CACHED` (criar lead sem consultar antes) · `409 LEAD_EXISTS` (`lead_id`) · `422 LOOKUP_EMPTY` · `502` falha técnica (estornado) · `503 DIRECT_DATA_NOT_CONFIGURED`.
+Erros: `400 INVALID_DOCUMENT` · `429 LOOKUP_QUOTA_EXHAUSTED` / `LOOKUP_NO_PLAN` · `404 LOOKUP_NOT_FOUND` · `404 LOOKUP_NOT_CACHED` (criar lead sem consultar antes) · `409 LEAD_EXISTS` (`lead_id`) · `422 LOOKUP_EMPTY` · `502` falha técnica (estornado) · `503 DIRECT_DATA_NOT_CONFIGURED`.
 
 ### Criar lead
 
@@ -63,8 +60,8 @@ Nome (CPF: nome; CNPJ: razão social), telefone (prefere WhatsApp > celular > pr
 Tela: **Pesquisa inteligente → Enriquecer lista** (também botão no CRM Comercial).
 
 1. Baixar o modelo (`GET /lookup/enrich/template?format=xlsx|csv`: CPF/CNPJ, Nome, Telefone, E-mail; linhas começando com "(EXEMPLO)" são ignoradas). CPF e CNPJ podem estar misturados.
-2. Enviar a planilha (`POST /lookup/enrich`, corpo = bytes). Nada é cobrado: o backend conta **linhas, inválidas, repetidas, já completas, já em cache (grátis) e consultas necessárias (CPF × CNPJ)** e devolve o orçamento (preço × quantidade, saldo, faltante). A coluna do documento é detectada (pode ser trocada) e o usuário marca o que quer preencher (telefones/e-mails por padrão; nome/endereço opcionais) via `POST /lookup/enrich/:id/analyze`.
-3. `POST /lookup/enrich/:id/start { confirm_queries }` — exige o número exato de consultas mostrado (`409 QUOTE_CHANGED` se mudou; `402` se faltar saldo). Roda em segundo plano (4 consultas simultâneas, progresso salvo a cada 20 linhas). Se o servidor cair o lote vira `interrompida` e pode ser retomado sem pagar de novo (resultados e cache reaproveitados).
+2. Enviar a planilha (`POST /lookup/enrich`, corpo = bytes). Nada é consumido: o backend conta **linhas, inválidas, repetidas, já completas, já em cache (não contam) e consultas necessárias (CPF × CNPJ)** e devolve `quote: { needed, limit, used, remaining, renews_at, shortfall }`. A coluna do documento é detectada (pode ser trocada) e o usuário marca o que quer preencher (telefones/e-mails por padrão; nome/endereço opcionais) via `POST /lookup/enrich/:id/analyze`.
+3. `POST /lookup/enrich/:id/start { confirm_queries }` — exige o número exato de consultas mostrado (`409 QUOTE_CHANGED` se mudou; `429 LOOKUP_QUOTA_EXHAUSTED` se passar do que resta na cota). Roda em segundo plano (4 consultas simultâneas, progresso salvo a cada 20 linhas). Se o servidor cair o lote vira `interrompida` e pode ser retomado sem pagar de novo (resultados e cache reaproveitados).
 4. Resultado: `GET .../download?format=xlsx|csv` (colunas fixas + colunas originais extras; **só preenche o que estava em branco**; coluna "Situação da consulta") ou `POST .../to-import` — abre o assistente de importação do CRM já na escolha de colunas.
 
 Limites: `MAX_ENRICH_ROWS` linhas; arquivos e resultados ficam **7 dias** (job de manutenção a cada 6 h); membros com visão "só os meus" só veem os próprios lotes.
@@ -77,4 +74,4 @@ Limites: `MAX_ENRICH_ROWS` linhas; arquivos e resultados ficam **7 dias** (job d
 
 - Confirmar no extrato da Direct Data se consulta sem resultado/0 processos é cobrada (hoje: CPF/CNPJ sem resultado são devolvidos ao escritório; processos vazios são cobrados).
 - LGPD: usar só com finalidade legítima; as telas avisam e o uso fica registrado.
-- Créditos ainda são adicionados pelo admin da plataforma (`PATCH /admin/accounts/:id/credits/adjust`); não há compra pelo escritório.
+- Pendência: compra de créditos pelo escritório (consultas extras/produtos avulsos) — adiada para evitar reembolsos. Hoje, mais consultas = plano Consulting.

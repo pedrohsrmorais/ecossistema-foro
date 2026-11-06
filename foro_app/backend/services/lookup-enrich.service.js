@@ -3,11 +3,11 @@
  * (e nome/endereço quando faltam) consultando a Direct Data.
  *
  * Fluxo: createJob (lê a planilha, acha a coluna do documento) → analyze (conta quantas consultas serão pagas,
- * quantas já estão em cache e o custo) → start (confirmando o nº de consultas; roda em segundo plano, 4 em
- * paralelo) → progresso → download (.xlsx/.csv) ou envio ao importador do CRM.
+ * quantas já estão em cache e quanto da cota semanal do usuário sobra) → start (confirmando o nº de consultas;
+ * bloqueia se a lista precisar de mais do que resta na cota; roda em segundo plano, 4 em paralelo) → progresso → download (.xlsx/.csv) ou envio ao importador do CRM.
  *
  * Só preenche o que está VAZIO e só consulta linhas que precisam (documento válido, não repetido, com algo a
- * preencher). O que já está em cache não é cobrado de novo, então retomar um lote interrompido é grátis.
+ * preencher). O que já está em cache não conta de novo na cota, então retomar um lote interrompido não gasta o que já foi feito.
  * Planilhas e resultados ficam guardados 7 dias (dados pessoais) e são apagados depois.
  */
 const { v4: uuidv4 } = require('uuid');
@@ -16,7 +16,7 @@ const { AppError } = require('../middlewares/error.middleware');
 const N = require('../utils/lead-normalize');
 const sheet = require('../utils/lead-sheet');
 const M = require('./lead-import.models');
-const credits = require('./credits.service');
+const quota = require('./lookup-quota.service');
 const lookupService = require('./lookup.service');
 const client = require('./direct-data.client');
 const importService = require('./lead-import.service');
@@ -145,20 +145,19 @@ async function _evaluate(accountId, row, stored, { doc_col, options }) {
   return { t, cols, items, stats, truncated };
 }
 
-async function _quote(accountId, stats) {
-  const pCpf = await lookupService.priceOf('cpf'); const pCnpj = await lookupService.priceOf('cnpj');
-  const cost = stats.consultar_cpf * pCpf + stats.consultar_cnpj * pCnpj;
-  const balance = await credits.getBalance(accountId);
-  return { price_cpf_cents: pCpf, price_cnpj_cents: pCnpj, cost_cents: cost, balance_cents: balance, shortfall_cents: Math.max(cost - balance, 0) };
+/** Quanto da cota semanal do usuário a lista usa. */
+async function _quote(accountId, user, stats) {
+  const q = await quota.status(accountId, user.id);
+  return { needed: stats.consultar, limit: q.limit, used: q.used, remaining: q.remaining, renews_at: q.renews_at, has_plan: q.has_plan, shortfall: Math.max(0, stats.consultar - q.remaining) };
 }
 
-async function _describe(accountId, row, ev, options) {
+async function _describe(accountId, user, row, ev, options) {
   return {
     id: row.id, file_name: row.file_name, status: row.status,
     headers: ev.t.headers, doc_col: ev.cols.document, detected: Object.fromEntries(Object.entries(ev.cols).map(([k, v]) => [k, ev.t.headers[v]])),
     sample: ev.t.body.slice(0, 5).map(b => b.cells),
     options, stats: ev.stats, truncated: ev.truncated, max_rows: maxRows(),
-    quote: await _quote(accountId, ev.stats), configured: client.configured(),
+    quote: await _quote(accountId, user, ev.stats), configured: client.configured(),
   };
 }
 
@@ -178,7 +177,7 @@ async function createJob(accountId, user, { buffer, name }) {
   await query(
     'INSERT INTO enrichment_jobs (id, account_id, user_id, file_name, status, sheet_index, header_row, doc_col, options, `rows`, analysis) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
     [id, accountId, user.id, fileName, 'analisada', read.sheet, headerRow, ev.cols.document, json(options), pack(stored), json(ev.stats)]);
-  return _describe(accountId, row, ev, options);
+  return _describe(accountId, user, row, ev, options);
 }
 
 async function analyze(accountId, user, id, body = {}) {
@@ -188,7 +187,7 @@ async function analyze(accountId, user, id, body = {}) {
   const stored = unpack(row.rows);
   const ev = await _evaluate(accountId, row, stored, { doc_col: body.doc_col ?? row.doc_col, options });
   await query('UPDATE enrichment_jobs SET doc_col = ?, options = ?, analysis = ? WHERE id = ?', [ev.cols.document, json(options), json(ev.stats), id]);
-  return _describe(accountId, row, ev, options);
+  return _describe(accountId, user, row, ev, options);
 }
 
 async function get(accountId, user, id) {
@@ -197,7 +196,7 @@ async function get(accountId, user, id) {
   if (row.status === 'analisada' || row.status === 'interrompida') {
     const options = _options(parse(row.options));
     const ev = await _evaluate(accountId, row, unpack(row.rows), { doc_col: row.doc_col, options });
-    return { ...(await _describe(accountId, row, ev, options)), progress };
+    return { ...(await _describe(accountId, user, row, ev, options)), progress };
   }
   return { id: row.id, file_name: row.file_name, status: row.status, options: parse(row.options), analysis: parse(row.analysis), progress, created_at: row.created_at, started_at: row.started_at, finished_at: row.finished_at };
 }
@@ -237,15 +236,21 @@ async function start(accountId, user, id, { confirm_queries } = {}) {
   if (row.status !== 'analisada' && row.status !== 'interrompida') throw bad('Este lote já foi iniciado.', 'ALREADY_STARTED', 409);
   const options = _options(parse(row.options));
   const ev = await _evaluate(accountId, row, unpack(row.rows), { doc_col: row.doc_col, options });
-  const quote = await _quote(accountId, ev.stats);
+  const quote = await _quote(accountId, user, ev.stats);
   if (Number(confirm_queries) !== ev.stats.consultar) {
     throw bad('O número de consultas mudou desde a análise. Confira os valores e confirme de novo.', 'QUOTE_CHANGED', 409, { stats: ev.stats, quote });
   }
   if (ev.stats.consultar === 0 && ev.stats.em_cache === 0) throw bad('Não há nada para consultar neste lote.', 'NOTHING_TO_QUERY');
-  if (quote.shortfall_cents > 0) throw bad('Créditos insuficientes para este lote. Adicione créditos para continuar.', 'INSUFFICIENT_CREDITS', 402, { quote });
+  if (quote.shortfall > 0) {
+    const ren = new Date(quote.renews_at).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
+    throw bad(quote.has_plan
+      ? `Esta lista precisa de ${quote.needed} consultas e você tem ${quote.remaining} disponíveis nesta semana (renovam em ${ren}). Reduza a lista ou fale com a gente pelo plano Consulting.`
+      : 'Você ainda não tem um plano. Peça ao administrador do escritório para contratar um plano para você.',
+    quote.has_plan ? 'LOOKUP_QUOTA_EXHAUSTED' : 'LOOKUP_NO_PLAN', 429, { quote });
+  }
 
   const [r] = await query("UPDATE enrichment_jobs SET status = 'rodando', started_at = COALESCE(started_at, NOW()), finished_at = NULL, progress = ? WHERE id = ? AND status IN ('analisada','interrompida')",
-    [json({ done: 0, total: ev.stats.consultar + ev.stats.em_cache, ok: 0, sem_resultado: 0, erros: 0, cobrado_cents: 0 }), id]);
+    [json({ done: 0, total: ev.stats.consultar + ev.stats.em_cache, ok: 0, sem_resultado: 0, erros: 0, consultas: 0 }), id]);
   if (!r.affectedRows) throw bad('Este lote já foi iniciado.', 'ALREADY_STARTED', 409);
   const prior = parse(row.results, {}) || {};
   setImmediate(() => _run(accountId, user, id, ev, prior).catch(e => console.error('[enrich] job falhou:', e)));
@@ -258,7 +263,7 @@ async function _run(accountId, user, id, ev, prior = {}) {
   const all = ev.items.filter(it => it.status === 'consultar' || it.status === 'cache');
   const todo = all.filter(it => !['ok', 'sem_resultado'].includes(results[it.i]?.s));
   const was = (s) => Object.values(results).filter(r => r.s === s).length;
-  const prog = { done: all.length - todo.length, total: all.length, ok: was('ok'), sem_resultado: was('sem_resultado'), erros: 0, cobrado_cents: 0 };
+  const prog = { done: all.length - todo.length, total: all.length, ok: was('ok'), sem_resultado: was('sem_resultado'), erros: 0, consultas: 0 };
   let stop = null; let cursor = 0; let lastSave = prog.done;
   const save = async (status) => query('UPDATE enrichment_jobs SET progress = ?, results = ?' + (status ? ", status = ?, finished_at = NOW()" : '') + ' WHERE id = ?',
     status ? [json(prog), json(results), status, id] : [json(prog), json(results), id]);
@@ -267,12 +272,12 @@ async function _run(accountId, user, id, ev, prior = {}) {
     while (!stop) {
       const it = todo[cursor++]; if (!it) return;
       try {
-        const out = await lookupService.lookup(accountId, user.id, it.kind, it.doc);
+        const out = await lookupService.lookup(accountId, user.id, it.kind, it.doc, { source: 'lista', withQuota: false });
         results[it.i] = { s: 'ok', ...compact(it.kind, out.data), cached: out.cached };
-        prog.ok++; prog.cobrado_cents += out.charged_cents || 0;
+        prog.ok++; if (out.counted) prog.consultas++;
       } catch (e) {
         if (e.code === 'LOOKUP_NOT_FOUND') { results[it.i] = { s: 'sem_resultado' }; prog.sem_resultado++; }
-        else if (e.statusCode === 402) { stop = 'Os créditos acabaram durante o lote.'; results[it.i] = { s: 'pendente' }; cursor--; }
+        else if (e.statusCode === 429) { stop = 'A cota semanal de consultas acabou durante o lote. O que já foi feito está salvo; retome quando a cota renovar ou fale com a gente pelo plano Consulting.'; results[it.i] = { s: 'pendente' }; cursor--; }
         else { results[it.i] = { s: 'erro' }; prog.erros++; }
       }
       prog.done++;
@@ -332,8 +337,8 @@ async function _build(accountId, user, id) {
       if (!phones.length && own.telefones.length) filled.push('telefone'); if (!emails.length && own.emails.length) filled.push('e-mail');
       own.telefones.forEach(addPhone); own.emails.forEach(addEmail);
       if (it.status !== 'repetida') { situ = filled.length ? `Preenchido: ${filled.join(', ')}` : 'Consultado: nada novo para preencher'; if (filled.length) tally.preenchidas++; }
-    } else if (own && own.s === 'sem_resultado') { situ = 'Sem resultado na fonte (não cobrado)'; tally.sem_resultado++; }
-    else if (own && own.s === 'erro') { situ = 'Erro na consulta (não cobrado): tente de novo'; tally.erros++; }
+    } else if (own && own.s === 'sem_resultado') { situ = 'Sem resultado na fonte (não contou na cota)'; tally.sem_resultado++; }
+    else if (own && own.s === 'erro') { situ = 'Erro na consulta (não contou na cota): tente de novo'; tally.erros++; }
     else if (own && own.s === 'pendente' || (!own && (it.status === 'consultar' || it.status === 'cache'))) { situ = 'Não consultado (lote interrompido)'; }
     const f = (x) => (own && own.s === 'ok' ? x : '');
     const name = val(cells, 'name') || N.properName(f(own?.nome) || '') || '';

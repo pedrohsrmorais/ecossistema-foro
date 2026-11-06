@@ -8,7 +8,7 @@
 function requireLookupsEnabled(req, res, next) {
   if (process.env.FEATURE_LOOKUPS_ENABLED === 'true') return next();
   return res.status(403).json({
-    error: 'As consultas (CPF, CNPJ e processual) estarão disponíveis em breve.',
+    error: 'As consultas de CPF e CNPJ estarão disponíveis em breve.',
     code: 'FEATURE_LOCKED',
   });
 }

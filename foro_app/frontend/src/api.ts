@@ -284,19 +284,21 @@ export interface ProcessoItem {
   partes: Array<{ nome: string; polo: string | null; tipo: string | null }>
 }
 export interface ProcessoResult { documento: string; total: number; observacoes: string | null; processos: ProcessoItem[] }
+/** Cota semanal de consultas de CPF/CNPJ do usuário (por escritório). */
+export interface LookupQuota { limit: number; used: number; remaining: number; renews_at: string; has_plan: boolean; plan_name?: string }
 export interface LookupMeta {
-  cached: boolean; fetched_at: string | null; price_cents: number; charged_cents: number; balance_cents: number; consulta_uid?: string | null
+  cached: boolean; counted: boolean; fetched_at: string | null; quota?: LookupQuota; consulta_uid?: string | null
 }
 export interface LookupResponse<T> { data: T; meta: LookupMeta }
-export interface LookupStatus { configured: boolean; balance_cents: number; prices: { cpf: number; cnpj: number; processos: number }; cache_days: number }
+export interface LookupStatus { configured: boolean; quota: LookupQuota; cache_days: number }
 
 export interface EnrichFill { phone: boolean; email: boolean; name: boolean; address: boolean }
 export interface EnrichStats {
   total: number; invalidas: number; repetidas: number; completas: number; em_cache: number
   consultar: number; consultar_cpf: number; consultar_cnpj: number
 }
-export interface EnrichQuote { price_cpf_cents: number; price_cnpj_cents: number; cost_cents: number; balance_cents: number; shortfall_cents: number }
-export interface EnrichProgress { done: number; total: number; ok: number; sem_resultado: number; erros: number; cobrado_cents: number; mensagem: string | null }
+export interface EnrichQuote { needed: number; limit: number; used: number; remaining: number; renews_at: string; has_plan: boolean; shortfall: number }
+export interface EnrichProgress { done: number; total: number; ok: number; sem_resultado: number; erros: number; consultas: number; mensagem: string | null }
 export type EnrichStatus = 'analisada' | 'rodando' | 'concluida' | 'interrompida' | 'cancelada'
 export interface EnrichJob {
   id: string; file_name: string; status: EnrichStatus

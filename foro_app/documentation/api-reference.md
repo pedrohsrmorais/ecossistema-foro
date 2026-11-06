@@ -748,21 +748,21 @@ Erros: `422` termo inválido/CPF/CNPJ · `502 SOURCES_UNAVAILABLE` nenhuma fonte
 
 ## Consultas pagas (CPF, CNPJ, processos) e resumo por IA
 
-Dados da **Direct Data** — detalhes de cobrança, cache, enriquecimento de listas e erros em [consultas-direct-data.md](./consultas-direct-data.md). Todas exigem o módulo `pesquisa_cpf_cnpj` e `FEATURE_LOOKUPS_ENABLED=true`. O crédito é debitado antes da consulta e devolvido se der erro técnico (resposta genérica) ou se o documento não for encontrado.
+Dados da **Direct Data** — detalhes de cota, cache, enriquecimento de listas e erros em [consultas-direct-data.md](./consultas-direct-data.md). Todas exigem o módulo `pesquisa_cpf_cnpj` e `FEATURE_LOOKUPS_ENABLED=true`. CPF e CNPJ consomem a **cota semanal do usuário** (`plans.lookups_week`); cache, sem resultado e erro técnico não contam.
 
 | Status | Quando acontece |
 |--------|-----------------|
 | `400`  | `INVALID_DOCUMENT` — dígito verificador inválido (nunca cobra) |
-| `402`  | Créditos insuficientes |
+| `429`  | `LOOKUP_QUOTA_EXHAUSTED` (cota da semana acabou; corpo traz `quota`) · `LOOKUP_NO_PLAN` |
 | `404`  | `LOOKUP_NOT_FOUND` (sem resultado, crédito devolvido) / `LOOKUP_NOT_CACHED` (criar lead sem consulta prévia) |
 | `409`  | `LEAD_EXISTS` (com `lead_id`) · `QUOTE_CHANGED` (enriquecimento) |
 | `502`  | Falha técnica na fonte (crédito devolvido) |
 | `503`  | `DIRECT_DATA_NOT_CONFIGURED` — falta `DIRECT_DATA_TOKEN` |
 
-Resposta das consultas: `{ data, meta: { cached, fetched_at, price_cents, charged_cents, balance_cents, consulta_uid } }`. Consulta repetida em até `LOOKUP_CACHE_DAYS` dias vem do cache sem custo; `refresh: true` força nova consulta.
+Resposta das consultas: `{ data, meta: { cached, counted, fetched_at, quota: { limit, used, remaining, renews_at, has_plan }, consulta_uid } }`. Consulta repetida em até `LOOKUP_CACHE_DAYS` dias vem do cache sem contar; `refresh: true` força nova consulta (conta).
 
 ```
-GET  /lookup/status                       → { configured, balance_cents, prices:{cpf,cnpj,processos}, cache_days }
+GET  /lookup/status                       → { configured, quota:{ limit, used, remaining, renews_at, has_plan }, cache_days }
 POST /lookup/cpf       { cpf, refresh? }  → data: { cpf, nome, sexo, data_nascimento, idade, nome_mae, renda_estimada, telefones[], emails[], enderecos[] }
 POST /lookup/cnpj      { cnpj, refresh? } → data: { cnpj, razao_social, nome_fantasia, situacao_cadastral, cnae, telefones[], emails[], enderecos[], socios[] }
 POST /lookup/processo  { documento, refresh? }   // CPF ou CNPJ — DESLIGADO por ora (403 FEATURE_LOCKED; FEATURE_PROCESS_LOOKUP_ENABLED)
@@ -775,7 +775,7 @@ POST /lookup/:kind/create-lead { document, stage? }   // kind = cpf|cnpj; usa a 
 ```
 GET    /lookup/enrich/template?format=xlsx|csv
 GET    /lookup/enrich                         histórico (7 dias)
-POST   /lookup/enrich?name=arq.xlsx           corpo = bytes; analisa e devolve { id, stats, quote, headers, doc_col, options }
+POST   /lookup/enrich?name=arq.xlsx           corpo = bytes; analisa e devolve { id, stats, quote:{ needed, remaining, limit, renews_at, shortfall }, headers, doc_col, options }
 GET    /lookup/enrich/:id                     estado / progresso
 POST   /lookup/enrich/:id/analyze  { doc_col?, options?:{ fill:{phone,email,name,address} } }
 POST   /lookup/enrich/:id/start    { confirm_queries }   202 — roda em segundo plano
@@ -1057,7 +1057,8 @@ Response 200: { received: true }
 | `403`  | Sem permissão (conta suspensa/cancelada/trial expirado, ou role insuficiente). Trial expirado retorna `{ error, code: "TRIAL_EXPIRED" }` |
 | `404`  | Recurso não encontrado                                      |
 | `409`  | Conflito (email já cadastrado, etc.)                        |
-| `402`  | Créditos insuficientes (rotas de `/lookup/*`)               |
+| `402`  | Créditos insuficientes (processos — desligado)              |
+| `429`  | Cota semanal de consultas esgotada (`LOOKUP_QUOTA_EXHAUSTED`) |
 | `403` com `code: "FEATURE_LOCKED"` | Consultas (`/lookup/*`) indisponíveis nesta fase (`FEATURE_LOOKUPS_ENABLED`) |
 | `403` com `code: "PLAN_LIMIT_LEADS"` | Limite de leads do plano atingido |
 | `402` com `code: "AI_CREDITS_EXHAUSTED"` | Créditos de IA da semana esgotados |
