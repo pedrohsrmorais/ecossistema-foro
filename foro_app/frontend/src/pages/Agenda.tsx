@@ -3,8 +3,9 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { Link } from 'react-router-dom'
 import { ChevronLeft, ChevronRight, Plus, Video, MapPin, Trash2, Check, Ban, X, List, CalendarDays } from 'lucide-react'
 import clsx from 'clsx'
-import { eventsApi, googleApi, type CrmEvent } from '../api'
+import { eventsApi, type CrmEvent } from '../api'
 import EventForm from '../components/EventForm'
+import GoogleCalendarSync from '../components/GoogleCalendarButton'
 import { EVENT_TYPES, fmtTime } from '../lib/cases'
 
 type View = 'lista' | 'mes' | 'semana' | 'dia'
@@ -62,7 +63,6 @@ export default function Agenda() {
   const [cursor, setCursor] = useState(() => startOfDay(new Date()))
   const [form, setForm] = useState<null | { date?: string; start?: string; end?: string }>(null)
   const [detail, setDetail] = useState<CrmEvent | null>(null)
-  const { data: g } = useQuery({ queryKey: ['google'], queryFn: googleApi.status, staleTime: 60_000 })
   const setView = (v: View) => { setViewState(v); try { localStorage.setItem('foro.agenda.view', v) } catch { /* sem storage */ } }
 
   // intervalo visível (mês: grade de 6 semanas completas; lista: o mês do cursor)
@@ -115,12 +115,12 @@ export default function Agenda() {
       <div className="flex items-center justify-between mb-4 gap-3 flex-wrap">
         <div>
           <h1 className="text-xl font-semibold text-slate-900">Agenda</h1>
-          <p className="text-sm text-slate-500">Reuniões, audiências e perícias — com o link na mão
-            {g?.configured && !g.connected && <> · <Link to="/settings" className="text-brand-600 hover:underline" data-testid="agenda-conectar-google">Sincronizar com o Google Agenda</Link></>}
-            {g?.connected && g.status === 'revoked' && <> · <Link to="/settings" className="text-amber-700 hover:underline">Reconectar o Google Agenda</Link></>}
-          </p>
+          <p className="text-sm text-slate-500">Reuniões, audiências e perícias — com o link na mão</p>
         </div>
-        <button className="btn-primary text-sm" onClick={() => openNew(view === 'lista' || view === 'mes' ? undefined : ymd(cursor))}><Plus className="w-4 h-4" /> Novo compromisso</button>
+        <div className="flex items-start gap-3 flex-wrap justify-end">
+          <GoogleCalendarSync />
+          <button className="btn-primary text-sm h-10" onClick={() => openNew(view === 'lista' || view === 'mes' ? undefined : ymd(cursor))}><Plus className="w-4 h-4" /> Novo compromisso</button>
+        </div>
       </div>
 
       <div className="flex items-center gap-2 mb-4 flex-wrap">

@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { Link, useSearchParams } from 'react-router-dom'
 import { CalendarDays, Loader2, RefreshCw } from 'lucide-react'
 import { settingsApi, fieldsApi, usersApi, alertsApi, googleApi } from '../api'
+import { GOOGLE_MSG, GoogleStyleButton } from '../components/GoogleCalendarButton'
 
 function ProfileSection() {
   const qc = useQueryClient()
@@ -65,13 +66,6 @@ function NotificationsSection() {
   )
 }
 
-const GOOGLE_MSG: Record<string, { ok: boolean; text: string }> = {
-  ok: { ok: true, text: 'Google Agenda conectado! Estamos importando os seus eventos.' },
-  negado: { ok: false, text: 'Você cancelou a autorização no Google. Nada foi conectado.' },
-  escopo: { ok: false, text: 'Para sincronizar é preciso marcar a permissão de Agenda na tela do Google. Tente conectar de novo.' },
-  estado: { ok: false, text: 'A conexão expirou ou não pôde ser confirmada. Clique em Conectar de novo.' },
-  erro: { ok: false, text: 'Não foi possível concluir a conexão com o Google. Tente novamente.' },
-}
 const when = (iso?: string | null) => (iso ? new Date(iso).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' }) : 'ainda não sincronizou')
 
 function IntegrationsSection() {
@@ -87,7 +81,7 @@ function IntegrationsSection() {
     }
   }, [back])  // eslint-disable-line react-hooks/exhaustive-deps
   const err = (e: any) => setMsg({ ok: false, text: e?.response?.data?.error || 'Algo deu errado. Tente novamente.' })
-  const connect = useMutation({ mutationFn: googleApi.start, onSuccess: r => { window.location.href = r.url }, onError: err })
+  const connect = useMutation({ mutationFn: () => googleApi.start('settings'), onSuccess: r => { window.location.href = r.url }, onError: err })
   const sync = useMutation({
     mutationFn: googleApi.sync,
     onSuccess: r => { setMsg({ ok: true, text: r.skipped ? 'Já existe uma sincronização em andamento.' : `Sincronizado: ${r.imported ?? 0} evento(s) do Google Agenda.` }); qc.invalidateQueries({ queryKey: ['google'] }); qc.invalidateQueries({ queryKey: ['events'] }) },
@@ -119,9 +113,7 @@ function IntegrationsSection() {
             </ul>
             <p>O Foro <strong>não acessa o seu Gmail</strong>. Os eventos importados ficam <strong>visíveis só para você</strong> (não para o resto do escritório) e não são alterados no Google. Você pode desconectar quando quiser. Detalhes na <Link to="/privacidade#google" target="_blank" className="text-brand-600 underline">Política de Privacidade</Link>.</p>
           </div>
-          <button className="btn-primary text-sm" onClick={() => { setMsg(null); connect.mutate() }} disabled={busy} data-testid="google-conectar">
-            {connect.isPending && <Loader2 className="w-4 h-4 animate-spin" />} Conectar Google
-          </button>
+          <GoogleStyleButton onClick={() => { setMsg(null); connect.mutate() }} disabled={busy} busy={connect.isPending} testId="google-conectar">Conectar com o Google</GoogleStyleButton>
         </>
       ) : (
         <div className="space-y-3" data-testid="google-conectado">

@@ -1622,7 +1622,8 @@ export interface GoogleStatus {
 }
 export const googleApi = {
   status: () => http.get<GoogleStatus>('/integrations/google').then(r => r.data),
-  start: () => http.post<{ url: string }>('/integrations/google/start').then(r => r.data),
+  /** `returnTo`: para onde o Google devolve a pessoa depois de autorizar */
+  start: (returnTo: 'agenda' | 'settings' = 'settings') => http.post<{ url: string }>('/integrations/google/start', { return_to: returnTo }).then(r => r.data),
   sync: () => http.post<{ imported?: number; removed?: number; skipped?: boolean }>('/integrations/google/sync').then(r => r.data),
   disconnect: () => http.delete<{ disconnected: boolean; removed_imported_events?: number }>('/integrations/google').then(r => r.data),
 }

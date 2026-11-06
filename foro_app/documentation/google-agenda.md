@@ -1,10 +1,10 @@
 # Integração com o Google Agenda
 
-Botão **Conectar Google** em *Configurações → Integrações*. Escopos: `openid`, `email`, `profile` e `https://www.googleapis.com/auth/calendar.events` (escopo *sensível*: verificação gratuita, sem auditoria CASA). **Não há acesso ao Gmail.**
+Botão **Sincronizar com o Google Agenda** no topo da **Agenda** (visual padrão do Google: branco, borda cinza, "G" de 4 cores — `components/GoogleCalendarButton.tsx`) e **Conectar com o Google** em *Configurações → Integrações*. Conectado, a Agenda mostra "Google Agenda sincronizado", o e-mail, a última sincronização e *Sincronizar agora*; acesso revogado vira *Reconectar o Google Agenda*. O botão some se a integração não estiver configurada no servidor. Escopos: `openid`, `email`, `profile` e `https://www.googleapis.com/auth/calendar.events` (escopo *sensível*: verificação gratuita, sem auditoria CASA). **Não há acesso ao Gmail.**
 
 ## Fluxo
-1. `POST /integrations/google/start` assina um `state` (JWT, 10 min, usuário/escritório/nonce) e o grava também em cookie HttpOnly `foro_g_state`; devolve a URL do Google (`access_type=offline`, `prompt=consent`).
-2. O Google volta em `GET /integrations/google/callback` (pública). O `state` do link precisa bater com o cookie e com o JWT; só então o `code` é trocado por tokens.
+1. `POST /integrations/google/start` (`{ return_to: 'agenda' | 'settings' }`) assina um `state` (JWT, 10 min, usuário/escritório/nonce/tela de volta) e o grava também em cookie HttpOnly `foro_g_state`; devolve a URL do Google (`access_type=offline`, `prompt=consent`).
+2. O Google volta em `GET /integrations/google/callback` (pública), que redireciona para `/agenda?google=…` ou `/settings?google=…` conforme o `state` (lista fixa; state inválido → `/settings`). O `state` do link precisa bater com o cookie e com o JWT; só então o `code` é trocado por tokens.
 3. Tokens são cifrados com AES-256-GCM (`utils/secret-box.js`) com `GOOGLE_TOKEN_ENCRYPTION_KEY` (ou derivada do `JWT_SECRET`) e nunca vão para logs (o morgan oculta a query do callback).
 4. Falha ao renovar token (`invalid_grant`) marca a conexão como `revoked`; a tela pede "Reconectar".
 

@@ -57,11 +57,13 @@ async function status(userId) {
 }
 
 /** Passo 1: devolve a URL do Google e o cookie de proteção (CSRF). O `state` é assinado e liga a volta ao usuário que começou. */
-function start(user) {
+const RETURN_TO = { agenda: '/agenda', settings: '/settings' };
+function start(user, returnTo = 'settings') {
   const cfg = googleConfig.load();
+  const ret = RETURN_TO[returnTo] ? returnTo : 'settings';
   if (!cfg.configured) throw new AppError('A integração com o Google ainda não está configurada neste servidor.', 503);
   const nonce = crypto.randomBytes(16).toString('hex');
-  const state = jwt.sign({ purpose: 'google-oauth', uid: user.id, aid: user.account_id, n: nonce }, process.env.JWT_SECRET, { expiresIn: '10m' });
+  const state = jwt.sign({ purpose: 'google-oauth', uid: user.id, aid: user.account_id, n: nonce, ret }, process.env.JWT_SECRET, { expiresIn: '10m' });
   const params = new URLSearchParams({
     client_id: cfg.clientId, redirect_uri: cfg.redirectUri, response_type: 'code', scope: SCOPES.join(' '),
     access_type: 'offline', prompt: 'consent', include_granted_scopes: 'true', state,
@@ -87,10 +89,13 @@ const _idToken = (t) => { try { return JSON.parse(Buffer.from(String(t).split('.
 
 /** Passo 2: o Google volta aqui. Retorna o caminho do app para onde redirecionar (nunca lança). */
 async function callback(q, cookieHeader) {
-  const back = (r) => ({ redirect: `${appUrl()}/settings?google=${r}`, cookie: clearCookie() });
+  let st = null;
+  try { st = jwt.verify(String(q.state || ''), process.env.JWT_SECRET); } catch { /* inválido/expirado: trata abaixo */ }
+  // volta para a tela de onde a pessoa clicou (Agenda ou Configurações); só caminhos da lista fixa
+  const path = RETURN_TO[st?.ret] || RETURN_TO.settings;
+  const back = (r) => ({ redirect: `${appUrl()}${path}?google=${r}`, cookie: clearCookie() });
   if (q.error) return back(q.error === 'access_denied' ? 'negado' : 'erro');
-  let st;
-  try { st = jwt.verify(String(q.state || ''), process.env.JWT_SECRET); } catch { return back('estado'); }
+  if (!st) return back('estado');
   const nonce = readCookie(cookieHeader, COOKIE);
   if (st.purpose !== 'google-oauth' || !nonce || nonce !== st.n) return back('estado');
   const cfg = googleConfig.load();
