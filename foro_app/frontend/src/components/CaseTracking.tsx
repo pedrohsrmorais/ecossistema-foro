@@ -7,16 +7,16 @@ import { useCan } from '../hooks/useCan'
 import { useModuleEnabled } from '../hooks/useModuleEnabled'
 
 /** Ficha do processo: publicações do DJEN e andamentos do DataJud salvos, com "Acompanhar"/"Atualizar". */
-export default function CaseTracking({ caseId, caseNumber, numberValid }: { caseId: string; caseNumber: string | null; numberValid: boolean | null }) {
+export default function CaseTracking({ caseId, caseNumber, numberValid, onDeadline }: { caseId: string; caseNumber: string | null; numberValid: boolean | null; onDeadline?: (description: string) => void }) {
   const qc = useQueryClient()
   const canTrack = useCan('create_cases')
   const enabled = useModuleEnabled()
   const [news, setNews] = useState<(RefreshResult & { first: boolean }) | null>(null)
   const [err, setErr] = useState('')
-  const { data, isLoading } = useQuery({ queryKey: ['case-tracking', caseId], queryFn: () => caseTrackingApi.get(caseId) })
+  const { data, isLoading, isError, refetch } = useQuery({ queryKey: ['case-tracking', caseId], queryFn: () => caseTrackingApi.get(caseId) })
   const track = useMutation({
     mutationFn: () => caseTrackingApi.track(caseId),
-    onSuccess: r => { setErr(''); setNews(r); qc.setQueryData(['case-tracking', caseId], { process: r.process }) },
+    onSuccess: r => { setErr(''); setNews(r); qc.invalidateQueries({queryKey: ['cases']}); qc.setQueryData(['case-tracking', caseId], { process: r.process }) },
     onError: (e: any) => setErr(e?.response?.data?.error || 'Não foi possível consultar agora.'),
   })
   const p = data?.process
@@ -27,7 +27,7 @@ export default function CaseTracking({ caseId, caseNumber, numberValid }: { case
       <div className="flex items-center gap-2 flex-wrap mb-3">
         <h2 className="font-medium text-slate-900 flex items-center gap-2 flex-1"><Radar className="w-4 h-4 text-accent-500" /> Publicações e andamentos do tribunal</h2>
         {p && <span className="text-xs text-slate-400">Atualizado em {fmtDateTime(p.snapshot_at)}</span>}
-        {can && (p || (caseNumber && numberValid)) && (
+        {can && !isLoading && !isError && (p || (caseNumber && numberValid)) && (
           <button className={p ? 'btn-secondary' : 'btn-primary'} onClick={() => track.mutate()} disabled={track.isPending} data-testid="acompanhar">
             {track.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : p ? <RefreshCw className="w-4 h-4" /> : <Radar className="w-4 h-4" />}
             {track.isPending ? 'Consultando…' : p ? 'Atualizar' : 'Acompanhar este processo'}
@@ -41,7 +41,7 @@ export default function CaseTracking({ caseId, caseNumber, numberValid }: { case
           <Sparkles className="w-4 h-4" />
           {news.novas_comunicacoes + news.novos_movimentos
             ? `${news.novas_comunicacoes} publicação(ões) nova(s) e ${news.novos_movimentos} movimentação(ões) nova(s) desde a última consulta.`
-            : 'Nada novo desde a última consulta.'}
+            : 'Nenhuma novidade nas fontes que responderam.'}
         </p>
       )}
       {news && !news.first && news.novos.comunicacoes.length > 0 && (
@@ -50,11 +50,12 @@ export default function CaseTracking({ caseId, caseNumber, numberValid }: { case
         </ul>
       )}
 
-      {isLoading ? <p className="text-sm text-slate-400">Carregando…</p>
-        : p?.snapshot ? <ProcessSnapshotView snap={p.snapshot} />
+      {news && !news.first && news.novos.movimentos.length > 0 && <ul className="mb-3 space-y-1">{news.novos.movimentos.map((m,i) => <li key={i} className="text-sm"><b>{fmtDate(m.data)}</b> · {m.nome}</li>)}</ul>}
+      {isError ? <p role="alert">Não foi possível carregar a consulta salva. <button className="btn-secondary" onClick={() => refetch()}>Tentar novamente</button></p> : isLoading ? <p className="text-sm text-slate-400">Carregando…</p>
+        : p?.snapshot ? <ProcessSnapshotView snap={p.snapshot} onDeadline={onDeadline} />
         : !caseNumber ? <p className="text-sm text-slate-500">Cadastre o número CNJ do processo para acompanhar as publicações do DJEN.</p>
         : !numberValid ? <p className="text-sm text-slate-500">O número CNJ cadastrado parece inválido — confira para poder acompanhar.</p>
-        : <p className="text-sm text-slate-500">Ainda não acompanhamos este processo. {can ? 'Clique em "Acompanhar este processo" para buscar todas as publicações do DJEN (desde 1990) e os andamentos do DataJud.' : 'Peça a quem pode editar processos para ativar o acompanhamento.'}</p>}
+        : <p className="text-sm text-slate-500">Ainda não acompanhamos este processo. {can ? 'Clique em "Acompanhar este processo" para consultar as publicações disponíveis no DJEN e os andamentos do DataJud.' : 'Peça a quem pode editar processos para ativar o acompanhamento.'}</p>}
     </div>
   )
 }

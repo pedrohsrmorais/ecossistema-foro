@@ -19,7 +19,7 @@ export default function AiDock() {
 
   return (
     <>
-      {!open && (
+      {!open && !pathname.startsWith('/monitoramento-processual') && (
         <button onClick={() => setOpen(true)}
           className="fixed bottom-5 right-5 z-30 flex items-center gap-2 pl-3.5 pr-4 py-2.5 rounded-full bg-brand-700 text-white text-sm font-medium shadow-lg hover:bg-brand-800 transition-colors animate-pulse-glow">
           <Sparkles className="w-4 h-4 text-accent-300" /> Assistente IA

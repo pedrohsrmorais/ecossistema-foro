@@ -6,8 +6,8 @@ import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..')
-const API = fs.readFileSync(path.join(root, 'frontend/src/api.ts'), 'utf8')
-const ROUTES = fs.readFileSync(path.join(root, 'backend/routes/api.routes.js'), 'utf8')
+const API = fs.readFileSync(path.join(root, 'frontend/src/api.ts'), 'utf8').replace(/\r\n/g, '\n')
+const ROUTES = fs.readFileSync(path.join(root, 'backend/routes/api.routes.js'), 'utf8').replace(/\r\n/g, '\n')
 const DOC = path.join(root, 'documentation/frontend-api.md')
 const START = '<!-- gerado:inicio -->', END = '<!-- gerado:fim -->'
 
@@ -145,7 +145,7 @@ for (const o of objs) {
 }
 md += `_${objs.length} objetos · ${total} funções._\n\n${END}`
 
-const cur = fs.existsSync(DOC) ? fs.readFileSync(DOC, 'utf8') : `${START}\n${END}\n`
+const cur = fs.existsSync(DOC) ? fs.readFileSync(DOC, 'utf8').replace(/\r\n/g, '\n') : `${START}\n${END}\n`
 const a = cur.indexOf(START), b = cur.indexOf(END)
 if (a < 0 || b < 0) { console.error('Marcadores não encontrados em', DOC); process.exit(1) }
 const next = cur.slice(0, a) + md + cur.slice(b + END.length)

@@ -4,6 +4,7 @@ import { Link } from 'react-router-dom'
 import { Search, Plus, ChevronDown, ChevronRight, ExternalLink, Copy, Check, Trash2, Link2Off, Sparkles, AlertTriangle, LayoutGrid, List } from 'lucide-react'
 import clsx from 'clsx'
 import { casesApi, leadsApi, areasApi, usersApi, type Case } from '../api'
+import Portfolio from '../components/Portfolio'
 import CaseBoard from '../components/CaseBoard'
 import { useAuth } from '../context/AuthContext'
 import { EditableCell } from '../components/crm'
@@ -25,6 +26,8 @@ function CopyButton({ text }: { text: string }) {
 export default function Cases() {
   const qc = useQueryClient()
   const { setOpen } = useChat()
+  const [showCreate, setShowCreate] = useState(false)
+  const [limit, setLimit] = useState(200)
   const [search, setSearch] = useState('')
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({})
   const [newNumber, setNewNumber] = useState('')
@@ -34,13 +37,17 @@ export default function Cases() {
   const { data: meP } = useQuery({ queryKey: ['me-profile'], queryFn: usersApi.me })
   const canDelete = meP?.permissions?.delete_records !== false
   const canCreateCase = meP?.permissions?.create_cases !== false
-  const [view, setView] = useState<'lista' | 'quadro'>(() => { try { return localStorage.getItem('foro.cases.view') === 'lista' ? 'lista' : 'quadro' } catch { return 'quadro' } })
-  const pickView = (v: 'lista' | 'quadro') => { setView(v); try { localStorage.setItem('foro.cases.view', v) } catch { /* ignore */ } }
+  type View = 'carteira' | 'lista' | 'quadro'
+  const [view, setView] = useState<View>(() => {
+    const saved = localStorage.getItem('foro.cases.view')
+    return saved === 'lista' || saved === 'quadro' ? saved : 'carteira'
+  })
+  const pickView = (value: View) => { setView(value); localStorage.setItem('foro.cases.view', value) }
   const { data: areaList } = useQuery({ queryKey: ['areas'], queryFn: areasApi.list, staleTime: 5 * 60_000 })
   const { data: leadsList } = useQuery({ queryKey: ['leads', 'board'], queryFn: () => leadsApi.list({ limit: 500 }), staleTime: 30_000 })
   const [error, setError] = useState('')
 
-  const { data, isLoading } = useQuery({ queryKey: ['cases', 'all'], queryFn: () => casesApi.list(), staleTime: 15_000 })
+  const { data, isLoading, isError, refetch } = useQuery({ queryKey: ['cases', 'all', limit, search.trim()], queryFn: () => casesApi.list({limit, search: search.trim() || undefined}), staleTime: 15_000 })
   const refresh = () => qc.invalidateQueries({ queryKey: ['cases'] })
 
   const create = useMutation({
@@ -48,7 +55,7 @@ export default function Cases() {
       const looksLikeNumber = /\d{7}/.test(v.replace(/\D/g, '').slice(0, 7)) && v.replace(/\D/g, '').length >= 15
       return casesApi.create({ ...(looksLikeNumber ? { case_number: v } : { title: v }), ...(newLead ? { lead_id: newLead } : {}), area_key: newArea })
     },
-    onSuccess: () => { setNewNumber(''); setNewLead(''); setError(''); refresh(); qc.invalidateQueries({ queryKey: ['leads'] }) },
+    onSuccess: () => { setShowCreate(false); setNewNumber(''); setNewLead(''); setError(''); refresh(); qc.invalidateQueries({ queryKey: ['leads'] }) },
     onError: (e: any) => setError(e?.response?.data?.error || 'Não foi possível cadastrar o processo.'),
   })
   const update = useMutation({
@@ -68,24 +75,25 @@ export default function Cases() {
     <div className="p-6">
       <div className="flex items-center justify-between mb-4 gap-3 flex-wrap">
         <div>
-          <h1 className="text-xl font-semibold text-slate-900">Monitoramento Processual</h1>
-          <p className="text-sm text-slate-500">{data?.total ?? 0} processo(s) · o link do tribunal fica a um clique</p>
+          <h1 className="page-heading">Carteira de processos</h1>
         </div>
-        <div className="flex items-center gap-2">
-          <div className="inline-flex rounded-lg border bg-white p-0.5" role="group" aria-label="Visualização">
-            <button aria-pressed={view === 'quadro'} onClick={() => pickView('quadro')} className={clsx('px-2.5 py-1 rounded-md text-sm flex items-center gap-1', view === 'quadro' ? 'bg-brand-600 text-white' : 'text-slate-600')}><LayoutGrid className="w-4 h-4" /> Quadro</button>
-            <button aria-pressed={view === 'lista'} onClick={() => pickView('lista')} className={clsx('px-2.5 py-1 rounded-md text-sm flex items-center gap-1', view === 'lista' ? 'bg-brand-600 text-white' : 'text-slate-600')}><List className="w-4 h-4" /> Lista</button>
-          </div>
-          <button className="btn-secondary text-sm" onClick={() => setOpen(true)}><Sparkles className="w-4 h-4 text-accent-500" /> Pedir à IA</button>
+        <div className="flex items-center gap-2 flex-wrap">
+          {canCreateCase && <button className="btn-primary" aria-expanded={showCreate} onClick={() => setShowCreate(!showCreate)}><Plus size={16} /> Novo processo</button>}
+          <button className="btn-secondary" onClick={() => setOpen(true)}><Sparkles size={16} /> Assistente</button>
         </div>
       </div>
-
-      <div className="flex gap-3 mb-4 flex-wrap">
+      <div className="flex items-center gap-3 flex-wrap mb-4">
+          <div className="inline-flex rounded-lg border bg-white p-0.5" role="group" aria-label="Visualização">
+            <button aria-pressed={view === 'carteira'} onClick={() => pickView('carteira')} className="view-option">Carteira</button>
+            <button aria-pressed={view === 'quadro'} onClick={() => pickView('quadro')} className="view-option"><LayoutGrid size={15} /> Etapas</button>
+            <button aria-pressed={view === 'lista'} onClick={() => pickView('lista')} className="view-option"><List size={15} /> Edição rápida</button>
+          </div>
         <div className="relative flex-1 min-w-[240px] max-w-sm">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
           <input className="input pl-9" placeholder="Buscar por número, cliente, parte contrária…" value={search} onChange={e => setSearch(e.target.value)} />
         </div>
-        {canCreateCase && <form className="flex gap-2 flex-1 min-w-[300px] flex-wrap" onSubmit={e => { e.preventDefault(); if (newNumber.trim()) create.mutate(newNumber.trim()) }}>
+        </div>
+      {canCreateCase && showCreate && <form className="card p-4 mb-4 flex gap-2 flex-wrap items-center" onSubmit={e => { e.preventDefault(); if (newNumber.trim()) create.mutate(newNumber.trim()) }}>
           <input className="input flex-1 min-w-[200px]" placeholder="Novo processo: nº CNJ ou título" title="Cole o número CNJ (0000000-00.0000.0.00.0000) ou digite um título" value={newNumber} onChange={e => setNewNumber(e.target.value)} />
           <select className="input max-w-[170px]" value={newArea} onChange={e => setNewArea(e.target.value)} aria-label="Área do processo">
             {areaList?.map(a => <option key={a.key} value={a.key}>{a.short}</option>) ?? <option value="geral">Geral</option>}
@@ -96,10 +104,9 @@ export default function Cases() {
           </select>
           <button className="btn-primary shrink-0" disabled={!newNumber.trim() || create.isPending}><Plus className="w-4 h-4" /> Adicionar</button>
         </form>}
-      </div>
       {error && <p className="mb-3 text-sm text-red-600 flex items-center gap-1.5"><AlertTriangle className="w-4 h-4" />{error}</p>}
 
-      {view === 'quadro' ? <CaseBoard search={search} isAdmin={user?.role === 'admin'} /> : isLoading ? <div className="card p-8 text-center text-slate-400">Carregando…</div> : (data?.total ?? 0) === 0 ? (
+      {view !== 'quadro' && isError ? <div className="card p-4" role="alert">Não foi possível carregar a carteira. <button className="btn-secondary" onClick={() => refetch()}>Tentar novamente</button></div> : view === 'carteira' ? <Portfolio rows={filtered} loading={isLoading} /> : view === 'quadro' ? <CaseBoard search={search} isAdmin={user?.role === 'admin'} /> : isLoading ? <div className="card p-8 text-center text-slate-400">Carregando…</div> : (data?.total ?? 0) === 0 ? (
         <div className="card p-10 text-center">
           <p className="text-slate-600 mb-1">Nenhum processo cadastrado.</p>
           <p className="text-sm text-slate-400">Cole um número CNJ acima — o tribunal é identificado sozinho. Ou diga à IA: “cadastra o processo 0001234-08.2023.8.26.0100 da Maria”.</p>
@@ -154,6 +161,7 @@ export default function Cases() {
           })}
         </div>
       )}
+      {view !== 'quadro' && data && data.data.length >= limit && <button className="btn-secondary mt-3" onClick={() => setLimit(n => n + 200)}>Carregar mais processos</button>}
     </div>
   )
 }

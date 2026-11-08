@@ -4,43 +4,29 @@ export default {
   theme: {
     extend: {
       colors: {
-        // Azul-marinho institucional (tom "jurídico/corporativo") — substitui o
-        // indigo vibrante anterior, que lia mais como app de consumidor do que
-        // como plataforma para escritórios de advocacia.
-        brand: {
-          50:  '#f0f4f8',
-          100: '#d9e2ec',
-          200: '#bccbdc',
-          300: '#9fb3c8',
-          400: '#8299b1',
-          500: '#627d98',
-          600: '#486581',
-          700: '#334e68',
-          800: '#243b53',
-          900: '#102a43',
-          950: '#0a1929',
+        paper: 'rgb(var(--paper-rgb) / <alpha-value>)', ink: 'rgb(var(--ink-rgb) / <alpha-value>)', lime: '#C8FF00',
+        slate: {
+          50: 'rgb(var(--slate-50) / <alpha-value>)', 100: 'rgb(var(--slate-100) / <alpha-value>)', 200: 'rgb(var(--slate-200) / <alpha-value>)', 300: 'rgb(var(--slate-300) / <alpha-value>)',
+          400: 'rgb(var(--slate-400) / <alpha-value>)', 500: 'rgb(var(--slate-500) / <alpha-value>)', 600: 'rgb(var(--slate-600) / <alpha-value>)', 700: 'rgb(var(--slate-700) / <alpha-value>)',
+          800: 'rgb(var(--slate-800) / <alpha-value>)', 900: 'rgb(var(--slate-900) / <alpha-value>)', 950: 'rgb(var(--ink-rgb) / <alpha-value>)',
         },
-        // Acento discreto (dourado/bronze) — uso pontual: item ativo do menu,
-        // selos/badges de destaque. Nunca como cor dominante da UI.
+        // Existing components retain their tokens within FORO's palette.
+        brand: {
+          50: 'rgb(var(--brand-50) / <alpha-value>)', 100: 'rgb(var(--brand-100) / <alpha-value>)', 200: 'rgb(var(--brand-200) / <alpha-value>)', 300: 'rgb(var(--brand-300) / <alpha-value>)',
+          400: 'rgb(var(--brand-400) / <alpha-value>)', 500: 'rgb(var(--brand-500) / <alpha-value>)', 600: 'rgb(var(--brand-600) / <alpha-value>)', 700: 'rgb(var(--brand-700) / <alpha-value>)',
+          800: 'rgb(var(--brand-800) / <alpha-value>)', 900: 'rgb(var(--brand-900) / <alpha-value>)', 950: 'rgb(var(--ink-rgb) / <alpha-value>)',
+        },
         accent: {
-          50:  '#fbf6ec',
-          100: '#f5e9d1',
-          200: '#e9d1a3',
-          300: '#dcb975',
-          400: '#cca052',
-          500: '#b08d57',
-          600: '#8f7143',
-          700: '#6e5733',
-          800: '#4d3d24',
-          900: '#2d2314',
+          50: '#F7FFE0', 100: '#ECFFC2', 200: '#DEFF88', 300: '#D3FF4D',
+          400: '#C8FF00', 500: '#8BAD00', 600: '#657D00', 700: '#4C5E00',
+          800: '#394500', 900: '#252D00',
         },
       },
       fontFamily: {
         sans: ['Inter', 'ui-sans-serif', 'system-ui', 'sans-serif'],
-        // Serifada usada só no logotipo/wordmark e em títulos de destaque —
-        // sinal visual clássico de solidez/tradição, sem comprometer a
-        // legibilidade da UI densa (que continua em Inter).
-        serif: ['"Source Serif 4"', 'Georgia', 'serif'],
+        display: ['Bricolage', 'Inter', 'sans-serif'],
+        serif: ['Bricolage', 'Inter', 'sans-serif'],
+        mono: ['JetBrains', 'ui-monospace', 'monospace'],
       },
       // Cantos mais contidos em toda a aplicação (os componentes usam as
       // mesmas classes rounded-lg/rounded-xl de antes — só a escala encolheu).
@@ -70,8 +56,8 @@ export default {
           '100%': { opacity: '1', transform: 'scale(1)' },
         },
         'pulse-glow': {
-          '0%, 100%': { boxShadow: '0 0 0 0 rgba(176, 141, 87, 0.35)' },
-          '50%':      { boxShadow: '0 0 0 8px rgba(176, 141, 87, 0)' },
+          '0%, 100%': { boxShadow: '0 0 0 0 rgba(200, 255, 0, 0.2)' },
+          '50%':      { boxShadow: '0 0 0 8px rgba(200, 255, 0, 0)' },
         },
         shimmer: {
           '0%':   { backgroundPosition: '-200% 0' },

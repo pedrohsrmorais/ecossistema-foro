@@ -12,7 +12,7 @@ export default function WorkspaceSwitcher() {
   const navigate = useNavigate()
   const [open, setOpen] = useState(false)
   const ref = useRef<HTMLDivElement>(null)
-  const { data = [] } = useQuery({ queryKey: ['workspaces'], queryFn: workspacesApi.list, staleTime: 30_000 })
+  const { data = [], isLoading } = useQuery({ queryKey: ['workspaces'], queryFn: workspacesApi.list, staleTime: 30_000 })
   const current = data.find(w => w.is_current)
   const sw = useMutation({
     mutationFn: (user_id: string) => workspacesApi.switchTo(user_id),
@@ -33,7 +33,7 @@ export default function WorkspaceSwitcher() {
         <Icon className="w-4 h-4 text-accent-300 shrink-0" />
         <span className="flex-1 min-w-0">
           <span className="block text-[10px] uppercase tracking-wide text-brand-300">Workspace ativo</span>
-          <span className="block text-sm font-medium text-white truncate">{current?.name || 'Carregando…'}</span>
+          <span className="block text-sm font-medium text-white truncate">{current?.name || (isLoading ? 'Carregando…' : 'Selecionar espaço')}</span>
         </span>
         <ChevronsUpDown className="w-3.5 h-3.5 text-brand-300 shrink-0" />
       </button>

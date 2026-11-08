@@ -7,7 +7,7 @@ import EnriquecerLista from './EnriquecerLista'
 import { useModuleEnabled } from '../../hooks/useModuleEnabled'
 
 const MODOS = [
-  { key: 'inteligente', label: 'Pesquisa inteligente', icon: Sparkles },
+  { key: 'inteligente', label: 'Consulta Inteligente', icon: Sparkles },
   { key: 'cnpj', label: 'Consulta CNPJ', icon: Building2 },
   { key: 'cpf', label: 'Consulta CPF', icon: UserSearch },
   { key: 'lista', label: 'Enriquecer lista', icon: ListPlus },
