@@ -3,6 +3,7 @@
 Documento para quem for construir (ou continuar) o frontend do Foro. Reúne **o que precisa existir**, **as regras de negócio que não podem ser quebradas** e **como a API já funciona**, para que o frontend seja construído em cima do contrato real do backend — não precisa adivinhar nada, o backend já está pronto e documentado.
 
 Leitura complementar (mesma pasta `documentation/`):
+- [`frontend-api.md`](./frontend-api.md) — **comece por aqui**: quem faz o quê (backend × frontend), regras do `api.ts` e catálogo de todas as funções/chamadas com o acesso exigido.
 - [`api-reference.md`](./api-reference.md) — todas as rotas, com body/response de cada uma.
 - [`banco-de-dados.md`](./banco-de-dados.md) — schema completo (útil para entender o que cada tela precisa exibir).
 - [`plataforma-e-precificacao.md`](./plataforma-e-precificacao.md) — modelo de negócio (assinatura + créditos) e por que certas regras existem.

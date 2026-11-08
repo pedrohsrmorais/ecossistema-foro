@@ -6,7 +6,9 @@
     "dev": "vite",
     "build": "tsc && vite build && vite build --ssr src/prerender.tsx --outDir .prerender-build --emptyOutDir && node scripts/prerender.mjs",
     "preview": "vite preview",
-    "lint": "eslint src --ext ts,tsx"
+    "lint": "eslint src --ext ts,tsx",
+    "docs:api": "node scripts/gen-api-docs.mjs",
+    "docs:api:check": "node scripts/gen-api-docs.mjs --check"
   },
   "dependencies": {
     "react": "^18.2.0",

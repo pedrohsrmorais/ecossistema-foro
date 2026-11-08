@@ -859,10 +859,9 @@ export const settingsApi = {
     http.get<CurrentPlan>('/settings/plan').then(r => r.data),
 }
 
-// ─── CRÉDITOS — carteira pré-paga p/ serviços pagos de terceiros ─────────────
-// Erro de provedor numa consulta devolve o crédito automaticamente no backend
-// e não existe endpoint de "solicitar reembolso" — em caso de erro, o usuário
-// só vê a mensagem genérica vinda da API ("chame o suporte").
+// ─── CRÉDITOS — carteira pré-paga ────────────────────────────────────────────
+// Hoje NÃO é usada por CPF/CNPJ (cota semanal por usuário); só pela busca de processos
+// por documento, que está desligada. Saldo entra pelo painel admin; sem compra pelo escritório.
 
 export const creditsApi = {
   /** GET /credits/balance */
@@ -878,10 +877,10 @@ export const creditsApi = {
     http.get<{ transactions: CreditTransaction[] }>('/credits/transactions', { params }).then(r => r.data)
 }
 
-// ─── LOOKUP — consultas pagas (CPF/CNPJ/processual) e resumo por IA ──────────
+// ─── LOOKUP — consultas de CPF/CNPJ (cota semanal por usuário) e enriquecimento de listas ─
 
 export const lookupApi = {
-  /** GET /lookup/status — token configurado, saldo e preços */
+  /** GET /lookup/status — provedor configurado e cota semanal do usuário */
   status: () => http.get<LookupStatus>('/lookup/status').then(r => r.data),
 
   /** POST /lookup/cnpj — `refresh` força nova consulta (cobra de novo) */

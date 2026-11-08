@@ -138,6 +138,7 @@ foro_app/
 │   ├── consulta-processual.md  # Pesquisa de processos: DataJud + DJEN, retrato salvo, PDF opcional
 │   ├── armazenamento-s3.md     # MinIO/S3 + processos salvos (migração para AWS)
 │   ├── mercado-requisitos.md   # pesquisa de mercado jurídico e Must-Have
+│   ├── frontend-api.md         # COMECE AQUI no frontend: responsabilidades, regras do api.ts e catálogo de todas as chamadas (gerado)
 │   ├── api-reference.md        # Referência de todas as rotas
 │   ├── plataforma-e-precificacao.md # Requisitos, diferenciais, APIs avaliadas e precificação (planos + créditos)
 │   └── diretrizes-frontend.md  # O que precisa existir no frontend, regras de negócio e UX obrigatórias
