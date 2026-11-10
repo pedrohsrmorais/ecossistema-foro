@@ -49,7 +49,7 @@ export default function AlertsBell() {
   return (
     <div ref={ref} className="relative">
       <button onClick={() => setOpen(o => !o)} aria-label="Prazos e alertas" aria-expanded={open}
-        className="relative p-1.5 rounded-md text-brand-300 hover:text-white hover:bg-white/10">
+        className="relative p-1.5 rounded-md text-slate-600 hover:text-ink hover:bg-slate-100">
         <Bell className="w-5 h-5" />
         {badge > 0 && (
           <span className={clsx('absolute -top-0.5 -right-0.5 min-w-[16px] h-4 px-1 rounded-full text-[10px] font-bold flex items-center justify-center text-white', red ? 'bg-red-500' : 'bg-amber-500')}>
@@ -58,7 +58,7 @@ export default function AlertsBell() {
         )}
       </button>
       {open && (
-        <div className="fixed left-4 top-16 w-[360px] max-w-[calc(100vw-2rem)] max-h-[70vh] overflow-y-auto bg-white rounded-xl shadow-xl border z-50" role="dialog" aria-label="Prazos e alertas">
+        <div className="absolute right-0 top-full mt-2 w-[360px] max-w-[calc(100vw-2rem)] max-h-[70vh] overflow-y-auto bg-white rounded-xl shadow-xl border z-50" role="dialog" aria-label="Prazos e alertas">
           <div className="px-3 py-2.5 border-b flex items-center gap-2">
             <AlertTriangle className="w-4 h-4 text-amber-600" />
             <p className="text-sm font-semibold text-slate-900 flex-1">Prazos e compromissos</p>

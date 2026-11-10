@@ -13,11 +13,18 @@ const membersService = require('./case-members.service');
 
 const STATUSES = ['ativo', 'suspenso', 'arquivado', 'encerrado'];
 
-const SELECT = `SELECT c.*, l.name AS lead_name, l.phone AS lead_phone, l.email AS lead_email, u.name AS responsible_name,
+const SELECT = `SELECT c.*, sp.snapshot_at AS tracking_checked_at, sp.last_movement, sp.last_movement_at, l.name AS lead_name, l.phone AS lead_phone, l.email AS lead_email, u.name AS responsible_name,
     st.label AS stage_label, st.color AS stage_color, st.is_final AS stage_is_final,
+    (SELECT MIN(t.due_date) FROM tasks t WHERE t.case_id = c.id AND t.account_id = c.account_id AND t.is_deadline = 1 AND t.completed_at IS NULL AND t.due_date < NOW()) AS overdue_deadline,
     (SELECT MIN(t.due_date) FROM tasks t WHERE t.case_id = c.id AND t.is_deadline = 1 AND t.completed_at IS NULL AND t.due_date >= NOW()) AS next_deadline,
     (SELECT COUNT(*) FROM case_parties p WHERE p.case_id = c.id) AS parties_count
   FROM cases c
+  LEFT JOIN saved_processes sp ON sp.id = COALESCE(
+    (SELECT saved.id FROM saved_processes saved WHERE saved.account_id = c.account_id
+     AND saved.case_id = c.id AND saved.deleted_at IS NULL ORDER BY saved.snapshot_at DESC, saved.id LIMIT 1),
+    (SELECT legacy.id FROM saved_processes legacy WHERE legacy.account_id = c.account_id AND legacy.case_id IS NULL
+     AND legacy.source = 'cnj' AND legacy.numero_digits = REPLACE(REPLACE(c.case_number, '.', ''), '-', '')
+     AND legacy.deleted_at IS NULL ORDER BY legacy.snapshot_at DESC, legacy.id LIMIT 1))
   LEFT JOIN leads l ON l.id = c.lead_id
   LEFT JOIN users u ON u.id = c.responsible_user_id
   LEFT JOIN case_stages st ON st.id = c.stage_id`;

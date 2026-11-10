@@ -217,7 +217,7 @@ _Meus processos (cases)_
 
 | Função | Chamada | Retorno | Acesso | Observação |
 |---|---|---|---|---|
-| `list(params?: { status?: string; search?: string; lead_id?: string; area_key?: string })` | `GET /cases` | `{ data: Case[]; total: number }` | módulo crm · área cases |  |
+| `list(params?: { status?: string; search?: string; lead_id?: string; area_key?: string; limit?: number })` | `GET /cases` | `{ data: Case[]; total: number }` | módulo crm · área cases |  |
 | `getById(id: string)` | `GET /cases/:id` | `CaseDetail` | módulo crm · área cases |  |
 | `create(data: Partial&lt;Case&gt; & { cause_value?: string \| number })` | `POST /cases` | `CaseDetail` | módulo crm · área cases · perm. create_cases |  |
 | `update(id: string, data: Record&lt;string, unknown&gt;)` | `PUT /cases/:id` | `CaseDetail` | módulo crm · área cases |  |

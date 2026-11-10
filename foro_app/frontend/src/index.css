@@ -1,14 +1,18 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Source+Serif+4:opsz,wght@8..60,500;8..60,600;8..60,700&display=swap');
+@font-face{font-family:Bricolage;src:url('/fonts/bricolage.woff2') format('woff2');font-weight:200 800;font-display:swap}
+@font-face{font-family:Inter;src:url('/fonts/inter.woff2') format('woff2');font-weight:100 900;font-display:swap}
+@font-face{font-family:JetBrains;src:url('/fonts/mono.woff2') format('woff2');font-weight:100 800;font-display:swap}
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
 @layer base {
+  :root{--paper:#f4f2ea;--ink:#0a0a0a;--lime:#c8ff00;--muted:#606158;--line:#d5d5ca;--surface:#fffef9;--surface-raised:#ffffff;--soft:#e9e8df;--strong-ink:#0a0a0a;--on-lime:#0a0a0a;--paper-rgb:244 242 234;--ink-rgb:10 10 10;--slate-50:244 242 234;--slate-100:233 232 223;--slate-200:213 213 202;--slate-300:185 187 174;--slate-400:126 131 117;--slate-500:96 97 88;--slate-600:78 83 70;--slate-700:55 60 46;--slate-800:35 41 30;--slate-900:20 25 15;--brand-50:241 243 233;--brand-100:229 234 215;--brand-200:202 213 176;--brand-300:169 187 135;--brand-400:132 152 88;--brand-500:92 113 56;--brand-600:56 74 33;--brand-700:40 54 24;--brand-800:30 40 20;--brand-900:20 27 14}
+  [data-theme="dark"]{--paper:#141611;--ink:#f4f2ea;--muted:#a8ac9e;--line:#393e30;--surface:#1c2018;--surface-raised:#262c20;--soft:#292f23;--paper-rgb:20 22 17;--ink-rgb:244 242 234;--slate-50:24 28 20;--slate-100:41 47 35;--slate-200:57 62 48;--slate-300:79 89 68;--slate-400:143 155 126;--slate-500:168 172 158;--slate-600:187 193 175;--slate-700:208 216 196;--slate-800:226 230 218;--slate-900:244 242 234;--brand-50:31 39 22;--brand-100:41 52 29;--brand-200:58 73 38;--brand-300:88 110 55;--brand-400:143 168 97;--brand-500:164 191 111;--brand-600:192 212 149;--brand-700:207 224 168;--brand-800:223 236 192;--brand-900:235 243 218}
   * {
     @apply border-slate-200;
   }
   body {
-    @apply bg-slate-50 text-slate-900 font-sans antialiased;
+    @apply bg-paper text-ink font-sans antialiased;
   }
 }
 
@@ -58,3 +62,12 @@
   mark { background: transparent !important; color: inherit !important; }
   @page { margin: 2.5cm 2cm 2cm 3cm; }
 }
+
+.foro-brand{display:inline-flex;align-items:center;gap:10px;white-space:nowrap;color:var(--ink)}
+.foro-brand-symbol{display:inline-block;padding:4px 6px 5px;background:var(--lime);color:var(--ink);font:700 17px/1.2 JetBrains,monospace;letter-spacing:-2px}
+.foro-brand-wordmark{font:700 23px/1 Bricolage,sans-serif;letter-spacing:-1.1px}
+.foro-brand-inverse{color:var(--paper)}.foro-brand-compact .foro-brand-symbol{font-size:14px}.foro-brand-compact .foro-brand-wordmark{font-size:20px}
+[data-theme="dark"] .bg-white\/95{background-color:var(--surface)}[data-theme="dark"] .bg-brand-600.text-white{color:#141611}
+.foro-brand-symbol{color:#0a0a0a;padding:6px 7px;letter-spacing:-2px}.foro-brand-wordmark{font-size:24px}.foro-brand-inverse{color:#f4f2ea}.skip-link{color:#0a0a0a}
+[data-theme="dark"] .text-red-700,[data-theme="dark"] .text-red-600{color:#f6a89a}[data-theme="dark"] .bg-red-50,[data-theme="dark"] .bg-red-100{background:#40251f}[data-theme="dark"] .text-green-700,[data-theme="dark"] .text-green-600{color:#c1de9e}[data-theme="dark"] .bg-green-50,[data-theme="dark"] .bg-green-100{background:#283d22}[data-theme="dark"] .text-amber-700,[data-theme="dark"] .text-amber-600{color:#ead08b}[data-theme="dark"] .bg-amber-50,[data-theme="dark"] .bg-amber-100{background:#443b20}[data-theme="dark"] .text-blue-700,[data-theme="dark"] .text-blue-600{color:#b1cad7}[data-theme="dark"] .bg-blue-50,[data-theme="dark"] .bg-blue-100{background:#26363c}[data-theme="dark"] .bg-accent-50,[data-theme="dark"] .bg-accent-100{background:#2c3819}[data-theme="dark"] .text-accent-600,[data-theme="dark"] .text-accent-700{color:#c8ff00}
+[data-theme="dark"] .prose{--tw-prose-body:#c5cdb7;--tw-prose-headings:#f4f2ea;--tw-prose-bold:#f4f2ea;--tw-prose-links:#c8ff00;--tw-prose-counters:#a6b191;--tw-prose-bullets:#7a8d62;--tw-prose-code:#dce8c7;--tw-prose-quotes:#dce8c7}

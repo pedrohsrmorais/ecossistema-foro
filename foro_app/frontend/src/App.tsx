@@ -15,6 +15,7 @@ import Dashboard from './pages/Dashboard'
 import Chat from './pages/Chat'
 import Leads from './pages/Leads'
 import LeadDetail from './pages/LeadDetail'
+import AiLibrary from './pages/AiLibrary'
 import Cases from './pages/Cases'
 import CaseDetail from './pages/CaseDetail'
 import Agenda from './pages/Agenda'
@@ -83,6 +84,7 @@ export default function App() {
             <Route element={<RequireVerified />}>
               <Route element={<Layout />}>
                 <Route path="/dashboard" element={<Dashboard />} />
+                <Route path="/biblioteca-ia" element={<AiLibrary />} />
                 <Route path="/chat"      element={<Chat />} />
                 <Route path="/crm-comercial"     element={<Leads />} />
                 <Route path="/crm-comercial/:id" element={<LeadDetail />} />

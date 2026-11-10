@@ -55,7 +55,7 @@ function Field({ label, value }: { label: string; value?: string | null }) {
 }
 
 /** Retrato do processo: capa, partes e abas Movimentações / Publicações. Usado na pesquisa (e pronto para o monitoramento). */
-export default function ProcessSnapshotView({ snap }: { snap: ProcessSnapshot }) {
+export default function ProcessSnapshotView({ snap, onDeadline }: { snap: ProcessSnapshot; onDeadline?: (description: string) => void }) {
   const [tab, setTab] = useState<'mov' | 'pub'>(snap.movimentos.length || !snap.comunicacoes.length ? 'mov' : 'pub')
   const [open, setOpen] = useState<Record<string, boolean>>({})
   const c = snap.capa
@@ -73,7 +73,7 @@ export default function ProcessSnapshotView({ snap }: { snap: ProcessSnapshot })
           : ` · todo o histórico disponível`)}
       </p>
 
-      <div className="grid grid-cols-2 gap-x-4 gap-y-3" data-testid="capa">
+      <details className="snapshot-cover"><summary>Dados do tribunal e partes</summary><div className="grid grid-cols-2 gap-x-4 gap-y-3" data-testid="capa">
         <Field label="Número" value={c.numero_cnj} />
         <Field label="Tribunal" value={[c.tribunal, c.tribunal_nome].filter(Boolean).join(' — ')} />
         <Field label="Classe" value={c.classe} />
@@ -95,6 +95,7 @@ export default function ProcessSnapshotView({ snap }: { snap: ProcessSnapshot })
             </div>}
       </div>
 
+      </details>
       <div>
         <div className="flex gap-1 border-b border-slate-200 mb-2" role="tablist">
           <button role="tab" aria-selected={tab === 'mov'} onClick={() => setTab('mov')}
@@ -143,6 +144,7 @@ export default function ProcessSnapshotView({ snap }: { snap: ProcessSnapshot })
                       {isOpen && (
                         <div className="ml-6 mt-2 space-y-2">
                           <p className="text-sm text-slate-700 whitespace-pre-wrap break-words bg-slate-50 rounded-lg p-3">{p.texto || '(sem texto)'}</p>
+                          {onDeadline && <button className="btn-secondary" onClick={() => onDeadline(`Revisar ${p.tipo || 'publicação'} de ${fmtDate(p.data)}${p.id ? ' · DJEN ' + p.id : ''}`)}>Criar prazo desta publicação</button>}
                           {p.advogados.length > 0 && <p className="text-xs text-slate-500">Advogados: {p.advogados.map(a => a.oab ? `${a.nome} (OAB ${a.oab})` : a.nome).join('; ')}</p>}
                           {p.link && /^https?:\/\//.test(p.link) && <a href={p.link} target="_blank" rel="noreferrer" className="text-xs text-accent-600 inline-flex items-center gap-1 underline">Abrir no tribunal <ExternalLink className="w-3 h-3" /></a>}
                         </div>

@@ -1,6 +1,6 @@
+import Brand from '../components/Brand'
 import { useState, FormEvent } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
-import { Scale } from 'lucide-react'
 import { authApi } from '../api'
 
 /** Serve para "esqueci minha senha" e também para aceitar convite de equipe (?convite=1). */
@@ -33,8 +33,7 @@ export default function ResetPassword() {
     <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
       <div className="w-full max-w-sm">
         <div className="flex items-center justify-center gap-2 mb-8">
-          <Scale className="w-8 h-8 text-brand-800" />
-          <span className="logo-wordmark text-2xl text-brand-950">Foro</span>
+          <Brand />
         </div>
         <div className="card p-6">
           <h1 className="text-xl font-semibold text-slate-900 mb-2">{isInvite ? 'Aceitar convite' : 'Criar nova senha'}</h1>

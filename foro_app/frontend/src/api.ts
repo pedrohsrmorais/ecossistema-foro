@@ -544,6 +544,10 @@ export const leadsApi = {
 export type CaseStatus = 'ativo' | 'suspenso' | 'arquivado' | 'encerrado'
 
 export interface Case {
+  overdue_deadline?: string | null
+  tracking_checked_at?: string | null
+  last_movement?: string | null
+  last_movement_at?: string | null
   id: string
   lead_id: string | null
   lead_name: string | null
@@ -631,7 +635,7 @@ export interface CaseDetail extends Case {
 export interface CaseNumberAnalysis { case_number: string; tribunal: string | null; tribunal_name?: string | null; valid: boolean; suggested_url: string | null }
 
 export const casesApi = {
-  list: (params?: { status?: string; search?: string; lead_id?: string; area_key?: string }) =>
+  list: (params?: { status?: string; search?: string; lead_id?: string; area_key?: string; limit?: number }) =>
     http.get<{ data: Case[]; total: number }>('/cases', { params }).then(r => r.data),
   getById: (id: string) => http.get<CaseDetail>(`/cases/${id}`).then(r => r.data),
   create: (data: Partial<Case> & { cause_value?: string | number }) =>

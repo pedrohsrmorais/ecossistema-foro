@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { ArrowLeft, ExternalLink, Copy, Check, Plus, Trash2, CheckCircle2, Circle, Video, Sparkles, CalendarPlus, Wand2, AlertTriangle } from 'lucide-react'
@@ -6,6 +6,7 @@ import clsx from 'clsx'
 import { casesApi, leadsApi, tasksApi, type Task } from '../api'
 import { EditableCell } from '../components/crm'
 import EventForm from '../components/EventForm'
+import { useCan } from '../hooks/useCan'
 import CaseCore from '../components/CaseCore'
 import CaseTracking from '../components/CaseTracking'
 import { useChat } from '../context/ChatContext'
@@ -21,6 +22,21 @@ function Row({ label, children }: { label: string; children: React.ReactNode }) 
 
 export default function CaseDetail() {
   const { id } = useParams<{ id: string }>()
+  const [tab, setTab] = useState<'tribunal' | 'gestao' | 'cadastro'>('tribunal')
+  const canUseAgenda = useCan('access_agenda')
+  const canCreateEvent = useCan('create_events')
+  const mayCreateTask = canUseAgenda && canCreateEvent
+  const deadlineInput = useRef<HTMLInputElement>(null)
+  const [focusDeadline, setFocusDeadline] = useState(false)
+  useEffect(() => {
+    if (focusDeadline && tab === 'gestao') { deadlineInput.current?.focus(); setFocusDeadline(false) }
+  }, [tab, focusDeadline])
+  const prepareDeadline = (description: string) => {
+    setDlText(description)
+    setDlDate('')
+    setTab('gestao')
+    setFocusDeadline(true)
+  }
   const navigate = useNavigate()
   const qc = useQueryClient()
   const { setOpen } = useChat()
@@ -33,7 +49,7 @@ export default function CaseDetail() {
   const [error, setError] = useState('')
   const [newClient, setNewClient] = useState('')
 
-  const { data: c, isLoading } = useQuery({ queryKey: ['case', id], queryFn: () => casesApi.getById(id!), enabled: !!id })
+  const { data: c, isLoading, isError, refetch } = useQuery({ queryKey: ['case', id], queryFn: () => casesApi.getById(id!), enabled: !!id })
   const { data: leads } = useQuery({ queryKey: ['leads', 'board'], queryFn: () => leadsApi.list({ limit: 500 }), staleTime: 30_000 })
 
   const refresh = () => { qc.invalidateQueries({ queryKey: ['case', id] }); qc.invalidateQueries({ queryKey: ['cases'] }); qc.invalidateQueries({ queryKey: ['tasks'] }); qc.invalidateQueries({ queryKey: ['events'] }) }
@@ -52,6 +68,7 @@ export default function CaseDetail() {
   const done = useMutation({ mutationFn: (t: Task) => leadsApi.completeTask(t.lead_id || 'sem-lead', t.id), onSuccess: refresh })
 
   if (isLoading) return <div className="p-6 text-slate-400">Carregando…</div>
+  if (isError) return <div role="alert" className="p-6">Não foi possível abrir a ficha. <button className="btn-secondary" onClick={() => refetch()}>Tentar novamente</button></div>
   if (!c) return <div className="p-6 text-red-500">Processo não encontrado.</div>
   const st = caseStatus(c.status)
 
@@ -85,7 +102,12 @@ export default function CaseDetail() {
       </div>
       {error && <p className="mb-3 text-sm text-red-600">{error}</p>}
 
-      <div className="grid md:grid-cols-2 gap-5">
+      <nav aria-label="Seções da ficha" className="case-tabs">
+        {([['tribunal', 'Andamentos oficiais'], ['gestao', 'Prazos e registros'], ['cadastro', 'Ficha do processo']] as const).map(([key, label]) =>
+          <button key={key} aria-pressed={tab === key} onClick={() => setTab(key)}>{label}</button>)}
+      </nav>
+      {tab === 'tribunal' && <CaseTracking key={c.id} caseId={c.id} caseNumber={c.case_number} numberValid={c.number_valid ?? null} onDeadline={mayCreateTask ? prepareDeadline : undefined} />}
+      {tab === 'cadastro' && <>
         <div className="card p-5">
           <h2 className="font-medium text-slate-900 mb-2">Dados do processo</h2>
           <dl>
@@ -129,14 +151,17 @@ export default function CaseDetail() {
           </dl>
         </div>
 
-        <div className="space-y-5">
+        <CaseCore c={c} onChange={refresh} />
+      </>}
+      {tab === 'gestao' && <>
+        <div className="grid lg:grid-cols-2 gap-5">
           <div className="card p-5">
             <h2 className="font-medium text-slate-900 mb-3">Prazos</h2>
-            <form className="flex gap-2 mb-3" onSubmit={e => { e.preventDefault(); if (dlText.trim() && dlDate) addDeadline.mutate() }}>
+            {mayCreateTask && <form className="flex flex-wrap gap-2 mb-3" onSubmit={e => { e.preventDefault(); if (dlText.trim() && dlDate) addDeadline.mutate() }}>
               <input className="input flex-1" placeholder="Novo prazo (ex: réplica)" value={dlText} onChange={e => setDlText(e.target.value)} />
-              <input type="date" className="input !w-36" value={dlDate} onChange={e => setDlDate(e.target.value)} />
-              <button className="btn-primary !px-3" disabled={!dlText.trim() || !dlDate}><Plus className="w-4 h-4" /></button>
-            </form>
+              <input ref={deadlineInput} type="date" aria-label="Vencimento do prazo" className="input !w-36" value={dlDate} onChange={e => setDlDate(e.target.value)} />
+              <button className="btn-primary !px-3" aria-label="Salvar prazo" disabled={addDeadline.isPending || !dlText.trim() || !dlDate}><Plus className="w-4 h-4" /></button>
+            </form>}
             {c.tasks.length === 0 ? <p className="text-sm text-slate-400">Nenhum prazo ou tarefa neste processo.</p> : (
               <ul className="divide-y">
                 {c.tasks.map(t => (
@@ -172,20 +197,14 @@ export default function CaseDetail() {
             )}
           </div>
         </div>
-      </div>
-
-      <CaseTracking caseId={c.id} caseNumber={c.case_number} numberValid={c.number_valid ?? null} />
-
-      <CaseCore c={c} onChange={refresh} />
-
       <div className="card p-5 mt-5">
-        <h2 className="font-medium text-slate-900 mb-3">Andamentos ({c.updates.length})</h2>
+        <h2 className="font-medium text-slate-900 mb-3">Histórico da equipe ({c.updates.length})</h2>
         <form className="flex gap-2 mb-4" onSubmit={e => { e.preventDefault(); if (updText.trim()) addUpd.mutate() }}>
           <input type="date" className="input !w-40" value={updDate} onChange={e => setUpdDate(e.target.value)} />
           <input className="input flex-1" placeholder="Registrar andamento (ex: Juntada de contestação)" value={updText} onChange={e => setUpdText(e.target.value)} />
           <button className="btn-primary" disabled={!updText.trim() || addUpd.isPending}><Plus className="w-4 h-4" /> Registrar</button>
         </form>
-        {c.updates.length === 0 ? <p className="text-sm text-slate-400">Nenhum andamento registrado ainda. As publicações oficiais do tribunal aparecem no quadro acima.</p> : (
+        {c.updates.length === 0 ? <p className="text-sm text-slate-400">Nenhum andamento registrado ainda. Consulte as publicações na aba Andamentos oficiais.</p> : (
           <ol className="border-l-2 border-accent-300 ml-1.5 space-y-3">
             {c.updates.map(u => (
               <li key={u.id} className="group pl-4 relative">
@@ -200,6 +219,7 @@ export default function CaseDetail() {
           </ol>
         )}
       </div>
+      </>}
       <p className="mt-4 text-xs text-slate-400"><Link to="/monitoramento-processual" className="underline">Voltar ao Monitoramento Processual</Link></p>
       {showEvent && <EventForm onClose={() => setShowEvent(false)} caseId={c.id} leadId={c.lead_id || undefined} />}
     </div>
